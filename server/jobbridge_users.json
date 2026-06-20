@@ -1,0 +1,52 @@
+[
+  {
+    "id": "e5d24b5b-6f1f-4bbd-9389-ebea8b7c58dd",
+    "email": "recruiter@jobbridge.com",
+    "password_hash": "$2a$08$IoxUed5xBUIjc7GD1NsYEuuFuP/fUx3E6Qdxlgyab8MHlutB7rZKS",
+    "full_name": "JobBridge Recruiter",
+    "role": "recruiter",
+    "company": "JobBridge",
+    "phone": null,
+    "created_at": "2026-06-19T08:03:23.868Z"
+  },
+  {
+    "id": "c1280bd2-caee-4b98-8f28-597a5d217767",
+    "email": "tobiopeyemi057@gmail.com",
+    "password_hash": "$2a$08$11KAKRprVoyyvulhCyIEbek0A3vxektM6fO1uz8cOdJ4PlREzdzbq",
+    "full_name": "Samuel Owoyemi",
+    "role": "provider",
+    "company": null,
+    "phone": null,
+    "created_at": "2026-06-19T17:16:52.911Z"
+  },
+  {
+    "id": "9f5e7ba2-1220-4731-b507-4a1c75ff99d6",
+    "email": "owoyemisamueltobi@gmail.com",
+    "password_hash": "$2a$08$GhHKf3AdDzJJHS5.UhkG7edrQV3yRksduRREns5BaemrD/xTCW1ku",
+    "full_name": "Owoyemi Samuel Tobi",
+    "role": "provider",
+    "company": null,
+    "phone": null,
+    "created_at": "2026-06-19T18:09:54.767Z"
+  },
+  {
+    "id": "9933d51b-f156-4970-b82e-2cf89c04db54",
+    "email": "eliazarowoyemi@gmail.com",
+    "password_hash": "$2a$08$XrfPHHnJVyZZFwDLB.dnqOPJD1ikuaAog4B6XUiXetD7ghZtDWONW",
+    "full_name": "Williams Owoyemi",
+    "role": "provider",
+    "company": null,
+    "phone": null,
+    "created_at": "2026-06-20T08:20:57.929Z"
+  },
+  {
+    "id": "193f4d28-1302-400f-b6a7-28d6590da298",
+    "email": "recruiter@demo.com",
+    "password_hash": "$2a$08$gKukEk8F0SYPt3YYjo/xJ.Srxashk7CYhGRM9OZgOx6V2s1rkRbOm",
+    "full_name": "Demo Recruiter",
+    "role": "recruiter",
+    "company": null,
+    "phone": null,
+    "created_at": "2026-06-20T15:29:25.420Z"
+  }
+]
