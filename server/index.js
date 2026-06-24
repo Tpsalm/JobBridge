@@ -1822,8 +1822,19 @@ app.post('/api/subscribe', async (req, res) => {
 });
 
 const port = process.env.PORT || 5050;
-app.listen(port, () => {
-  console.log('JobBridge server running on http://localhost:' + port);
+async function startServer() {
+  if (typeof db.init === 'function') {
+    await db.init();
+  }
+  app.listen(port, () => {
+    console.log('JobBridge server running on http://localhost:' + port);
+  });
+}
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  app.listen(port, () => {
+    console.log('JobBridge server running on http://localhost:' + port + ' (degraded mode)');
+  });
 });
 
 // SPA fallback: serve index.html for browser navigation (client-side routing)
