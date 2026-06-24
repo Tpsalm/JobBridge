@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { verifyOtp, requestOtp } from '../lib/supabase';
+import { verifyOtp, requestOtp, LOCAL_API_URL } from '../lib/supabase';
 import { Mail, Shield, ArrowRight, Building, Wrench } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
@@ -23,6 +23,20 @@ export default function VerifyOTP() {
   const isProvider = role === 'provider';
   const accentColor = isRecruiter ? 'blue' : isProvider ? 'emerald' : 'blue';
 
+  // Auto-request OTP on mount
+  useEffect(() => {
+    if (email) {
+      requestOtp({ email }).then(ok => {
+        if (ok) {
+          setResendStatus('Code sent! Check your email');
+        } else {
+          setResendStatus('Note: verification is optional — you can skip this step.');
+        }
+        setTimeout(() => setResendStatus(null), 5000);
+      });
+    }
+  }, [email]);
+
   // cooldown timer
   useEffect(() => {
     let t: number | undefined;
@@ -39,16 +53,16 @@ export default function VerifyOTP() {
     const res = await verifyOtp({ email, code });
     setLoading(false);
     if (res.ok) {
-      setMessage('Verification successful! Redirecting to login...');
+      setMessage('Verification successful! Redirecting...');
       setMessageType('success');
-      fetch('/welcome', {
+      fetch(`${LOCAL_API_URL}/welcome`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name: state.full_name || '', role: state.role || 'job_seeker' }),
       }).catch(() => {});
       setTimeout(() => nav('/login'), 1500);
     } else {
-      setMessage(res.error || 'Invalid or expired code');
+      setMessage(res.error || 'Invalid or expired code. You can skip verification.');
       setMessageType('error');
     }
   };
@@ -57,14 +71,18 @@ export default function VerifyOTP() {
     if (!email) return setResendStatus('No email provided');
     if (cooldown > 0) return;
     setResendStatus('Sending...');
-    const ok = await requestOtp({ email });
-    if (ok) {
-      setResendStatus('Code sent successfully!');
-      setCooldown(60);
-    } else {
-      setResendStatus('Failed to send code. Try again.');
+    try {
+      const ok = await requestOtp({ email });
+      if (ok) {
+        setResendStatus('Code sent successfully!');
+        setCooldown(60);
+      } else {
+        setResendStatus('Could not send code, but you can skip verification.');
+      }
+    } catch {
+      setResendStatus('Could not send code, but you can skip verification.');
     }
-    setTimeout(() => setResendStatus(null), 3000);
+    setTimeout(() => setResendStatus(null), 5000);
   };
 
   return (
@@ -174,6 +192,14 @@ export default function VerifyOTP() {
               className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {cooldown > 0 ? `Resend code (${cooldown}s)` : 'Resend verification code'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => nav('/login')}
+              className="w-full text-center text-sm text-gray-500 hover:text-gray-700 pt-2"
+            >
+              Skip verification &rarr; Sign in
             </button>
           </form>
 

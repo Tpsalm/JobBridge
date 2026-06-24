@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { supabase as _supabaseClient, localSignUp, localLogin, localGetProfile, Profile, SubscriptionInfo, AiSubscriptionInfo, requestOtp, requestCreateProfile } from '../lib/supabase';
+import { supabase as _supabaseClient, localSignUp, localLogin, localGetProfile, Profile, SubscriptionInfo, AiSubscriptionInfo, requestCreateProfile } from '../lib/supabase';
 import { requestWelcomeEmail } from '../lib/supabase';
 import { LOCAL_API_URL } from '../lib/supabase';
 
@@ -229,17 +229,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Send OTP for recruiters and providers (required for account activation)
+      // Send welcome email for recruiters/providers (non-blocking)
       if (role === 'recruiter' || role === 'provider') {
-        const otpOk = await requestOtp({ email });
-        if (!otpOk) {
-          return { error: new Error('Failed to generate verification code. Please try again.') };
-        }
-        try {
-          await requestWelcomeEmail({ email, name: fullName, role: role || undefined });
-        } catch (err) {
-          console.error('Failed to send welcome email', err);
-        }
+        requestWelcomeEmail({ email, name: fullName, role: role || undefined }).catch(() => {});
       }
       return { error: null };
     } catch (error) {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, UserRole } from '../contexts/AuthContext';
 import { Briefcase, Wrench, ArrowRight, Check, Shield, Users, Building, Eye, EyeOff, X, CheckCircle, Mail, ArrowLeft, User, KeyRound, Lock } from 'lucide-react';
 import JobBridgeLogo from '../components/JobBridgeLogo';
+import { LOCAL_API_URL } from '../lib/supabase';
 
 export default function Signup() {
   const { signUp } = useAuth();
@@ -268,7 +269,7 @@ export default function Signup() {
                         onClick={async () => {
                           if (!adminCode.trim()) return;
                           try {
-                            const resp = await fetch('/admin/check-secret', {
+                            const resp = await fetch(`${LOCAL_API_URL}/admin/check-secret`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ code: adminCode }),

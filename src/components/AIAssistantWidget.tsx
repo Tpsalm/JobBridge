@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, ChevronUp, Sparkles, FileText, MessageCircle, TrendingUp } from 'lucide-react';
+import { LOCAL_API_URL } from '../lib/supabase';
 
 interface Message {
   id: number;
@@ -537,7 +538,7 @@ export default function AIAssistantWidget() {
         addBotMessage(kbAns);
 
         try {
-          const resp = await fetch('/api/query', {
+          const resp = await fetch(`${LOCAL_API_URL}/api/query`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: messageText }),
@@ -553,7 +554,7 @@ export default function AIAssistantWidget() {
       }
 
       try {
-        const resp = await fetch('/api/query', {
+        const resp = await fetch(`${LOCAL_API_URL}/api/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: messageText }),
