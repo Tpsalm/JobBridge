@@ -19,3 +19,4 @@ AI-powered career marketplace connecting talent with employers. Job seekers find
 - **Payments:** Paystack
 - **AI:** OpenAI GPT-4o-mini
 - **3D Animations:** CSS transforms, IntersectionObserver
+# JobBridgee
