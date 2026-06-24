@@ -77,7 +77,7 @@ export default function Support() {
         {
           question: 'Do you offer refunds?',
           answer:
-            'We offer 30-day money-back guarantee if you\'re not satisfied with your subscription. Contact support@jobbridge.io.',
+            'We offer 30-day money-back guarantee if you\'re not satisfied with your subscription. Contact jobbridgesupport@gmail.com.',
         },
       ],
     },
@@ -190,7 +190,7 @@ export default function Support() {
             <div className="space-y-4">
               {/* Live Chat — opens WhatsApp */}
               <Card3D
-                onClick={() => window.open('https://wa.me/2348024425069', '_blank')}
+                onClick={() => window.open('https://wa.me/2349136171354', '_blank')}
                 className="w-full"
                 strength={6}
               >
@@ -198,7 +198,7 @@ export default function Support() {
                   <MessageCircle className="w-5 h-5 text-blue-700 flex-shrink-0" />
                   <div>
                     <p className="font-medium text-gray-900">Live Chat</p>
-                    <p className="text-sm text-blue-700 font-medium">+234 802 442 5069</p>
+                    <p className="text-sm text-blue-700 font-medium">09136171354</p>
                     <p className="text-xs text-gray-600">Mon-Fri, 9am-10pm CAT</p>
                   </div>
                 </button>
@@ -232,13 +232,13 @@ export default function Support() {
               {/* Phone Support */}
               <Card3D className="w-full" strength={6}>
                 <a
-                  href="tel:+2348024425069"
+                  href="tel:+2349136171354"
                   className="flex items-center gap-3 p-4 bg-gray-50 hover:bg-blue-50 rounded-lg transition border border-gray-200"
                 >
                   <Phone className="w-5 h-5 text-blue-700 flex-shrink-0" />
                   <div>
                     <p className="font-medium text-gray-900">Call Us</p>
-                    <p className="text-sm text-blue-700 hover:underline">+234 802 442 5069</p>
+                    <p className="text-sm text-blue-700 hover:underline">09136171354</p>
                   </div>
                 </a>
               </Card3D>

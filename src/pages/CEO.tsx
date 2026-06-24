@@ -15,32 +15,32 @@ const CEO: React.FC = () => {
     {
       year: 2021,
       title: 'Founded',
-      description: 'JobBridge launched with a mission to democratize career opportunities'
+      description: 'Founded JobBridge with a simple idea: solve the disconnect between talent and opportunity.'
     },
     {
       year: 2022,
-      title: 'Series A Funding',
-      description: 'Raised $8M to expand platform and build AI-powered matching'
+      title: 'Market Research',
+      description: 'Conducted market research and identified key challenges faced by job seekers and employers.'
     },
     {
       year: 2023,
-      title: '1M Users',
-      description: 'Reached 1 million active users across 25 countries'
+      title: 'Vision & Roadmap',
+      description: 'Developed the JobBridge vision, business model, and long-term roadmap.'
     },
     {
       year: 2024,
-      title: 'Series B Funding',
-      description: 'Secured $25M for international expansion and product development'
+      title: 'Platform Design',
+      description: 'Designed the platform concept and defined core features and services.'
     },
     {
       year: 2025,
-      title: 'Global Reach',
-      description: 'Expanded to 50+ countries with localized experiences'
+      title: 'Development',
+      description: 'Began platform development and built the foundation for launch.'
     },
     {
       year: 2026,
-      title: 'AI Revolution',
-      description: 'Launched GenAI-powered recruitment intelligence platform'
+      title: 'AI Launch',
+      description: 'Introduced AI-powered solutions and officially launched JobBridge to the public.'
     }
   ];
 
@@ -148,19 +148,34 @@ const CEO: React.FC = () => {
         {/* Letter from CEO */}
         <section className="bg-gray-50 py-16 px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-gray-900 mb-8">Letter from Mr. Victor Eniola</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-8">Letter from Victor</h2>
             <div className="prose prose-lg max-w-none text-gray-700 space-y-6">
               <p>
-                When I founded JobBridge in 2021, I was driven by a simple observation: the job market was broken. Talented individuals couldn't find opportunities aligned with their values, and companies struggled to discover the best talent beyond their existing networks. The disconnect was both a tragedy and an opportunity.
+                When I founded JobBridge, it started with a simple belief: talent is everywhere, but opportunity is not.
               </p>
               <p>
-                Over the past five years, we've grown from a small team of believers to a global platform serving millions of users across 50+ countries. We've processed millions of job placements and helped countless individuals navigate crucial career transitions. But more importantly, we've learned something profound: when talent and opportunity connect transparently, magic happens.
+                Across communities, I saw skilled people—graduates, artisans, creatives, technicians, and professionals—struggling to find meaningful opportunities, not because they lacked ability, but because they lacked access. At the same time, businesses and employers were searching for talent, yet many qualified individuals remained invisible.
               </p>
               <p>
-                Our commitment to AI-first technology doesn't diminish the human element of career development—it amplifies it. We're using artificial intelligence to remove bias, expand possibilities, and surface matches that might otherwise be missed. At the same time, we're ensuring that people remain at the center of every decision.
+                The problem was never a shortage of talent. The problem was the gap between talent and opportunity.
               </p>
               <p>
-                As we look ahead to 2027 and beyond, our mission remains unchanged: to build the infrastructure for a more connected, equitable future of work. We're just getting started, and we're grateful for every user, employer, and partner who is part of this journey.
+                JobBridge was created to close that gap.
+              </p>
+              <p>
+                We believe that a person's future should not be determined by who they know, where they live, or whether they have access to the right network. Everyone deserves a fair chance to showcase their skills, discover opportunities, and build a better life.
+              </p>
+              <p>
+                Our mission is to create a platform where employers can find the right people, job seekers can access the right opportunities, and professionals can continuously develop themselves through learning and training.
+              </p>
+              <p>
+                Technology is helping us make this vision possible. By leveraging intelligent tools and data-driven solutions, we can connect people with opportunities faster, reduce barriers to entry, and create a more transparent and inclusive job market.
+              </p>
+              <p>
+                At JobBridge, we're not just building a job platform. We're building a bridge between potential and possibility, between ambition and achievement, and between communities and economic growth.
+              </p>
+              <p>
+                Because when talent meets opportunity, lives change. And when lives change, communities grow.
               </p>
             </div>
           </div>

@@ -62,7 +62,7 @@ export default function Signup() {
 
   const handleSuccessContinue = () => {
     setShowSuccess(false);
-    navigate('/verify-otp', { state: { email: formData.email, role: selectedRole } });
+    navigate('/verify-otp', { state: { email: formData.email, role: selectedRole, full_name: formData.name } });
   };
 
   const handleBack = () => {
@@ -220,23 +220,6 @@ export default function Signup() {
                       </li>
                     ))}
                   </ul>
-                </div>
-              </button>
-            </div>
-
-            <div className="mt-4">
-              <button
-                onClick={() => handleRoleSelect('job_seeker')}
-                className="group relative w-full p-5 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-2xl hover:border-purple-500 hover:shadow-lg transition-all text-left"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-purple-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                    <User className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 text-lg">Join as Job Seeker</h3>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-purple-600 group-hover:translate-x-1 transition-transform" />
                 </div>
               </button>
             </div>

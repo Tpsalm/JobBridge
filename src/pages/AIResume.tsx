@@ -41,6 +41,7 @@ export default function AIResume() {
   }
 
   async function handleTailorResume() {
+    if (aiSubscription.ai_status !== 'active') { navigate('/pricing'); return; }
     if (!resumeText.trim() || !jobTitle.trim()) return;
     setLoading('tailor');
     setError('');
@@ -59,6 +60,7 @@ export default function AIResume() {
   }
 
   async function handleCoverLetter() {
+    if (aiSubscription.ai_status !== 'active') { navigate('/pricing'); return; }
     if (!resumeText.trim() || !jobTitle.trim()) return;
     setLoading('cover');
     setError('');
@@ -176,14 +178,14 @@ export default function AIResume() {
                     disabled={loading === 'tailor' || !resumeText.trim() || !jobTitle.trim()}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-800 disabled:opacity-50 transition-colors"
                   >
-                    {loading === 'tailor' ? 'Generating...' : <><Sparkles className="w-4 h-4" /> Tailor Resume</>}
+                    {aiSubscription.ai_status !== 'active' ? <><Lock className="w-4 h-4" /> Subscribe to Unlock</> : loading === 'tailor' ? 'Generating...' : <><Sparkles className="w-4 h-4" /> Tailor Resume</>}
                   </button>
                   <button
                     onClick={handleCoverLetter}
                     disabled={loading === 'cover' || !resumeText.trim() || !jobTitle.trim()}
                     className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                   >
-                    {loading === 'cover' ? 'Generating...' : <><Send className="w-4 h-4" /> Cover Letter</>}
+                    {aiSubscription.ai_status !== 'active' ? <><Lock className="w-4 h-4" /> Subscribe to Unlock</> : loading === 'cover' ? 'Generating...' : <><Send className="w-4 h-4" /> Cover Letter</>}
                   </button>
                 </div>
               </div>

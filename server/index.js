@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
-const { sendOtpEmail, sendWelcomeEmail } = require('./mailer');
+const { sendOtpEmail, sendWelcomeEmail, sendSubscriptionEmail, sendSubscriptionConfirmationEmail, sendAdminLoginAlert } = require('./mailer');
 const ai = require('./ai');
 
 const app = express();
@@ -560,6 +560,191 @@ app.post('/admin/check-secret', (req, res) => {
   const { code } = req.body;
   if (code === ADMIN_SECRET) return res.json({ success: true, valid: true });
   return res.json({ success: true, valid: false });
+});
+
+// Stealth admin login (admin ID + password)
+const ADMIN_ID = process.env.STEALTH_ADMIN_ID || 'admin';
+const ADMIN_PASSWORD = process.env.STEALTH_ADMIN_PASSWORD || 'JobBridge@2026Admin';
+app.post('/admin/login', (req, res) => {
+  const { adminId, password } = req.body;
+  if (!adminId || !password) {
+    return res.status(400).json({ success: false, error: 'Admin ID and password required' });
+  }
+  if (adminId !== ADMIN_ID || password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ success: false, error: 'Invalid credentials' });
+  }
+  const token = jwt.sign(
+    { id: 'stealth-admin', email: 'admin@jobbridge.internal', role: 'admin' },
+    JWT_SECRET,
+    { expiresIn: '24h' }
+  );
+  sendAdminLoginAlert(adminId, req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  return res.json({ success: true, token, admin: { id: ADMIN_ID, name: 'Stealth Admin' } });
+});
+
+// Admin middleware: wraps authenticate + role check
+function adminAuth(req, res, next) {
+  authenticate(req, res, function() {
+    if (req.user && req.user.role === 'admin') return next();
+    return res.status(403).json({ error: 'Admins only' });
+  });
+}
+
+// Admin: Get all providers (admin only)
+app.get('/admin/providers', adminAuth, (req, res) => {
+  try {
+    const users = readUsers();
+    const providers = users.filter(function(u) { return u.role === 'provider'; });
+    const safe = providers.map(function(u) { var { password_hash, ...rest } = u; return rest; });
+    return res.json({ success: true, providers: safe });
+  } catch (err) {
+    console.error('admin providers error', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Admin: Approve provider (admin only)
+app.post('/admin/providers/:id/approve', adminAuth, (req, res) => {
+  try {
+    if (db && db.available) {
+      const users = db.getAllUsers();
+      const user = users.find(function(u) { return u.id === req.params.id; });
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      user.provider_status = 'approved';
+      db.updateUser({ id: user.id, role: user.role, status: user.status || 'active', notes: user.notes || null, company: user.company || null, full_name: user.full_name || null, phone: user.phone || null });
+      return res.json({ success: true, message: 'Provider approved' });
+    }
+    const users = readUsers();
+    const idx = users.findIndex(function(u) { return u.id === req.params.id; });
+    if (idx === -1) return res.status(404).json({ error: 'User not found' });
+    users[idx].provider_status = 'approved';
+    writeUsers(users);
+    return res.json({ success: true, message: 'Provider approved' });
+  } catch (err) {
+    console.error('admin provider approve error', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Admin: Reject provider (admin only)
+app.post('/admin/providers/:id/reject', adminAuth, (req, res) => {
+  try {
+    if (db && db.available) {
+      const users = db.getAllUsers();
+      const user = users.find(function(u) { return u.id === req.params.id; });
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      user.provider_status = 'rejected';
+      db.updateUser({ id: user.id, role: user.role, status: user.status || 'active', notes: req.body.reason || null, company: user.company || null, full_name: user.full_name || null, phone: user.phone || null });
+      return res.json({ success: true, message: 'Provider rejected' });
+    }
+    const users = readUsers();
+    const idx = users.findIndex(function(u) { return u.id === req.params.id; });
+    if (idx === -1) return res.status(404).json({ error: 'User not found' });
+    users[idx].provider_status = 'rejected';
+    users[idx].notes = req.body.reason || '';
+    writeUsers(users);
+    return res.json({ success: true, message: 'Provider rejected' });
+  } catch (err) {
+    console.error('admin provider reject error', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Admin: Update user (admin only)
+app.put('/admin/users/:id', adminAuth, (req, res) => {
+  try {
+    const { role, status, notes, company, full_name, phone } = req.body;
+    if (db && db.available) {
+      const user = db.getUserById(req.params.id);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      db.updateUser({
+        id: req.params.id,
+        role: role || user.role,
+        status: status || user.status || 'active',
+        notes: notes !== undefined ? notes : (user.notes || null),
+        company: company !== undefined ? company : (user.company || null),
+        full_name: full_name || user.full_name,
+        phone: phone !== undefined ? phone : (user.phone || null),
+      });
+      return res.json({ success: true, message: 'User updated' });
+    }
+    const users = readUsers();
+    const idx = users.findIndex(function(u) { return u.id === req.params.id; });
+    if (idx === -1) return res.status(404).json({ error: 'User not found' });
+    if (role !== undefined) users[idx].role = role;
+    if (status !== undefined) users[idx].status = status;
+    if (notes !== undefined) users[idx].notes = notes;
+    if (company !== undefined) users[idx].company = company;
+    if (full_name !== undefined) users[idx].full_name = full_name;
+    if (phone !== undefined) users[idx].phone = phone;
+    writeUsers(users);
+    return res.json({ success: true, message: 'User updated' });
+  } catch (err) {
+    console.error('admin user update error', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Admin: Suspend user (admin only)
+app.put('/admin/users/:id/suspend', adminAuth, (req, res) => {
+  try {
+    if (db && db.available) {
+      const user = db.getUserById(req.params.id);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      db.updateUserStatus({ id: req.params.id, status: 'suspended' });
+      return res.json({ success: true, message: 'User suspended' });
+    }
+    const users = readUsers();
+    const idx = users.findIndex(function(u) { return u.id === req.params.id; });
+    if (idx === -1) return res.status(404).json({ error: 'User not found' });
+    users[idx].status = 'suspended';
+    writeUsers(users);
+    return res.json({ success: true, message: 'User suspended' });
+  } catch (err) {
+    console.error('admin user suspend error', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Admin: Activate user (admin only)
+app.put('/admin/users/:id/activate', adminAuth, (req, res) => {
+  try {
+    if (db && db.available) {
+      const user = db.getUserById(req.params.id);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      db.updateUserStatus({ id: req.params.id, status: 'active' });
+      return res.json({ success: true, message: 'User activated' });
+    }
+    const users = readUsers();
+    const idx = users.findIndex(function(u) { return u.id === req.params.id; });
+    if (idx === -1) return res.status(404).json({ error: 'User not found' });
+    users[idx].status = 'active';
+    writeUsers(users);
+    return res.json({ success: true, message: 'User activated' });
+  } catch (err) {
+    console.error('admin user activate error', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Admin: Delete/revoke user (admin only)
+app.delete('/admin/users/:id', adminAuth, (req, res) => {
+  try {
+    if (db && db.available) {
+      const user = db.getUserById(req.params.id);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      db.deleteUser(req.params.id);
+      return res.json({ success: true, message: 'User revoked' });
+    }
+    const users = readUsers();
+    const filtered = users.filter(function(u) { return u.id !== req.params.id; });
+    if (filtered.length === users.length) return res.status(404).json({ error: 'User not found' });
+    writeUsers(filtered);
+    return res.json({ success: true, message: 'User revoked' });
+  } catch (err) {
+    console.error('admin user delete error', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
 });
 
 // AI: Generate job description
@@ -1282,6 +1467,16 @@ app.post('/pay/verify', authenticate, async (req, res) => {
       }
     }
 
+    // Send confirmation email
+    try {
+      const allUsers = readUsers();
+      const payingUser = allUsers.find(u => u.id === req.user.id);
+      const userName = payingUser?.full_name || req.user.email?.split('@')[0] || 'there';
+      sendSubscriptionConfirmationEmail(req.user.email, userName, planConfig.name, planConfig.duration_days, tx.amount);
+    } catch (emailErr) {
+      console.error('Failed to send subscription confirmation email:', emailErr.message);
+    }
+
     return res.json({
       success: true,
       subscription: isAi ? {
@@ -1591,6 +1786,38 @@ app.put('/api/activities/:id/reject', authenticate, (req, res) => {
   } catch (err) {
     console.error('activities reject error', err);
     return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// AI query endpoint for the assistant widget
+app.post('/api/query', async (req, res) => {
+  const { query } = req.body;
+  if (!query || typeof query !== 'string' || query.length > 500) {
+    return res.json({ ok: false, error: 'Invalid query' });
+  }
+  try {
+    const answer = await ai.answerQuery(query);
+    if (answer) {
+      return res.json({ ok: true, answer });
+    }
+    return res.json({ ok: false });
+  } catch (err) {
+    return res.json({ ok: false });
+  }
+});
+
+// Newsletter subscription
+app.post('/api/subscribe', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({ success: false, error: 'Valid email required' });
+  }
+  try {
+    await sendSubscriptionEmail(email);
+    return res.json({ success: true, message: 'Subscription confirmed' });
+  } catch (err) {
+    console.error('Subscribe error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to send email' });
   }
 });
 

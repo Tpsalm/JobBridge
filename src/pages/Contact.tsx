@@ -177,14 +177,14 @@ export default function Contact() {
                   <Phone className="w-5 h-5 text-blue-700 flex-shrink-0 mt-1" />
                   <div>
                     <a
-                      href="https://wa.me/2348024425069"
+                      href="https://wa.me/2349136171354"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-700 hover:underline"
                     >
-                      +234 802 442 5069
+                      09136171354
                     </a>
-                    <p className="text-gray-600 text-sm">WhatsApp support</p>
+                    <p className="text-gray-600 text-sm">Live Chat / Call</p>
                   </div>
                 </div>
               </div>

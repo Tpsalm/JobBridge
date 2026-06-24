@@ -70,7 +70,7 @@
       "id": "contact_support",
       "title": "Contact Support",
       "keywords": ["contact", "support", "help", "email support", "whatsapp", "call", "customer service"],
-      "answer": "You can reach JobBridge support through:\n\n• WhatsApp: +234 802 442 5069 — Chat with our team for quick assistance.\n• Email: jobbridgesupport@gmail.com — Send us an email and we'll respond within 24 hours.\n• Call: +234 802 442 5069 — Call us during business hours.\n\nYou can also visit the Support page for more information."
+      "answer": "You can reach JobBridge support through:\n\n• Live Chat: 09136171354 — Chat with our team for quick assistance.\n• Email: jobbridgesupport@gmail.com — Send us an email and we'll respond within 24 hours.\n• Call: 09136171354 — Call us during business hours.\n\nYou can also visit the Support page for more information."
     },
     {
       "id": "blog",
@@ -107,6 +107,36 @@
       "title": "Account Settings",
       "keywords": ["settings", "profile", "edit profile", "change password", "account"],
       "answer": "You can manage your account settings from the Settings page. Options include updating your profile information, changing your password, and managing notifications. Your profile information is used by recruiters when you apply for jobs."
+    },
+    {
+      "id": "business_advertisements",
+      "title": "Business Advertisements",
+      "keywords": ["business ad", "advertisement", "advert", "promote business", "business adverts", "advertising"],
+      "answer": "JobBridge Business Advertisements let you promote your restaurant, hotel, fashion brand, phone repair shop, school, hospital, and more to thousands of users.\n\nAvailable packages:\n• Weekly (₦2,000): 7 days visibility, category placement, view analytics.\n• Monthly (₦7,500): 30 days visibility, category placement, view analytics.\n• Featured Business (₦15,000): 30 days, homepage spotlight, category prominence, social media boost, WhatsApp status promo, dedicated banner.\n\nTo create an advert, visit the Business page, fill in your business name, advert title, description, and category. You can optionally add featured placement for ₦1,000 extra."
+    },
+    {
+      "id": "premium_billing",
+      "title": "Premium & Billing",
+      "keywords": ["premium", "billing", "payment methods", "cancel subscription", "refund", "money back", "invoice"],
+      "answer": "Premium & Billing Information:\n\n• Payment Methods: JobBridge accepts Card (Visa, Mastercard, Verve via Paystack) and Bank Transfer (Moniepoint MFB — Account name: JobBridge Connect Africa, Account number: 9136171354).\n• Subscription Cancellation: You can cancel anytime from your billing settings. Your access continues until the end of your billing cycle.\n• Refunds: We offer a 30-day money-back guarantee if you're not satisfied with your subscription. Contact jobbridgesupport@gmail.com for refund requests.\n• Receipts: After successful payment, your receipt is sent to your registered email address.\n• Activation: Plans are activated immediately after successful payment verification.\n\nFor billing inquiries, please email jobbridgesupport@gmail.com or call 09136171354."
+    },
+    {
+      "id": "internship_opportunities",
+      "title": "Internship Opportunities",
+      "keywords": ["internship", "intern", "graduate trainee", "nyif", "industrial training", "siwes", "trainee"],
+      "answer": "JobBridge supports Internship opportunities for students, fresh graduates, and career changers.\n\n• Recruiters can now post Internship positions by selecting 'Internship' as the job type when creating a job post.\n• Job seekers can filter by 'Internship' on the Jobs page to find internship opportunities.\n• Internship experience level is also available in the recruiter filter options.\n\nWhether you're looking for SIWES/IT placement, graduate traineeship, or entry-level experience, use the Internship filter to find the right opportunity."
+    },
+    {
+      "id": "ai_training",
+      "title": "AI Career Assistant Training",
+      "keywords": ["ai training", "train ai", "ai knowledge", "ai learn", "assistant training", "knowledge base"],
+      "answer": "The JobBridge AI Assistant is continuously trained with platform knowledge to help you with:\n\n• Career advice, interview preparation, and salary negotiation.\n• Platform navigation — how to sign up, post jobs, apply, make payments.\n• Business advertising and service provider listings.\n• Internship opportunities and job search strategies.\n• Premium billing, subscriptions, and refund policies.\n• Contact information for support (Live Chat: 09136171354, Email: jobbridgesupport@gmail.com).\n\nThe assistant loads its knowledge from JobBridge's comprehensive FAQ database and site knowledge base. If you need more specific help, just ask!"
+    },
+    {
+      "id": "contact_info",
+      "title": "Contact & Support Information",
+      "keywords": ["contact", "support", "live chat", "phone", "call", "whatsapp", "address", "location"],
+      "answer": "You can reach JobBridge support through:\n\n• Live Chat (WhatsApp): 09136171354 — Chat with our team for quick assistance. Mon-Fri, 9am-10pm CAT.\n• Email: jobbridgesupport@gmail.com — Send us an email and we'll respond within 24 hours.\n• Call: 09136171354 — Call us during business hours.\n• Office Address: No 4, Phenol Crystal Street, Koomi Rd, Saki, Oyo State.\n\nSocial Media:\n• Instagram: https://www.instagram.com/jobbridge__\n• Facebook: https://www.facebook.com/share/1DhVVgkF6P/\n• X (Twitter): https://x.com/jobbridge_com"
     }
   ]
 }

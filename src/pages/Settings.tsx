@@ -537,7 +537,7 @@ export default function Settings() {
                     openModal('info', {
                       title: 'Delete Account',
                       content:
-                        'This action is permanent and cannot be undone. All your data, applications, and profile information will be permanently deleted. Please contact support@jobbridge.io if you need assistance.',
+                        'This action is permanent and cannot be undone. All your data, applications, and profile information will be permanently deleted. Please contact jobbridgesupport@gmail.com if you need assistance.',
                     })
                   }
                   className="w-full flex items-center justify-center gap-2 bg-red-600 text-white font-semibold py-2 rounded-lg hover:bg-red-700 transition-colors"

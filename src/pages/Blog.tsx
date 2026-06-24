@@ -28,6 +28,32 @@ const Blog: React.FC = () => {
   const { openModal } = useModal();
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<Category>('All');
+  const [subscribeEmail, setSubscribeEmail] = useState('');
+  const [subscribeMsg, setSubscribeMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleSubscribe = async () => {
+    if (!subscribeEmail || !/\S+@\S+\.\S+/.test(subscribeEmail)) {
+      setSubscribeMsg({ type: 'error', text: 'Please enter a valid email' });
+      return;
+    }
+    try {
+      const res = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: subscribeEmail }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubscribeMsg({ type: 'success', text: 'Subscribed! Check your inbox.' });
+        setSubscribeEmail('');
+      } else {
+        setSubscribeMsg({ type: 'error', text: data.error || 'Subscription failed' });
+      }
+    } catch {
+      setSubscribeMsg({ type: 'error', text: 'Could not subscribe. Try again later.' });
+    }
+    setTimeout(() => setSubscribeMsg(null), 4000);
+  };
 
   const categories: Category[] = ['All', 'Career Advice', 'AI & Tech', 'Hiring', 'Remote Work', 'Salary & Benefits', 'Leadership'];
 
@@ -58,12 +84,12 @@ const Blog: React.FC = () => {
     {
       id: 3,
       title: 'How to Negotiate a 20% Higher Salary',
-      excerpt: 'Salary negotiation is an essential skill in your career toolkit. We explore proven strategies, data points, and communication techniques to help you negotiate effectively.',
-      content: 'Salary negotiation can feel uncomfortable, but it\'\s one of the most important career skills you can develop. A single successful negotiation can increase your lifetime earnings by hundreds of thousands of dollars.\n\nResearch the Market: Before any negotiation, arm yourself with data. Use sites like Glassdoor, Levels.fyi, and LinkedIn Salary to understand the compensation range for your role, experience level, and location.\n\nKnow Your Value: Document your achievements and quantify your impact. If you increased revenue, reduced costs, or improved efficiency, have those numbers ready.\n\nTime It Right: The best time to negotiate is after you\'\ve received an offer but before you accept. You have maximum leverage at this point.\n\nUse Anchoring: Make the first specific salary mention. Research shows that the first number mentioned in a negotiation serves as an anchor that influences the entire discussion.\n\nFocus on Total Compensation: Salary is just one component. Consider bonuses, equity, benefits, vacation time, remote work flexibility, and professional development budgets.\n\nPractice Your Pitch: Rehearse what you\'\ll say. Role-play with a friend or mentor. The more prepared you are, the more confident you\'\ll feel.\n\nBe Prepared to Walk Away: Know your walk-away number beforehand. If the offer doesn\'\t meet your minimum requirements, be willing to decline respectfully.',
+      excerpt: 'Salary negotiation is one of the most important career skills you can develop. Learn proven strategies to negotiate effectively and increase your lifetime earnings.',
+      content: 'Salary negotiation can feel uncomfortable, but it\'s one of the most important career skills you can develop. A single successful negotiation can increase your lifetime earnings by hundreds of thousands of dollars.\n\nResearch the Market: Before any negotiation, arm yourself with data. Use sites like JobBridge, Glassdoor, and LinkedIn Salary to understand the compensation range for your role, experience level, and location.\n\nKnow Your Value: Document your achievements and quantify your impact. If you increased revenue, reduced costs, or improved efficiency, have those numbers ready.\n\nTime It Right: The best time to negotiate is after you\'ve received an offer but before you accept. You have maximum leverage at this point.\n\nUse Anchoring: Make the first specific salary mention. Research shows that the first number mentioned in a negotiation serves as an anchor that influences the entire discussion.\n\nFocus on Total Compensation: Salary is just one component. Consider bonuses, equity, benefits, vacation time, remote work flexibility, and professional development budgets.\n\nPractice Your Pitch: Rehearse what you\'ll say. Role-play with a friend or mentor. The more prepared you are, the more confident you\'ll feel.\n\nBe Prepared to Walk Away: Know your walk-away number beforehand. If the offer doesn\'t meet your minimum requirements, be willing to decline respectfully.',
       category: 'Salary & Benefits',
-      author: 'Marcus Lee',
+      author: 'Michael Torres',
       date: 'May 25, 2026',
-      readTime: 7,
+      readTime: 6,
       img: 'https://images.pexels.com/photos/3760067/pexels-photo-3760067.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&dpr=2',
     },
     {
@@ -306,13 +332,21 @@ const Blog: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-3">
               <input
                 type="email"
+                value={subscribeEmail}
+                onChange={e => setSubscribeEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
                 placeholder="Enter your email"
                 className="flex-1 px-4 py-3 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <button className="bg-white hover:bg-gray-100 text-blue-700 px-8 py-3 rounded-lg font-semibold transition-colors">
+              <button onClick={handleSubscribe} className="bg-white hover:bg-gray-100 text-blue-700 px-8 py-3 rounded-lg font-semibold transition-colors">
                 Subscribe
               </button>
             </div>
+            {subscribeMsg && (
+              <p className={`mt-3 text-sm ${subscribeMsg.type === 'success' ? 'text-green-300' : 'text-red-300'}`}>
+                {subscribeMsg.text}
+              </p>
+            )}
           </div>
         </section>
         </AnimatedSection>

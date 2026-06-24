@@ -306,10 +306,27 @@ async function scoreCandidates(jobRequirements, candidates) {
   return scoreCandidatesLocal(jobRequirements, candidates);
 }
 
+async function answerQuery(query) {
+  if (openai) {
+    const systemPrompt = `You are a helpful career assistant for JobBridge, a platform connecting talent with opportunities. Answer the user's question about JobBridge features, jobs, career advice, pricing, or how to use the platform. Be friendly, concise, and helpful. If you don't know something specific about JobBridge, say so honestly but try to give general career advice.`;
+    const userPrompt = `User question: ${query}`;
+    const response = await callOpenAI([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ], 'gpt-4o-mini', 500);
+    if (response) {
+      const content = response.choices[0].message.content;
+      if (content && content.length > 20) return content;
+    }
+  }
+  return null;
+}
+
 module.exports = {
   extractSkills,
   generateJD,
   tailorResume,
   generateCoverLetter,
   scoreCandidates,
+  answerQuery,
 };

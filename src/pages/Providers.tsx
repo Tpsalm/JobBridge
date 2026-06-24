@@ -142,10 +142,37 @@ const providers: Provider[] = [
     featured: false,
     tier: 'verified',
   },
+  {
+    id: 9,
+    name: 'Grace Media',
+    specialty: 'Digital Marketer',
+    rating: 4.7,
+    reviews: 168,
+    hourlyRate: 7000,
+    specializations: ['Social Media', 'SEO', 'Email Marketing'],
+    img: 'https://images.pexels.com/photos/14653167/pexels-photo-14653167.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2&fit=crop&crop=face',
+    bgColor: 'bg-purple-600',
+    verified: true,
+    featured: false,
+    tier: 'verified',
+  },
+  {
+    id: 10,
+    name: 'Kenny Finance',
+    specialty: 'Financial Analyst',
+    rating: 4.8,
+    reviews: 143,
+    hourlyRate: 18000,
+    specializations: ['Budgeting', 'Investment', 'Tax Planning'],
+    img: 'https://images.pexels.com/photos/3760067/pexels-photo-3760067.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2&fit=crop&crop=face',
+    bgColor: 'bg-green-700',
+    verified: true,
+    featured: false,
+    tier: 'verified',
+  },
 ];
 
-const categories = [
-  'All',
+const categoryList: string[] = [
   'Design',
   'Development',
   'Marketing',
@@ -154,6 +181,21 @@ const categories = [
   'Photography',
   'Consulting',
 ];
+
+const categoryToSpecialties = (cat: string): string[] => {
+  const map: Record<string, string[]> = {
+    'Design': ['Graphic Designer', 'UI/UX Designer'],
+    'Development': ['Web Development', 'Mobile Developer'],
+    'Marketing': ['Digital Marketer', 'Content Writer'],
+    'Finance': ['Financial Analyst'],
+    'Legal': ['Legal Consultant'],
+    'Photography': ['Photographer'],
+    'Consulting': ['Business Consultant'],
+  };
+  return map[cat] || [];
+};
+
+const categories = ['All', ...categoryList];
 
 export default function Providers() {
   const { openModal } = useModal();
@@ -244,7 +286,7 @@ export default function Providers() {
       provider.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       provider.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
       provider.specializations.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesCategory = selectedCategory === 'All';
+    const matchesCategory = selectedCategory === 'All' || categoryToSpecialties(selectedCategory).includes(provider.specialty);
     return matchesSearch && matchesCategory;
   });
 

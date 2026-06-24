@@ -91,15 +91,12 @@ export default function Home() {
                 <Link to="/jobs" className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:scale-105 shadow-lg">
                   <Search className="w-4 h-4" /> Find Jobs
                 </Link>
-                <Link to="/talent" className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:scale-105 border border-blue-500">
+                <Link to="/providers" className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:scale-105 border border-blue-500">
                   <Users className="w-4 h-4" /> Hire Talent
                 </Link>
-                <button
-                  onClick={() => openModal('ai-resume')}
-                  className="inline-flex items-center justify-center gap-2 bg-transparent text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/10 transition-all hover:scale-105 border border-white/30"
-                >
+                <Link to="/ai-resume" className="inline-flex items-center justify-center gap-2 bg-transparent text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/10 transition-all hover:scale-105 border border-white/30">
                   <Zap className="w-4 h-4" /> AI Resume
-                </button>
+                </Link>
               </div>
             </div>
             <div className="hidden lg:block relative">

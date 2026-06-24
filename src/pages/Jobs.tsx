@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, Clock, Bookmark, Share2, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
@@ -43,9 +44,21 @@ function parseBenefits(benefits: string | string[] | null): string[] {
 }
 
 const Jobs = () => {
+  const navigate = useNavigate();
   const { openModal } = useModal();
-  const { openProtectedModal } = useAuthRequired();
+  const { isAuthenticated } = useAuth();
   const { savedJobs, toggleSaveJob, markApplied, appliedJobs } = useAuth();
+
+  const handleApply = (job: any) => {
+    if (!isAuthenticated) {
+      navigate('/signup');
+      return;
+    }
+    const modalData = { job_id: job.id, title: job.title, company: job.company };
+    openModal('apply-job', modalData);
+    markApplied(job.id);
+    setAppliedLocal(prev => prev.includes(job.id) ? prev : [...prev, job.id]);
+  };
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [search, setSearch] = useState('');
@@ -150,6 +163,7 @@ const Jobs = () => {
                 <option>Full-time</option>
                 <option>Part-time</option>
                 <option>Contract</option>
+                <option>Internship</option>
                 <option>Freelance</option>
               </select>
               <select
@@ -290,11 +304,7 @@ const Jobs = () => {
                   {/* Action Buttons */}
                   <div className="flex items-center gap-3 mt-5">
                     <button
-                      onClick={() => {
-                        openProtectedModal({ action: 'apply-job', modalData: { job_id: selectedJob.id, title: selectedJob.title, company: selectedJob.company } });
-                        markApplied(selectedJob.id);
-                        setAppliedLocal(prev => prev.includes(selectedJob.id) ? prev : [...prev, selectedJob.id]);
-                      }}
+                      onClick={() => handleApply(selectedJob)}
                       disabled={appliedLocal.includes(selectedJob.id)}
                       className={`flex-1 font-semibold py-3 rounded-lg transition text-sm flex items-center justify-center gap-2 ${
                         appliedLocal.includes(selectedJob.id)
@@ -388,11 +398,7 @@ const Jobs = () => {
                 {/* Bottom Apply CTA */}
                 <div className="px-6 py-5 border-t border-gray-100 bg-gray-50 sticky bottom-0">
                   <button
-                    onClick={() => {
-                      openProtectedModal({ action: 'apply-job', modalData: { job_id: selectedJob.id, title: selectedJob.title, company: selectedJob.company } });
-                      markApplied(selectedJob.id);
-                      setAppliedLocal(prev => prev.includes(selectedJob.id) ? prev : [...prev, selectedJob.id]);
-                    }}
+                    onClick={() => handleApply(selectedJob)}
                     disabled={appliedLocal.includes(selectedJob.id)}
                     className={`w-full font-semibold py-3 rounded-lg transition text-sm flex items-center justify-center gap-2 ${
                       appliedLocal.includes(selectedJob.id)

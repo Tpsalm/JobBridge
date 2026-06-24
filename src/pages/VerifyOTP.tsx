@@ -41,6 +41,11 @@ export default function VerifyOTP() {
     if (res.ok) {
       setMessage('Verification successful! Redirecting to login...');
       setMessageType('success');
+      fetch('/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name: state.full_name || '', role: state.role || 'job_seeker' }),
+      }).catch(() => {});
       setTimeout(() => nav('/login'), 1500);
     } else {
       setMessage(res.error || 'Invalid or expired code');

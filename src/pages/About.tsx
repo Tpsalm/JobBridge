@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
@@ -164,13 +165,13 @@ export default function About() {
               We're building the future of job searching. Help us bridge the gap between talent and
               opportunity.
             </p>
-            <a
-              href="/jobs"
+            <Link
+              to="/jobs"
               className="inline-flex items-center gap-2 px-8 py-3 bg-white text-blue-700 font-semibold rounded-lg hover:bg-blue-50 transition"
             >
               View Open Positions
               <ArrowRight className="w-5 h-5" />
-            </a>
+            </Link>
           </div>
         </section>
         </AnimatedSection>

@@ -17,7 +17,8 @@
     "role": "provider",
     "company": null,
     "phone": null,
-    "created_at": "2026-06-19T17:16:52.911Z"
+    "created_at": "2026-06-19T17:16:52.911Z",
+    "provider_status": "approved"
   },
   {
     "id": "9f5e7ba2-1220-4731-b507-4a1c75ff99d6",
@@ -27,7 +28,9 @@
     "role": "provider",
     "company": null,
     "phone": null,
-    "created_at": "2026-06-19T18:09:54.767Z"
+    "created_at": "2026-06-19T18:09:54.767Z",
+    "provider_status": "rejected",
+    "notes": "Rejected by admin"
   },
   {
     "id": "9933d51b-f156-4970-b82e-2cf89c04db54",
@@ -37,7 +40,8 @@
     "role": "provider",
     "company": null,
     "phone": null,
-    "created_at": "2026-06-20T08:20:57.929Z"
+    "created_at": "2026-06-20T08:20:57.929Z",
+    "provider_status": "approved"
   },
   {
     "id": "193f4d28-1302-400f-b6a7-28d6590da298",

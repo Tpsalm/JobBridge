@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
@@ -25,6 +26,7 @@ import {
   Download,
   FileText,
   ExternalLink,
+  Lock,
 } from 'lucide-react';
 import PageHero from '../components/PageHero';
 import VideoPlayer from '../components/VideoPlayer';
@@ -108,15 +110,40 @@ export default function Recruiter() {
     }
   }
 
-  const filteredApps = statusFilter === 'all'
+  const filteredApps = (statusFilter === 'all'
     ? applications
-    : applications.filter(a => a.status === statusFilter);
+    : applications.filter(a => a.status === statusFilter)
+  ).filter(app => {
+    const expMatch = activeFilters.experience.length === 0 || activeFilters.experience.includes(mapExperience(parseInt(app.years_of_experience) || 0));
+    const typeMatch = activeFilters.jobType.length === 0 || activeFilters.jobType.includes(app.work_type);
+    const locMatch = activeFilters.location.length === 0 || activeFilters.location.includes(app.location);
+    return expMatch && typeMatch && locMatch;
+  });
 
   const jobs = [
-    { title: 'Senior React Engineer', applicants: 42, matches: 8 },
-    { title: 'Product Manager', applicants: 31, matches: 5 },
-    { title: 'Data Scientist', applicants: 67, matches: 12 },
+    { title: 'Senior React Engineer', applicants: 42, matches: 8, type: 'Full-time', location: 'Remote', experience: 'Senior' },
+    { title: 'Product Manager', applicants: 31, matches: 5, type: 'Full-time', location: 'Hybrid', experience: 'Mid' },
+    { title: 'Data Scientist', applicants: 67, matches: 12, type: 'Full-time', location: 'On-site', experience: 'Senior' },
+    { title: 'Junior Frontend Developer', applicants: 18, matches: 6, type: 'Full-time', location: 'Remote', experience: 'Junior' },
+    { title: 'UX Design Intern', applicants: 24, matches: 4, type: 'Internship', location: 'Remote', experience: 'Internship' },
+    { title: 'Part-time Content Writer', applicants: 12, matches: 3, type: 'Part-time', location: 'Remote', experience: 'Mid' },
   ];
+
+  function mapExperience(years: number): string {
+    if (years <= 1) return 'Internship';
+    if (years <= 3) return 'Junior';
+    if (years <= 5) return 'Mid';
+    return 'Senior';
+  }
+
+  const filteredJobs = activeFilters.experience.length === 0 && activeFilters.jobType.length === 0 && activeFilters.location.length === 0
+    ? jobs
+    : jobs.filter(job => {
+        const expMatch = activeFilters.experience.length === 0 || activeFilters.experience.includes(job.experience);
+        const typeMatch = activeFilters.jobType.length === 0 || activeFilters.jobType.includes(job.type);
+        const locMatch = activeFilters.location.length === 0 || activeFilters.location.includes(job.location);
+        return expMatch && typeMatch && locMatch;
+      });
 
   const candidates = [
     {
@@ -271,12 +298,20 @@ export default function Recruiter() {
           {/* Sidebar - Filters */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-20">
-              <h3 className="font-bold text-gray-900 mb-6">Quick Filters</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-gray-900">Quick Filters</h3>
+                {(activeFilters.experience.length > 0 || activeFilters.jobType.length > 0 || activeFilters.location.length > 0) && (
+                  <button onClick={() => setActiveFilters({ experience: [], jobType: [], location: [] })}
+                    className="text-xs text-blue-700 hover:underline font-medium">
+                    Clear all
+                  </button>
+                )}
+              </div>
 
               <div className="mb-6">
                 <h4 className="text-sm font-semibold text-gray-900 mb-3">Experience Level</h4>
                 <div className="space-y-2">
-                  {['Junior', 'Mid', 'Senior'].map((level) => (
+                  {['Internship', 'Junior', 'Mid', 'Senior'].map((level) => (
                     <label key={level} className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -293,7 +328,7 @@ export default function Recruiter() {
               <div className="mb-6">
                 <h4 className="text-sm font-semibold text-gray-900 mb-3">Job Type</h4>
                 <div className="space-y-2">
-                  {['Full-time', 'Part-time', 'Contract'].map((type) => (
+                  {['Full-time', 'Part-time', 'Contract', 'Internship'].map((type) => (
                     <label key={type} className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -330,22 +365,42 @@ export default function Recruiter() {
           <div className="lg:col-span-3">
             {/* Action Buttons Row */}
             <AnimatedSection direction="up"><div className="grid grid-cols-2 gap-3 mb-8">
-              <button
-                onClick={() => openProtectedModal({ action: 'post-job', requiredRole: 'recruiter' })}
-                className="flex items-center justify-center gap-2 bg-blue-700 text-white font-semibold px-6 py-3.5 rounded-xl hover:bg-blue-800 transition-colors shadow-lg"
-              >
-                <Plus className="w-5 h-5" />
-                Post New Job
-              </button>
-              <button
-                onClick={() => setShowAIJD(!showAIJD)}
-                className={`flex items-center justify-center gap-2 font-semibold px-6 py-3.5 rounded-xl transition-colors shadow-lg ${
-                  showAIJD ? 'bg-purple-700 text-white' : 'bg-white text-purple-700 border-2 border-purple-200 hover:bg-purple-50'
-                }`}
-              >
-                <Sparkles className="w-5 h-5" />
-                AI Write Description
-              </button>
+              {subscription.status === 'active' ? (
+                <button
+                  onClick={() => openProtectedModal({ action: 'post-job', requiredRole: 'recruiter' })}
+                  className="flex items-center justify-center gap-2 bg-blue-700 text-white font-semibold px-6 py-3.5 rounded-xl hover:bg-blue-800 transition-colors shadow-lg"
+                >
+                  <Plus className="w-5 h-5" />
+                  Post New Job
+                </button>
+              ) : (
+                <Link
+                  to="/pricing"
+                  className="flex items-center justify-center gap-2 bg-blue-100 text-blue-500 font-semibold px-6 py-3.5 rounded-xl border-2 border-blue-200 hover:bg-blue-200 transition-colors shadow-lg"
+                >
+                  <Lock className="w-5 h-5" />
+                  Subscribe to Post
+                </Link>
+              )}
+              {subscription.status === 'active' ? (
+                <button
+                  onClick={() => setShowAIJD(!showAIJD)}
+                  className={`flex items-center justify-center gap-2 font-semibold px-6 py-3.5 rounded-xl transition-colors shadow-lg ${
+                    showAIJD ? 'bg-purple-700 text-white' : 'bg-white text-purple-700 border-2 border-purple-200 hover:bg-purple-50'
+                  }`}
+                >
+                  <Sparkles className="w-5 h-5" />
+                  AI Write Description
+                </button>
+              ) : (
+                <Link
+                  to="/pricing"
+                  className="flex items-center justify-center gap-2 bg-purple-100 text-purple-500 font-semibold px-6 py-3.5 rounded-xl border-2 border-purple-200 hover:bg-purple-200 transition-colors shadow-lg"
+                >
+                  <Lock className="w-5 h-5" />
+                  Subscribe to AI Write
+                </Link>
+              )}
             </div></AnimatedSection>
 
             {/* AI Job Description Generator */}
@@ -435,10 +490,23 @@ export default function Recruiter() {
 
             {/* Active Jobs */}
             <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Active Job Postings</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Active Job Postings ({filteredJobs.length})</h2>
+                {(activeFilters.experience.length > 0 || activeFilters.jobType.length > 0 || activeFilters.location.length > 0) && (
+                  <button onClick={() => setActiveFilters({ experience: [], jobType: [], location: [] })}
+                    className="text-xs text-blue-700 hover:underline font-medium">
+                    Clear filters
+                  </button>
+                )}
+              </div>
 
               <div className="space-y-4 stagger-children stagger-visible">
-                {jobs.map((job) => (
+                {filteredJobs.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Briefcase className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500 font-medium">No jobs match selected filters</p>
+                  </div>
+                ) : filteredJobs.map((job) => (
                   <Card3D
                     key={job.title}
                     className="border border-gray-100 rounded-xl p-5 hover:shadow-md transition-shadow"
@@ -501,7 +569,7 @@ export default function Recruiter() {
             {/* Applications Panel */}
             <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Applications ({applications.length})</h2>
+                <h2 className="text-xl font-bold text-gray-900">Applications ({filteredApps.length})</h2>
                 <div className="flex gap-2 overflow-x-auto">
                   {['all', 'pending', 'shortlisted', 'reviewed', 'rejected'].map(s => (
                     <button key={s} onClick={() => setStatusFilter(s)}

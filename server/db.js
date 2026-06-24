@@ -119,6 +119,9 @@ try {
   try { db.exec(`ALTER TABLE users ADD COLUMN provider_subscription_tier TEXT`); } catch(e) {}
   try { db.exec(`ALTER TABLE users ADD COLUMN provider_subscription_status TEXT DEFAULT 'inactive'`); } catch(e) {}
   try { db.exec(`ALTER TABLE users ADD COLUMN provider_subscription_expires_at TEXT`); } catch(e) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'`); } catch(e) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN notes TEXT`); } catch(e) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN provider_status TEXT DEFAULT 'pending'`); } catch(e) {}
   try { db.exec(`ALTER TABLE jobs ADD COLUMN benefits TEXT`); } catch(e) {}
   try { db.exec(`ALTER TABLE jobs ADD COLUMN category TEXT`); } catch(e) {}
   try { db.exec(`ALTER TABLE jobs ADD COLUMN company_logo TEXT`); } catch(e) {}
@@ -156,6 +159,10 @@ try {
   const getActiveAiSubscribersCountStmt = db.prepare("SELECT COUNT(*) as count FROM users WHERE ai_subscription_status = 'active'");
   const getCategoryDistributionStmt = db.prepare('SELECT category, COUNT(*) as count FROM jobs WHERE category IS NOT NULL GROUP BY category');
   const getApplicationsByStatusCountStmt = db.prepare('SELECT status, COUNT(*) as count FROM applications GROUP BY status');
+  const getProvidersStmt = db.prepare("SELECT * FROM users WHERE role = 'provider' ORDER BY created_at DESC");
+  const updateUserStatusStmt = db.prepare('UPDATE users SET status = @status WHERE id = @id');
+  const updateUserStmt = db.prepare('UPDATE users SET role = @role, status = @status, notes = @notes, company = @company, full_name = @full_name, phone = @phone WHERE id = @id');
+  const deleteUserStmt = db.prepare('DELETE FROM users WHERE id = ?');
 
   module.exports = {
     available: true,
@@ -203,6 +210,10 @@ try {
     getActiveAiSubscribersCount: () => { const r = getActiveAiSubscribersCountStmt.get(); return r ? r.count : 0; },
     getCategoryDistribution: () => getCategoryDistributionStmt.all(),
     getApplicationsByStatusCount: () => getApplicationsByStatusCountStmt.all(),
+    getProviders: () => getProvidersStmt.all(),
+    updateUserStatus: (data) => updateUserStatusStmt.run(data),
+    updateUser: (data) => updateUserStmt.run(data),
+    deleteUser: (id) => deleteUserStmt.run(id),
     migrateFromJson: (paths) => {
       try {
         if (paths.usersPath && fs.existsSync(paths.usersPath)) {

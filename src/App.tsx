@@ -26,6 +26,8 @@ import MyJobs from './pages/MyJobs';
 import Messages from './pages/Messages';
 import Notifications from './pages/Notifications';
 import AIResume from './pages/AIResume';
+import Admin from './pages/Admin';
+import AdminRoute from './components/AdminRoute';
 export default function App() {
   return (
     <BrowserRouter>
@@ -58,6 +60,7 @@ export default function App() {
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/ai-resume" element={<AIResume />} />
             <Route path="/revenue" element={<Pricing />} />
+            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             <Route path="*" element={<Home />} />
           </Routes>
           <ModalRenderer />

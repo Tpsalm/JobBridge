@@ -92,6 +92,8 @@ export default function Header() {
     { label: 'Privacy Center', path: '/about', icon: Shield },
   ];
 
+  const isAdmin = user?.role === 'admin' || profile?.role === 'admin';
+
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -228,7 +230,17 @@ export default function Header() {
 
                     {/* Menu items */}
                     <div className="py-1">
-                      {profileMenuItems.map(({ label, path, icon: Icon }) => (
+                      {isAdmin && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setProfileOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50"
+                      >
+                        <Shield className="w-4 h-4 text-amber-500" />
+                        Admin Dashboard
+                      </Link>
+                    )}
+                    {profileMenuItems.map(({ label, path, icon: Icon }) => (
                         <Link
                           key={label}
                           to={path}
