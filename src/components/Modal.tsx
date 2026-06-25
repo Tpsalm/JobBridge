@@ -1,6 +1,7 @@
 import { useModal } from '../contexts/ModalContext';
 import { useAuth } from '../contexts/AuthContext';
-import { LOCAL_API_URL } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { createJob, createApplication } from '../lib/supabaseQueries';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building, Wrench, ArrowRight, BadgeCheck, Loader2, CheckCircle, Mail, Eye, EyeOff } from 'lucide-react';
@@ -176,17 +177,18 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
                 }
                 try {
                   setSubmitting(true);
-                  const token = localStorage.getItem('jobbridge_token');
-                  const res = await fetch(`${LOCAL_API_URL}/jobs`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                    },
-                    body: JSON.stringify({ ...form, recruiter_id: profile?.id }),
+                  await createJob({
+                    recruiter_id: profile?.id || user?.id || '',
+                    title: form.title,
+                    company: form.company,
+                    description: form.description,
+                    location: form.location,
+                    type: form.type,
+                    salary_range: form.salary_range,
+                    category: form.category || '',
+                    requirements: form.requirements ? form.requirements.split('\n').filter(Boolean) : [],
+                    benefits: form.benefits ? form.benefits.split('\n').filter(Boolean) : [],
                   });
-                  const json = await res.json();
-                  if (!res.ok) throw new Error(json.error || 'Failed to create job');
                   try { window.dispatchEvent(new CustomEvent('jobs:updated')); } catch (e) {}
                   await fetchSubscription();
                   setSubmitted(true);
@@ -471,7 +473,7 @@ function ApplyJobModal({ data, onClose }: { data: { job_id?: string; title?: str
   const [submitting, setSubmitting] = useState(false);
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState('');
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -522,30 +524,27 @@ function ApplyJobModal({ data, onClose }: { data: { job_id?: string; title?: str
 
     try {
       const token = localStorage.getItem('jobbridge_token');
-      const formData = new FormData();
-      formData.append('job_id', data.job_id || '');
-      formData.append('date_of_birth', form.date_of_birth);
-      formData.append('gender', form.gender);
-      formData.append('is_disabled', form.is_disabled);
-      formData.append('is_displaced', form.is_displaced);
-      formData.append('professional_headline', form.professional_headline);
-      formData.append('years_of_experience', form.years_of_experience);
-      formData.append('function', form.function);
-      formData.append('work_type', form.work_type);
-      formData.append('highest_qualification', form.highest_qualification);
-      formData.append('location', form.location);
-      formData.append('availability', form.availability);
-      formData.append('salary_expectation', form.salary_expectation);
-      formData.append('cover_letter', form.cover_letter);
-      if (cvFile) formData.append('cv', cvFile);
+      let resume_url = '';
+      if (cvFile) {
+        const fileExt = cvFile.name.split('.').pop();
+        const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('resumes')
+          .upload(fileName, cvFile);
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('resumes')
+            .getPublicUrl(fileName);
+          resume_url = urlData?.publicUrl || '';
+        }
+      }
 
-      const res = await fetch(`${LOCAL_API_URL}/applications`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
+      await createApplication({
+        job_id: data.job_id || '',
+        applicant_id: user?.id || '',
+        cover_letter: form.cover_letter,
+        resume_url,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to submit application');
       try { window.dispatchEvent(new CustomEvent('applications:updated')); } catch (e) {}
       setApplied(true);
     } catch (err: any) {
@@ -978,7 +977,7 @@ function SignupModal({ data, onClose }: { data: { pendingAction?: string; requir
   const handleSuccessContinue = () => {
     setShowSuccess(false);
     closeCurrentModal();
-    navigate('/verify-otp', { state: { email: formData.email, role: selectedRole } });
+    navigate('/');
   };
 
   // Success state view

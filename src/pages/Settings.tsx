@@ -2,7 +2,8 @@ import { useState } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
-import { Menu, Check, AlertTriangle, Download, Eye, Lock, Bell, Shield, Crown, Trash2, LogOut, Camera } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { Menu, Check, AlertTriangle, Download, Eye, Lock, Bell, Shield, ShieldCheck, Crown, Trash2, LogOut, Camera } from 'lucide-react';
 import { IMG } from '../lib/media';
 
 export default function Settings() {
@@ -44,6 +45,10 @@ export default function Settings() {
     google: true,
     linkedin: true,
   });
+
+  // 2FA is handled by Supabase's built-in MFA.
+  // Supabase MFA can be enabled in the Supabase dashboard under Authentication > Providers.
+  // Once enabled, users manage their authenticator app from their Supabase profile.
 
   // Dark mode state (persisted to localStorage)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -296,6 +301,16 @@ export default function Settings() {
                     Update Password
                   </button>
                 </div>
+              </div>
+
+              {/* Two-Factor Authentication */}
+              <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-5">Two-Factor Authentication (2FA)</h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  2FA is managed by Supabase. Enable it in your Supabase dashboard under
+                  Authentication &gt; Providers &gt; MFA. Once enabled, you can manage
+                  authenticator apps from your account security settings.
+                </p>
               </div>
 
               {/* Connected Apps */}

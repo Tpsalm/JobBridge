@@ -6,7 +6,7 @@ import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS } from '../lib/media';
-import { LOCAL_API_URL } from '../lib/supabase';
+import { subscribeToBlog } from '../lib/supabaseQueries';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 
@@ -38,18 +38,9 @@ const Blog: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`${LOCAL_API_URL}/api/subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: subscribeEmail }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSubscribeMsg({ type: 'success', text: 'Subscribed! Check your inbox.' });
-        setSubscribeEmail('');
-      } else {
-        setSubscribeMsg({ type: 'error', text: data.error || 'Subscription failed' });
-      }
+      await subscribeToBlog(subscribeEmail);
+      setSubscribeMsg({ type: 'success', text: 'Subscribed! Check your inbox.' });
+      setSubscribeEmail('');
     } catch {
       setSubscribeMsg({ type: 'error', text: 'Could not subscribe. Try again later.' });
     }

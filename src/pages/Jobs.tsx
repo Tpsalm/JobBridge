@@ -6,7 +6,7 @@ import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
 import { useAuthRequired } from '../hooks/useAuthRequired';
 import { useAuth } from '../contexts/AuthContext';
-import { LOCAL_API_URL } from '../lib/supabase';
+import { fetchJobs, incrementJobViews } from '../lib/supabaseQueries';
 import PageHero from '../components/PageHero';
 import CompanyLogo from '../components/CompanyLogo';
 import { HERO_CAROUSELS, IMG } from '../lib/media';
@@ -71,10 +71,8 @@ const Jobs = () => {
   const [appliedLocal, setAppliedLocal] = useState<string[]>(appliedJobs);
 
   useEffect(() => {
-    fetch(`${LOCAL_API_URL}/jobs`).then(r => r.json()).then(j => {
-      if (j.jobs) setJobs(j.jobs);
-    }).catch(() => {});
-    const handler = () => fetch(`${LOCAL_API_URL}/jobs`).then(r => r.json()).then(j => { if (j.jobs) setJobs(j.jobs); }).catch(() => {});
+    fetchJobs().then(data => setJobs(data)).catch(() => {});
+    const handler = () => fetchJobs().then(data => setJobs(data)).catch(() => {});
     window.addEventListener('jobs:updated', handler);
     return () => window.removeEventListener('jobs:updated', handler);
   }, []);
@@ -105,6 +103,7 @@ const Jobs = () => {
     setMobileDetail(true);
     // Increment view count
     setJobs(prev => prev.map(j => j.id === job.id ? { ...j, views: (j.views || 0) + 1 } : j));
+    incrementJobViews(job.id, job.views).catch(() => {});
     setTimeout(() => detailRef.current?.scrollTo(0, 0), 50);
   };
 

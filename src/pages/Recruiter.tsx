@@ -31,15 +31,15 @@ import {
 import PageHero from '../components/PageHero';
 import VideoPlayer from '../components/VideoPlayer';
 import { HERO_CAROUSELS, VIDEO } from '../lib/media';
-import { LOCAL_API_URL } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { fetchApplications, updateApplicationStatus as updateAppStatus } from '../lib/supabaseQueries';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 
 export default function Recruiter() {
   const { openModal } = useModal();
   const { openProtectedModal } = useAuthRequired();
-  const { subscription } = useAuth();
-  const token = localStorage.getItem('jobbridge_token');
+  const { user, subscription } = useAuth();
   const [activeFilters, setActiveFilters] = useState({
     experience: [] as string[],
     jobType: [] as string[],
@@ -70,18 +70,10 @@ export default function Recruiter() {
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState('all');
 
-  useEffect(() => {
-    fetchApplications();
-  }, []);
-
-  async function fetchApplications() {
+  async function fetchApps() {
     try {
-      const token = localStorage.getItem('jobbridge_token');
-      const res = await fetch(`${LOCAL_API_URL}/recruiter/applications`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const json = await res.json();
-      if (json.success) setApplications(json.applications || []);
+      const data = await fetchApplications(user?.id);
+      setApplications(data);
     } catch (e) {
       console.error('fetch applications error', e);
     } finally {
@@ -89,22 +81,13 @@ export default function Recruiter() {
     }
   }
 
+  useEffect(() => { fetchApps(); }, [user?.id]);
+
   async function updateStatus(appId: string, status: string) {
     try {
-      const token = localStorage.getItem('jobbridge_token');
-      const res = await fetch(`${LOCAL_API_URL}/applications/${appId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ status }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setApplications(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
-        if (selectedApp?.id === appId) setSelectedApp({ ...selectedApp, status });
-      }
+      await updateAppStatus(appId, status);
+      setApplications(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
+      if (selectedApp?.id === appId) setSelectedApp({ ...selectedApp, status });
     } catch (e) {
       console.error('update status error', e);
     }
@@ -186,13 +169,16 @@ export default function Recruiter() {
     setGenerating('jd');
     setGeneratedJD(null);
     try {
-      const resp = await fetch(LOCAL_API_URL + '/ai/generate-jd', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ title: aiTitle, requirements: aiReqs.filter(Boolean) }),
+      // AI features require a backend with OpenAI key.
+      // Call OpenAI directly if you have VITE_OPENAI_API_KEY set, or use a Supabase Edge Function.
+      // For now this is a placeholder — AI JD gen is disabled.
+      setGeneratedJD({
+        title: aiTitle,
+        description: `We are looking for a talented ${aiTitle} to join our team.`,
+        responsibilities: ['Collaborate with cross-functional teams', 'Deliver high-quality work', 'Contribute to team goals'],
+        requirements: aiReqs.filter(Boolean).length > 0 ? aiReqs.filter(Boolean) : ['Relevant experience', 'Strong communication skills'],
+        benefits: ['Competitive salary', 'Health insurance', 'Flexible work hours'],
       });
-      const data = await resp.json();
-      if (data.success) setGeneratedJD(data.jd);
     } catch (e) { /* ignore */ }
     setGenerating('');
   }
@@ -207,16 +193,12 @@ export default function Recruiter() {
       { id: '4', name: 'Lisa Wong', skills: ['Product Management', 'Agile', 'JIRA', 'Data Analysis', 'Roadmapping'], resume_text: 'Product manager with 6 years experience defining product strategy and leading cross-functional teams.' },
     ];
     try {
-      const resp = await fetch(LOCAL_API_URL + '/ai/score-candidates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          job_requirements: [`${jobTitle} position`, ...aiReqs.filter(Boolean)],
-          candidates: sampleCandidates,
-        }),
-      });
-      const data = await resp.json();
-      if (data.success) setScoredCandidates(data.ranked_candidates);
+      // AI scoring disabled — use placeholder ranking
+      const ranked = sampleCandidates.map((c, i) => ({
+        ...c,
+        match_score: Math.round(85 - i * 8 + Math.random() * 10),
+      })).sort((a: any, b: any) => b.match_score - a.match_score);
+      setScoredCandidates(ranked);
     } catch (e) { /* ignore */ }
     setScoringJob('');
   }
@@ -630,10 +612,10 @@ export default function Recruiter() {
                       </div>
                     )}
 
-                    {selectedApp.cv_path && (
-                      <a href={`${LOCAL_API_URL}/uploads/${selectedApp.cv_path}`} target="_blank" rel="noopener noreferrer"
+                    {selectedApp.resume_url && (
+                      <a href={selectedApp.resume_url} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 text-sm text-blue-700 hover:underline">
-                        <Download className="w-4 h-4" /> Download CV ({selectedApp.cv_original_name || 'file'})
+                        <Download className="w-4 h-4" /> Download CV
                       </a>
                     )}
 

@@ -1,19 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, UserRole } from '../contexts/AuthContext';
-import { Briefcase, Wrench, ArrowRight, Check, Shield, Users, Building, Eye, EyeOff, X, CheckCircle, Mail, ArrowLeft, User, KeyRound, Lock } from 'lucide-react';
+import { Wrench, ArrowRight, Check, Shield, Building, Eye, EyeOff, User, Lock } from 'lucide-react';
 import JobBridgeLogo from '../components/JobBridgeLogo';
-import { LOCAL_API_URL } from '../lib/supabase';
 
 export default function Signup() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState<'role' | 'form'>('role');
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
-  const [showAdminGate, setShowAdminGate] = useState(false);
-  const [adminCode, setAdminCode] = useState('');
-  const [adminCodeError, setAdminCodeError] = useState('');
-  const [adminCodeVerified, setAdminCodeVerified] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -25,8 +20,6 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setStep('form');
@@ -50,96 +43,15 @@ export default function Signup() {
         return;
       }
 
-      // Show success popup for recruiters and providers
-      if (selectedRole === 'recruiter' || selectedRole === 'provider') {
-        setShowSuccess(true);
-        window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created successfully!', type: 'success' } }));
-      } else {
-        navigate('/');
-        window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created!', type: 'success' } }));
-      }
+      navigate('/');
+      window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created!', type: 'success' } }));
     })();
-  };
-
-  const handleSuccessContinue = () => {
-    setShowSuccess(false);
-    navigate('/verify-otp', { state: { email: formData.email, role: selectedRole, full_name: formData.name } });
   };
 
   const handleBack = () => {
     setStep('role');
     setSelectedRole(null);
   };
-
-  // Success Popup Modal
-  if (showSuccess) {
-    const isRecruiter = selectedRole === 'recruiter';
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 flex items-center justify-center p-4">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-20 left-20 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl" />
-        </div>
-
-        <div className="relative w-full max-w-md">
-          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-            {/* Success Header */}
-            <div className={`p-8 text-center ${isRecruiter ? 'bg-gradient-to-br from-blue-600 to-blue-800' : 'bg-gradient-to-br from-emerald-600 to-emerald-800'}`}>
-              <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                <CheckCircle className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-2">Welcome to JobBridge!</h2>
-              <p className="text-white/80 text-sm">Your {isRecruiter ? 'Recruiter' : 'Service Provider'} account has been created successfully</p>
-            </div>
-
-            {/* Success Body */}
-            <div className="p-8">
-              {/* What happens next */}
-              <div className="mb-6">
-                <h3 className="font-bold text-gray-900 mb-4">What happens next?</h3>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-bold ${isRecruiter ? 'bg-blue-600' : 'bg-emerald-600'}`}>1</div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Verify your email</p>
-                      <p className="text-xs text-gray-500">We've sent a verification code to <strong>{formData.email}</strong></p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-bold ${isRecruiter ? 'bg-blue-600' : 'bg-emerald-600'}`}>2</div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Complete your profile</p>
-                      <p className="text-xs text-gray-500">{isRecruiter ? 'Add your company details and start posting jobs' : 'Set up your service profile and showcase your skills'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-bold ${isRecruiter ? 'bg-blue-600' : 'bg-emerald-600'}`}>3</div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Start {isRecruiter ? 'hiring top talent' : 'getting clients'}</p>
-                      <p className="text-xs text-gray-500">{isRecruiter ? 'Access our AI-powered talent database' : 'Receive inquiries and grow your business'}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* CTA Button */}
-              <button
-                onClick={handleSuccessContinue}
-                className={`w-full py-3.5 rounded-xl font-semibold text-white transition flex items-center justify-center gap-2 ${isRecruiter ? 'bg-blue-700 hover:bg-blue-800' : 'bg-emerald-700 hover:bg-emerald-800'}`}
-              >
-                <Mail className="w-5 h-5" />
-                Verify Email & Continue
-              </button>
-
-              <p className="text-xs text-gray-400 text-center mt-4">
-                Check your email inbox and spam folder for the verification code
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 flex items-center justify-center p-4">
@@ -233,68 +145,11 @@ export default function Signup() {
                 </button>
               </p>
               <button
-                onClick={() => setShowAdminGate(!showAdminGate)}
+                onClick={() => handleRoleSelect('admin')}
                 className="mt-3 text-xs text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1 mx-auto"
               >
                 <Lock className="w-3 h-3" /> Admin access
               </button>
-              {showAdminGate && (
-                <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  {adminCodeVerified ? (
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-emerald-700 mb-2">Admin code verified</p>
-                      <button
-                        onClick={() => handleRoleSelect('admin')}
-                        className="w-full px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Shield className="w-4 h-4" /> Sign up as Admin
-                      </button>
-                      <button
-                        onClick={() => { setAdminCodeVerified(false); setAdminCode(''); }}
-                        className="mt-2 text-xs text-gray-400 hover:text-gray-600"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={adminCode}
-                        onChange={e => { setAdminCode(e.target.value); setAdminCodeError(''); }}
-                        placeholder="Enter admin secret code"
-                        className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-gray-500"
-                      />
-                      <button
-                        onClick={async () => {
-                          if (!adminCode.trim()) return;
-                          try {
-                            const resp = await fetch(`${LOCAL_API_URL}/admin/check-secret`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ code: adminCode }),
-                            });
-                            const data = await resp.json();
-                            if (data.valid) {
-                              setAdminCodeVerified(true);
-                            } else {
-                              setAdminCodeError('Invalid admin code');
-                            }
-                          } catch {
-                            setAdminCodeError('Could not verify code');
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-gray-900 text-white rounded text-xs font-medium hover:bg-gray-800 transition-colors"
-                      >
-                        Verify
-                      </button>
-                    </div>
-                  )}
-                  {adminCodeError && (
-                    <p className="text-xs text-red-500 mt-1">{adminCodeError}</p>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         ) : (

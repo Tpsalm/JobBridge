@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LOCAL_API_URL } from '../lib/supabase';
+import {
+  adminFetchUsers, adminFetchJobs, adminFetchApplications,
+  adminUpdateUserRole, adminToggleJobActive,
+} from '../lib/supabaseQueries';
 import {
   Shield, Users, Briefcase, CreditCard, Clock,
   Search, Ban, UserCheck, Trash2, DollarSign, Activity,
@@ -38,34 +41,51 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; action: () => Promise<void> } | null>(null);
 
-  const api = useCallback(async (url: string, options?: RequestInit) => {
-    const res = await fetch(`${LOCAL_API_URL}${url}`, {
-      ...options,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options?.headers },
-    });
-    return res.json();
-  }, [token]);
-
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [dashRes, jobsRes, providersRes, usersRes, activitiesRes] = await Promise.all([
-        api('/admin/dashboard'),
-        api('/admin/jobs'),
-        api('/admin/providers'),
-        api('/admin/users'),
-        api('/api/activities'),
+      const [jobsData, usersData, appsData] = await Promise.all([
+        adminFetchJobs(),
+        adminFetchUsers(),
+        adminFetchApplications(),
       ]);
-      if (dashRes.success) setDashboard(dashRes.dashboard);
-      if (jobsRes.success) setJobs(jobsRes.jobs || []);
-      if (providersRes.success) setProviders(providersRes.providers || []);
-      if (usersRes.success) setAllUsers(usersRes.users || []);
-      if (activitiesRes.success) setActivities(activitiesRes.activities || []);
+      setJobs(jobsData);
+      setAllUsers(usersData);
+      // Use apps for dashboard count / providers as placeholder
+      setDashboard({
+        totalUsers: usersData.length,
+        totalJobs: jobsData.length,
+        pendingJobs: jobsData.filter(j => !j.is_active).length,
+        approvedJobs: jobsData.filter(j => j.is_active).length,
+        rejectedJobs: 0,
+        totalApplications: appsData.length,
+        totalRevenue: 0,
+        completedPayments: 0,
+        newUsersThisWeek: usersData.filter(u => {
+          const d = new Date(u.created_at);
+          const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          return d > weekAgo;
+        }).length,
+        newRecruitersThisWeek: 0,
+        jobsToday: jobsData.filter(j => {
+          const d = new Date(j.created_at);
+          const today = new Date();
+          return d.toDateString() === today.toDateString();
+        }).length,
+        applicationsToday: appsData.filter(a => {
+          const d = new Date(a.created_at);
+          const today = new Date();
+          return d.toDateString() === today.toDateString();
+        }).length,
+        roleCounts: [],
+        activeSubscribers: 0,
+        activeAiSubscribers: 0,
+      });
     } catch (e) {
       console.error('admin fetch error', e);
     }
     setLoading(false);
-  }, [api]);
+  }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -75,48 +95,48 @@ export default function AdminDashboard() {
 
   const approveJob = async (id: string) => {
     setActionLoading(id);
-    await api(`/admin/jobs/${id}/approve`, { method: 'POST' });
-    setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'approved' } : j));
+    await adminToggleJobActive(id, true);
+    setJobs(prev => prev.map(j => j.id === id ? { ...j, is_active: true } : j));
     setActionLoading(null);
     notify('Job approved');
   };
 
   const rejectJob = async (id: string) => {
     setActionLoading(id);
-    await api(`/admin/jobs/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason: 'Flagged by admin' }) });
-    setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'rejected' } : j));
+    await adminToggleJobActive(id, false);
+    setJobs(prev => prev.map(j => j.id === id ? { ...j, is_active: false } : j));
     setActionLoading(null);
     notify('Job rejected');
   };
 
   const approveProvider = async (id: string) => {
     setActionLoading(id);
-    await api(`/admin/providers/${id}/approve`, { method: 'POST' });
-    setProviders(prev => prev.map(p => p.id === id ? { ...p, provider_status: 'approved' } : p));
+    await adminUpdateUserRole(id, 'provider');
+    setProviders(prev => prev.map(p => p.id === id ? { ...p, role: 'provider' } : p));
     setActionLoading(null);
     notify('Provider approved');
   };
 
   const rejectProvider = async (id: string) => {
     setActionLoading(id);
-    await api(`/admin/providers/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason: 'Flagged by admin' }) });
-    setProviders(prev => prev.map(p => p.id === id ? { ...p, provider_status: 'rejected' } : p));
+    await adminUpdateUserRole(id, 'job_seeker');
+    setProviders(prev => prev.map(p => p.id === id ? { ...p, role: 'job_seeker' } : p));
     setActionLoading(null);
     notify('Provider rejected');
   };
 
   const suspendUser = async (id: string) => {
     setActionLoading(id);
-    await api(`/admin/users/${id}/suspend`, { method: 'PUT' });
-    setAllUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'suspended' } : u));
+    await adminUpdateUserRole(id, 'suspended');
+    setAllUsers(prev => prev.map(u => u.id === id ? { ...u, role: 'suspended' } : u));
     setActionLoading(null);
     notify('User suspended');
   };
 
   const activateUser = async (id: string) => {
     setActionLoading(id);
-    await api(`/admin/users/${id}/activate`, { method: 'PUT' });
-    setAllUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'active' } : u));
+    await adminUpdateUserRole(id, 'active');
+    setAllUsers(prev => prev.map(u => u.id === id ? { ...u, role: 'active' } : u));
     setActionLoading(null);
     notify('User activated');
   };

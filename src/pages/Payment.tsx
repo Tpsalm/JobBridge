@@ -15,7 +15,7 @@ import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { IMG } from '../lib/media';
 import { useAuth } from '../contexts/AuthContext';
-import { LOCAL_API_URL } from '../lib/supabase';
+import { activatePremiumPlan, recordPayment } from '../lib/supabaseQueries';
 
 declare const PaystackPop: any;
 
@@ -55,7 +55,7 @@ export default function Payment() {
   }, []);
 
   const handlePayWithCard = async () => {
-    if (!token) {
+    if (!user?.id) {
       setError('Please log in first');
       return;
     }
@@ -64,37 +64,13 @@ export default function Payment() {
     setError('');
 
     try {
-      // Initialize payment on backend
-      const initRes = await fetch(`${LOCAL_API_URL}/pay/initialize`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ plan: planKey }),
-      });
+      const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
+      const reference = 'JB-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 
-      const initJson = await initRes.json();
-      if (!initRes.ok || !initJson.success) {
-        throw new Error(initJson.error || 'Payment initialization failed');
-      }
-
-      const { reference, public_key } = initJson;
-
-      if (!public_key) {
-        // No Paystack key configured — auto-verify (dev mode)
-        const verifyRes = await fetch(`${LOCAL_API_URL}/pay/verify`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ reference }),
-        });
-        const verifyJson = await verifyRes.json();
-        if (!verifyRes.ok || !verifyJson.success) {
-          throw new Error(verifyJson.error || 'Payment verification failed');
-        }
+      if (!publicKey) {
+        // No Paystack key configured — auto-activate (dev mode)
+        await activatePremiumPlan(user.id, planKey, plan.price);
+        await recordPayment({ user_id: user.id, plan: planKey, amount: plan.price, reference, status: 'completed' });
         if (plan.ai) {
           await fetchAiSubscription();
         } else {
@@ -105,30 +81,18 @@ export default function Payment() {
         return;
       }
 
-      // Open Paystack Inline checkout
+      // Open Paystack Inline checkout directly
       const handler = PaystackPop.setup({
-        key: public_key,
-        email: user?.email || 'user@example.com',
+        key: publicKey,
+        email: user.email || 'user@example.com',
         amount: plan.price * 100,
         ref: reference,
         currency: 'NGN',
         callback: async (response: any) => {
-          // Verify payment on backend
           try {
-            const verifyRes = await fetch(`${LOCAL_API_URL}/pay/verify`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ reference: response.reference }),
-            });
-            const verifyJson = await verifyRes.json();
-            if (!verifyRes.ok || !verifyJson.success) {
-              setError(verifyJson.error || 'Verification failed. Contact support with ref: ' + response.reference);
-              setPaying(false);
-              return;
-            }
+            // Payment confirmed by Paystack — activate plan directly
+            await activatePremiumPlan(user.id, planKey, plan.price);
+            await recordPayment({ user_id: user.id, plan: planKey, amount: plan.price, reference: response.reference, status: 'completed' });
             if (plan.ai) {
               await fetchAiSubscription();
             } else {
@@ -136,7 +100,7 @@ export default function Payment() {
             }
             setPaid(true);
           } catch (err) {
-            setError('Verification failed. Contact support with ref: ' + response.reference);
+            setError('Activation failed. Contact support with ref: ' + response.reference);
           }
           setPaying(false);
         },

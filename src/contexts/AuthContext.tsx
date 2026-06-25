@@ -1,11 +1,7 @@
-import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { supabase as _supabaseClient, localSignUp, localLogin, localGetProfile, Profile, SubscriptionInfo, AiSubscriptionInfo, requestCreateProfile } from '../lib/supabase';
-import { requestWelcomeEmail } from '../lib/supabase';
-import { LOCAL_API_URL } from '../lib/supabase';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
+import { supabase, Profile, SubscriptionInfo, AiSubscriptionInfo } from '../lib/supabase';
 
-// Cast supabase to any so that TypeScript doesn't narrow it to `never`
-// (it's exported as `null` when using the local backend).
-const supabase = _supabaseClient as any;
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 export type UserRole = 'recruiter' | 'provider' | 'job_seeker' | 'admin' | null;
 
@@ -62,41 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const fetchSubscription = useCallback(async () => {
-    const token = localStorage.getItem('jobbridge_token');
-    if (!token) {
-      setSubscription({ tier: null, status: 'inactive', expires_at: null, credits: 0 });
-      return;
-    }
-    try {
-      const res = await fetch(`${LOCAL_API_URL}/user/subscription`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const json = await res.json();
-      if (json.success && json.subscription) {
-        setSubscription(json.subscription);
-      }
-    } catch (err) {
-      console.error('fetchSubscription error', err);
-    }
+    // Placeholder — subscription data can come from a Supabase table or Stripe webhook later
+    setSubscription({ tier: null, status: 'inactive', expires_at: null, credits: 0 });
   }, []);
 
   const fetchAiSubscription = useCallback(async () => {
-    const token = localStorage.getItem('jobbridge_token');
-    if (!token) {
-      setAiSubscription({ ai_tier: null, ai_status: 'inactive', ai_expires_at: null });
-      return;
-    }
-    try {
-      const res = await fetch(`${LOCAL_API_URL}/user/ai-subscription`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const json = await res.json();
-      if (json.success && json.ai_subscription) {
-        setAiSubscription(json.ai_subscription);
-      }
-    } catch (err) {
-      console.error('fetchAiSubscription error', err);
-    }
+    setAiSubscription({ ai_tier: null, ai_status: 'inactive', ai_expires_at: null });
   }, []);
 
   const toggleSaveJob = (jobId: string) => {
@@ -116,75 +83,111 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  useEffect(() => {
-    // If supabase client is available, use it for sessions; otherwise mark loading false
-    if (supabase) {
-      // Get initial session
-      (supabase as any).auth.getSession().then(({ data }: any) => {
-        const sess = data?.session;
-        setSession(sess);
-        setUser(sess?.user ?? null);
-        if (sess?.user) {
-          fetchProfile(sess.user.id);
-        } else {
-          setLoading(false);
-        }
-      });
+  // Build a Profile from either the profiles table or auth user_metadata
+  const buildProfile = useCallback(async (authUser: any): Promise<Profile | null> => {
+    if (!authUser) return null;
 
-      // Listen for auth changes
-      const { data: { subscription } } = (supabase as any).auth.onAuthStateChange((_event: any, sess: any) => {
-        setSession(sess);
-        setUser(sess?.user ?? null);
-        if (sess?.user) {
-          fetchProfile(sess.user.id);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
-      });
-
-      return () => subscription.unsubscribe();
-    } else {
-      // No Supabase — check localStorage token for persisted login
-      const token = localStorage.getItem('jobbridge_token');
-      const storedUser = localStorage.getItem('jobbridge_user');
-      if (token && storedUser) {
-        try {
-          const u = JSON.parse(storedUser);
-          setUser(u);
-          setProfile(u);
-          fetchSubscription();
-          fetchAiSubscription();
-        } catch { /* ignore */ }
-      }
-      setLoading(false);
-    }
-    fetchAiSubscription();
-  }, []);
-
-  const fetchProfile = async (userId: string) => {
-    if (supabase) {
-      const { data, error } = await (supabase as any)
+    // Try to fetch from profiles table first
+    try {
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', authUser.id)
         .maybeSingle();
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-      } else {
-        setProfile(data);
+      if (data && !error) {
+        return data as Profile;
       }
-    } else {
-      const r = await localGetProfile(userId);
-      if (r.ok) {
-        setProfile(r.data.profile);
-      } else {
-        console.error('Error fetching local profile', r.error);
-      }
+    } catch {
+      // profiles table may not exist yet — fall through to metadata
     }
-    setLoading(false);
-  };
+
+    // Fall back to user_metadata
+    const meta = authUser.user_metadata || {};
+    return {
+      id: authUser.id,
+      email: authUser.email || '',
+      full_name: meta.full_name || '',
+      role: meta.role || 'job_seeker',
+      company: meta.company || undefined,
+      created_at: authUser.created_at || new Date().toISOString(),
+      updated_at: authUser.updated_at || new Date().toISOString(),
+    } as Profile;
+  }, []);
+
+  // Create a profile record in the profiles table after signup
+  const createProfileRecord = useCallback(async (authUser: any, fullName: string, role: string, company?: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: authUser.id,
+          email: authUser.email,
+          full_name: fullName,
+          role: role || 'job_seeker',
+          company: company || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+
+      if (error) {
+        // Table may not exist — that's ok, metadata is sufficient
+      }
+    } catch {
+      // Silently handle — metadata fallback works
+    }
+  }, []);
+
+  useEffect(() => {
+    // Restore session from Supabase
+    supabase.auth.getSession().then(({ data: { session: sess } }) => {
+      setSession(sess);
+      setUser(sess?.user ?? null);
+      if (sess?.user) {
+        buildProfile(sess.user).then(p => {
+          setProfile(p);
+          setLoading(false);
+        });
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth state changes
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, sess) => {
+      setSession(sess);
+      setUser(sess?.user ?? null);
+      if (sess?.user) {
+        buildProfile(sess.user).then(p => setProfile(p));
+      } else {
+        setProfile(null);
+      }
+    });
+
+    return () => authSub.unsubscribe();
+  }, [buildProfile]);
+
+  // Inactivity auto-logout timer
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(() => {
+      if (user) {
+        signOut();
+      }
+    }, INACTIVITY_TIMEOUT_MS);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll', 'mousemove'];
+    resetInactivityTimer();
+    events.forEach(e => window.addEventListener(e, resetInactivityTimer));
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetInactivityTimer));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    };
+  }, [user, resetInactivityTimer]);
 
   const signUp = async (
     email: string,
@@ -194,45 +197,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     company?: string
   ) => {
     try {
-      if (supabase) {
-        const { data, error } = await (supabase as any).auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-              role: role || 'job_seeker',
-              company: company || null,
-            },
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            role: role || 'job_seeker',
+            company: company || null,
           },
-        });
-        if (error) throw error;
+        },
+      });
 
-        // If the signup returned a user id, proactively create the profile via service-role function
-        const userId = (data as any)?.user?.id;
-        if (userId) {
-          try {
-            await requestCreateProfile({ id: userId, email, full_name: fullName, role: role || undefined, company });
-          } catch (err) {
-            console.error('Failed to create profile via function', err);
-          }
-        }
-      } else {
-        // Use local fallback API
-        const r = await localSignUp({ email, password, full_name: fullName, role: role || undefined, company });
-        if (!r.ok) {
-          const errMsg = (r.error && ((r.error as any).message || String(r.error))) || 'Local signup failed';
-          if (errMsg.includes('Failed to fetch') || errMsg.includes('fetch') || errMsg.includes('Empty response') || errMsg.includes('Unexpected end')) {
-            throw new Error('Cannot connect to server. Please make sure the backend server is running (cd server && node index.js).');
-          }
-          throw new Error(errMsg);
-        }
+      if (error) throw error;
+
+      const authUser = data?.user;
+      if (authUser) {
+        await createProfileRecord(authUser, fullName, role || 'job_seeker', company);
       }
 
-      // Send welcome email for recruiters/providers (non-blocking)
-      if (role === 'recruiter' || role === 'provider') {
-        requestWelcomeEmail({ email, name: fullName, role: role || undefined }).catch(() => {});
+      // If not auto-signed-in (email confirmation on), sign in manually
+      if (!data?.session && authUser) {
+        await supabase.auth.signInWithPassword({ email, password });
       }
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -241,38 +229,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      if (supabase) {
-        const { error } = await (supabase as any).auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        return { error: null };
-      } else {
-        const r = await localLogin({ email, password });
-        if (!r.ok) throw new Error(((r.error as any)?.message) || 'Local login failed');
-        const userObj = (r.data && r.data.user) || null;
-        if (userObj) {
-          setUser(userObj as any);
-          setProfile(userObj as any);
-          localStorage.setItem('jobbridge_user', JSON.stringify(userObj));
-          fetchSubscription();
-        }
-        // store token
-        if (r.data && r.data.token) {
-          try { localStorage.setItem('jobbridge_token', r.data.token); } catch { /* noop */ }
-        }
-        return { error: null };
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      return { error: null };
     } catch (error) {
       return { error: error as Error };
     }
   };
 
   const signOut = async () => {
-    if (supabase) await (supabase as any).auth.signOut();
+    await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
     setSession(null);
-    localStorage.removeItem('jobbridge_token');
-    localStorage.removeItem('jobbridge_user');
   };
 
   return (

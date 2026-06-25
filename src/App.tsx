@@ -21,7 +21,6 @@ import CEO from './pages/CEO';
 import Business from './pages/Business';
 import Pricing from './pages/Pricing';
 import Payment from './pages/Payment';
-import VerifyOTP from './pages/VerifyOTP';
 import MyJobs from './pages/MyJobs';
 import Messages from './pages/Messages';
 import Notifications from './pages/Notifications';
@@ -54,7 +53,6 @@ export default function App() {
             <Route path="/business" element={<Business />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/payment" element={<Payment />} />
-            <Route path="/verify-otp" element={<VerifyOTP />} />
             <Route path="/my-jobs" element={<MyJobs />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/notifications" element={<Notifications />} />

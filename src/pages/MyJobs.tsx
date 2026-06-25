@@ -6,7 +6,7 @@ import CompanyLogo from '../components/CompanyLogo';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, IMG } from '../lib/media';
 import { Bookmark, Briefcase, Calendar, Clock, MapPin, DollarSign, ChevronRight, Search, Archive, X, FileText } from 'lucide-react';
-import { LOCAL_API_URL } from '../lib/supabase';
+import { fetchJobs, fetchUserApplications } from '../lib/supabaseQueries';
 
 type Tab = 'saved' | 'applied' | 'interviews' | 'archived';
 
@@ -33,7 +33,7 @@ interface ApplicationItem {
 }
 
 export default function MyJobs() {
-  const { savedJobs, appliedJobs, toggleSaveJob, isAuthenticated } = useAuth();
+  const { savedJobs, appliedJobs, toggleSaveJob, isAuthenticated, user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('saved');
   const [allJobs, setAllJobs] = useState<JobItem[]>([]);
   const [myApplications, setMyApplications] = useState<ApplicationItem[]>([]);
@@ -41,21 +41,21 @@ export default function MyJobs() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    Promise.all([
-      fetch(`${LOCAL_API_URL}/jobs`).then(res => res.json()),
-      isAuthenticated ? fetch(`${LOCAL_API_URL}/my-applications`, {
-        headers: localStorage.getItem('jobbridge_token')
-          ? { Authorization: `Bearer ${localStorage.getItem('jobbridge_token')}` }
-          : {},
-      }).then(res => res.json()) : Promise.resolve({ applications: [] }),
-    ])
-      .then(([jobsData, appsData]) => {
-        setAllJobs(jobsData.jobs || jobsData || []);
-        setMyApplications(appsData.applications || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [isAuthenticated]);
+    (async () => {
+      setLoading(true);
+      try {
+        const [jobsData, appsData] = await Promise.all([
+          fetchJobs(),
+          isAuthenticated ? fetchUserApplications(user?.id).catch(() => []) : Promise.resolve([]),
+        ]);
+        setAllJobs(jobsData);
+        setMyApplications(appsData);
+      } catch {
+        // silently fail
+      }
+      setLoading(false);
+    })();
+  }, [isAuthenticated, user?.id]);
 
   const savedJobItems = allJobs.filter(j => savedJobs.includes(j.id));
   const appliedJobItems = myApplications.map(app => ({
