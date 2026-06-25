@@ -1,9 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function createErrorClient(message: string) {
+  const error = () => { throw new Error(message); };
+  return {
+    auth: {
+      getSession: error,
+      signUp: error,
+      signInWithPassword: error,
+      signOut: error,
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      verifyOtp: error,
+    },
+    from: () => ({ select: error, insert: error, update: error, delete: error, upsert: error }),
+    storage: { from: () => ({ upload: error, getPublicUrl: error, download: error, list: error, remove: error }) },
+  } as any;
+}
+
+export const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : createErrorClient('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set in your environment. Add them to Vercel project settings.');
 
 // All features now use Supabase directly. VITE_LOCAL_API_URL is no longer needed.
 
