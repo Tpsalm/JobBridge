@@ -26,6 +26,7 @@ import MyJobs from './pages/MyJobs';
 import Messages from './pages/Messages';
 import Notifications from './pages/Notifications';
 import AIResume from './pages/AIResume';
+import Career from './pages/Career';
 import Admin from './pages/Admin';
 import AdminRoute from './components/AdminRoute';
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/about" element={<About />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/games" element={<Games />} />
+            <Route path="/career" element={<Career />} />
             <Route path="/providers" element={<Providers />} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:id" element={<BlogDetail />} />

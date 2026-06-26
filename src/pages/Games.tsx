@@ -3,7 +3,7 @@ import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS } from '../lib/media';
-import { Flame, RotateCcw, Star, Zap, Trophy, Brain, Clock, CheckCircle, Medal, Sparkles } from 'lucide-react';
+import { Flame, RotateCcw, Star, Zap, Trophy, Brain, Clock, CheckCircle, Medal, Sparkles, X } from 'lucide-react';
 
 interface StreakData {
   current: number;
@@ -22,6 +22,45 @@ interface MemoryCard {
 }
 
 const DEFAULT_STREAK: StreakData = { current: 0, best: 0, lastDate: '', points: 0, gamesPlayed: 0 };
+
+// ─── Sound effects (Web Audio API) ──────────────────────────────
+let audioCtx: AudioContext | null = null;
+
+function getAudioCtx(): AudioContext {
+  if (!audioCtx) audioCtx = new AudioContext();
+  return audioCtx;
+}
+
+function playTone(freq: number, duration: number, type: OscillatorType = 'sine', volume = 0.15) {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch {}
+}
+
+function playFlipSound() { playTone(600, 0.1, 'sine', 0.1); }
+function playMatchSound() {
+  playTone(523, 0.12, 'sine', 0.12);
+  setTimeout(() => playTone(659, 0.12, 'sine', 0.12), 100);
+  setTimeout(() => playTone(784, 0.15, 'sine', 0.12), 200);
+}
+function playMismatchSound() {
+  playTone(300, 0.15, 'square', 0.08);
+  setTimeout(() => playTone(250, 0.2, 'square', 0.08), 120);
+}
+function playWinSound() {
+  const notes = [523, 587, 659, 698, 784, 880, 988, 1047];
+  notes.forEach((n, i) => setTimeout(() => playTone(n, 0.2, 'sine', 0.12), i * 80));
+}
 
 const CARD_PAIRS = [
   { emoji: '💼', label: 'Career' },
@@ -113,6 +152,7 @@ export default function Games() {
   const [timer, setTimer] = useState(0);
   const [streak, setStreak] = useState<StreakData>(loadStreak);
   const [showResult, setShowResult] = useState(false);
+  const [showStreakPopup, setShowStreakPopup] = useState(false);
   const [bestScore, setBestScore] = useState<number>(() => {
     try { return parseInt(localStorage.getItem('jobbridge_best_moves') || '999'); } catch { return 999; }
   });
@@ -140,18 +180,23 @@ export default function Games() {
       );
       setFlippedIds([]);
       if (isMatch) {
+        playMatchSound();
         const newMatched = matchedCount + 1;
         setMatchedCount(newMatched);
         if (newMatched === CARD_PAIRS.length) {
           setGameComplete(true);
+          playWinSound();
           const newStreak = updateStreak();
           setStreak(newStreak);
           setShowResult(true);
+          setTimeout(() => setShowStreakPopup(true), 800);
           if (moves + 1 < bestScore) {
             setBestScore(moves + 1);
             localStorage.setItem('jobbridge_best_moves', String(moves + 1));
           }
         }
+      } else {
+        playMismatchSound();
       }
     }, 600);
   }, [flippedIds, cards, moves, matchedCount, bestScore]);
@@ -165,6 +210,7 @@ export default function Games() {
     setCards(prev => prev.map(c => (c.id === cardId ? { ...c, flipped: true } : c)));
     setFlippedIds(prev => [...prev, cardId]);
     setMoves(m => m + 1);
+    playFlipSound();
   }, [gameComplete, flippedIds, cards]);
 
   const resetGame = () => {
@@ -257,6 +303,36 @@ export default function Games() {
                   <Flame className="w-3 h-3" /> {streak.current}-day streak!
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Streak completion popup */}
+          {showStreakPopup && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setShowStreakPopup(false)}>
+              <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center relative animate-bounce-in" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setShowStreakPopup(false)} className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-3xl shadow-lg">
+                  🏆
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Excellent Job!</h3>
+                <p className="text-amber-600 font-semibold text-lg mb-1">You are on a Streak!</p>
+                <p className="text-sm text-gray-500 mb-4">
+                  {streak.current}-day streak · {streak.points.toLocaleString()} total points
+                </p>
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  {streak.current >= 7 && <span className="text-2xl">🔥</span>}
+                  <span className="text-4xl font-bold text-amber-500">{streak.current}</span>
+                  <span className="text-sm text-gray-400">days</span>
+                </div>
+                <button
+                  onClick={() => setShowStreakPopup(false)}
+                  className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-semibold hover:from-amber-600 hover:to-orange-600 transition-all"
+                >
+                  Keep Going!
+                </button>
+              </div>
             </div>
           )}
           <div className="grid grid-cols-4 gap-2 sm:gap-3">

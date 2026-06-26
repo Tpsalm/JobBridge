@@ -48,6 +48,7 @@ export default function AIResume() {
   const { user, profile, aiSubscription } = useAuth();
   const navigate = useNavigate();
   const [resumeText, setResumeText] = useState('');
+  const [resumeFileName, setResumeFileName] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
   const [extracting, setExtracting] = useState(false);
   const [jobTitle, setJobTitle] = useState('');
@@ -57,6 +58,19 @@ export default function AIResume() {
   const [coverLetter, setCoverLetter] = useState('');
   const [loading, setLoading] = useState('');
   const [error, setError] = useState('');
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setResumeFileName(file.name);
+    try {
+      const text = await file.text();
+      setResumeText(text);
+    } catch {
+      setError('Could not read file. Try pasting the text directly.');
+    }
+    e.target.value = '';
+  }
 
   async function extractSkills() {
     if (!resumeText.trim()) return;
@@ -151,6 +165,12 @@ export default function AIResume() {
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
                 <FileText className="w-4 h-4" /> Your Master Resume
+              </label>
+              <label className="flex items-center gap-2 mb-3 px-4 py-2.5 border-2 border-dashed border-blue-300 bg-blue-50 rounded-xl cursor-pointer hover:bg-blue-100 transition-colors">
+                <Upload className="w-5 h-5 text-blue-600" />
+                <span className="text-sm text-blue-700 font-medium">{resumeFileName || 'Upload CV'}</span>
+                <span className="text-xs text-gray-500">(.txt, .pdf, .doc)</span>
+                <input type="file" accept=".txt,.pdf,.doc,.docx" onChange={handleFileUpload} className="hidden" />
               </label>
               <textarea
                 value={resumeText}

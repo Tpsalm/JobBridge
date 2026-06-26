@@ -132,6 +132,15 @@ body { min-height: 100dvh; background-color: #faf9f6; }
 .preserve-3d { transform-style: preserve-3d; }
 .backface-hidden { backface-visibility: hidden; }
 
+/* Bounce-in animation for popups */
+@keyframes bounce-in {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-bounce-in { animation: bounce-in 0.5s ease-out; }
+
 /* Smooth scroll for the whole page */
 html { scroll-behavior: smooth; }
 

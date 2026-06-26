@@ -23,6 +23,7 @@ const moreLinks = [
   { label: 'Support', path: '/support' },
   { label: 'Blog', path: '/blog' },
   { label: 'About', path: '/about' },
+  { label: 'Career', path: '/career' },
   { label: 'Games', path: '/games' },
   { label: 'CEO Vision', path: '/ceo' },
 ];
