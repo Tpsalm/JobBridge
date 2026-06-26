@@ -45,8 +45,8 @@ export default function Signup() {
           setLoading(false);
           return;
         }
-        navigate('/');
-        window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created!', type: 'success' } }));
+        navigate('/settings');
+        window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created! Complete your profile to get started.', type: 'success' } }));
       } catch (e: any) {
         console.error('[Signup Exception]', e);
         setError(e?.message || String(e) || 'An unexpected error occurred');

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Menu, Check, AlertTriangle, Download, Eye, Lock, Bell, Shield, ShieldCheck, Crown, Trash2, LogOut, Camera } from 'lucide-react';
 import { IMG } from '../lib/media';
 
 export default function Settings() {
+  const { user, profile: userProfile } = useAuth();
   const { openModal } = useModal();
   const [activeSection, setActiveSection] = useState('profile');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -14,13 +16,32 @@ export default function Settings() {
 
   // Profile form state
   const [profile, setProfile] = useState({
-    name: 'John Doe',
-    email: 'john@example.com',
-    phone: '+1 (555) 123-4567',
-    title: 'Senior Product Manager',
-    location: 'San Francisco, CA',
-    bio: 'Passionate about building products that solve real problems. 10+ years in tech.',
+    name: '',
+    email: '',
+    phone: '',
+    title: '',
+    location: '',
+    bio: '',
   });
+
+  useEffect(() => {
+    if (userProfile) {
+      setProfile({
+        name: userProfile.full_name || '',
+        email: userProfile.email || user?.email || '',
+        phone: userProfile.phone || '',
+        title: userProfile.title || '',
+        location: userProfile.location || '',
+        bio: userProfile.bio || '',
+      });
+    } else if (user) {
+      setProfile(prev => ({
+        ...prev,
+        email: user.email || '',
+        name: user.user_metadata?.full_name || '',
+      }));
+    }
+  }, [userProfile, user]);
 
   // Notification toggles
   const [notifications, setNotifications] = useState({

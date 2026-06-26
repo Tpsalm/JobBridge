@@ -86,9 +86,9 @@ export default function Header() {
   const initials = displayName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
 
   const profileMenuItems = [
-    { label: 'Profile', path: '/settings', icon: UserCircle },
+    { label: 'My Profile', path: '/settings', icon: UserCircle },
     { label: 'My Jobs', path: '/my-jobs', icon: Bookmark },
-    { label: 'Settings', path: '/settings', icon: Settings },
+    { label: 'Account Settings', path: '/settings', icon: Settings },
     { label: 'Help', path: '/support', icon: HelpCircle },
     { label: 'Privacy Center', path: '/about', icon: Shield },
   ];
