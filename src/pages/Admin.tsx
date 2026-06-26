@@ -25,7 +25,6 @@ interface DashboardData {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const token = localStorage.getItem('jobbridge_token');
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);

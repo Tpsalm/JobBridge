@@ -42,7 +42,6 @@ export default function Payment() {
   const [error, setError] = useState('');
 
   const total = plan.price;
-  const token = localStorage.getItem('jobbridge_token');
 
   // Load Paystack script
   useEffect(() => {

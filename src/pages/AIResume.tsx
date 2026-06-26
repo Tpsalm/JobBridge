@@ -58,8 +58,6 @@ export default function AIResume() {
   const [loading, setLoading] = useState('');
   const [error, setError] = useState('');
 
-  const token = localStorage.getItem('jobbridge_token');
-
   async function extractSkills() {
     if (!resumeText.trim()) return;
     setExtracting(true);

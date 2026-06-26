@@ -1,3 +1,8 @@
+-- =========================================================================
+-- JobBridge Supabase Migration — Full Schema + RLS + Storage
+-- Run this in Supabase SQL Editor (Project > SQL Editor > New Query)
+-- =========================================================================
+
 -- =========================
 -- 1) Profiles
 -- =========================
@@ -23,12 +28,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY DEFINER SET search_path = public
 AS $$
 BEGIN
-  -- Set explicit search_path for SECURITY DEFINER safety
-  SET search_path = public;
-
   INSERT INTO public.profiles (id, email, full_name, role)
   VALUES (
     NEW.id,
@@ -37,7 +39,6 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'role', 'job_seeker')
   )
   ON CONFLICT (id) DO NOTHING;
-
   RETURN NEW;
 END;
 $$;
@@ -72,10 +73,8 @@ CREATE TABLE IF NOT EXISTS public.jobs (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- If jobs table existed without these columns, add them safely
 ALTER TABLE public.jobs
   ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
-
 ALTER TABLE public.jobs
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
@@ -119,16 +118,29 @@ CREATE TABLE IF NOT EXISTS public.blog_subscribers (
 );
 
 -- =========================
--- 6) Increment applications count
+-- 6) Helper: is_admin check
+-- =========================
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+
+-- =========================
+-- 7) Function: increment count
 -- =========================
 CREATE OR REPLACE FUNCTION public.increment_applications_count(job_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY DEFINER SET search_path = public
 AS $$
 BEGIN
-  SET search_path = public;
-
   UPDATE public.jobs
   SET applications_count = applications_count + 1
   WHERE id = job_id;
@@ -136,7 +148,7 @@ END;
 $$;
 
 -- =========================
--- 7) RLS
+-- 8) RLS — Row-Level Security
 -- =========================
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
@@ -144,84 +156,149 @@ ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.blog_subscribers ENABLE ROW LEVEL SECURITY;
 
--- Profiles: users can read/update own
+-- ── Profiles ──
+
 DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
 CREATE POLICY "Users can read own profile"
-  ON public.profiles
-  FOR SELECT
+  ON public.profiles FOR SELECT
   USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Admins can read all profiles" ON public.profiles;
+CREATE POLICY "Admins can read all profiles"
+  ON public.profiles FOR SELECT
+  USING (public.is_admin());
 
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile"
-  ON public.profiles
-  FOR UPDATE
+  ON public.profiles FOR UPDATE
   USING (auth.uid() = id);
 
--- Jobs: anyone can read active jobs
+DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
+CREATE POLICY "Admins can update all profiles"
+  ON public.profiles FOR UPDATE
+  USING (public.is_admin());
+
+-- ── Jobs ──
+
 DROP POLICY IF EXISTS "Anyone can read active jobs" ON public.jobs;
 CREATE POLICY "Anyone can read active jobs"
-  ON public.jobs
-  FOR SELECT
+  ON public.jobs FOR SELECT
   USING (is_active = true);
 
--- Recruiters can insert/update their jobs
+DROP POLICY IF EXISTS "Admins can read all jobs" ON public.jobs;
+CREATE POLICY "Admins can read all jobs"
+  ON public.jobs FOR SELECT
+  USING (public.is_admin());
+
 DROP POLICY IF EXISTS "Recruiters can insert jobs" ON public.jobs;
 CREATE POLICY "Recruiters can insert jobs"
-  ON public.jobs
-  FOR INSERT
+  ON public.jobs FOR INSERT
   WITH CHECK (auth.uid() = recruiter_id);
 
 DROP POLICY IF EXISTS "Recruiters can update own jobs" ON public.jobs;
 CREATE POLICY "Recruiters can update own jobs"
-  ON public.jobs
-  FOR UPDATE
+  ON public.jobs FOR UPDATE
   USING (auth.uid() = recruiter_id);
 
--- Applications: users can read own; insert own
+DROP POLICY IF EXISTS "Admins can update jobs" ON public.jobs;
+CREATE POLICY "Admins can update jobs"
+  ON public.jobs FOR UPDATE
+  USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can delete jobs" ON public.jobs;
+CREATE POLICY "Admins can delete jobs"
+  ON public.jobs FOR DELETE
+  USING (public.is_admin());
+
+-- ── Applications ──
+
 DROP POLICY IF EXISTS "Users can read own applications" ON public.applications;
 CREATE POLICY "Users can read own applications"
-  ON public.applications
-  FOR SELECT
+  ON public.applications FOR SELECT
   USING (auth.uid() = applicant_id);
 
 DROP POLICY IF EXISTS "Users can insert own applications" ON public.applications;
 CREATE POLICY "Users can insert own applications"
-  ON public.applications
-  FOR INSERT
+  ON public.applications FOR INSERT
   WITH CHECK (auth.uid() = applicant_id);
 
--- Recruiter can read applications for their jobs
 DROP POLICY IF EXISTS "Recruiters can read applications for their jobs" ON public.applications;
 CREATE POLICY "Recruiters can read applications for their jobs"
-  ON public.applications
-  FOR SELECT
+  ON public.applications FOR SELECT
   USING (
     EXISTS (
-      SELECT 1
-      FROM public.jobs
+      SELECT 1 FROM public.jobs
       WHERE public.jobs.id = public.applications.job_id
         AND public.jobs.recruiter_id = auth.uid()
     )
   );
 
+DROP POLICY IF EXISTS "Recruiters can update applications for their jobs" ON public.applications;
+CREATE POLICY "Recruiters can update applications for their jobs"
+  ON public.applications FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.jobs
+      WHERE public.jobs.id = public.applications.job_id
+        AND public.jobs.recruiter_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can read all applications" ON public.applications;
+CREATE POLICY "Admins can read all applications"
+  ON public.applications FOR SELECT
+  USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can update applications" ON public.applications;
+CREATE POLICY "Admins can update applications"
+  ON public.applications FOR UPDATE
+  USING (public.is_admin());
+
+-- ── Payments ──
+
+DROP POLICY IF EXISTS "Users can read own payments" ON public.payments;
+CREATE POLICY "Users can read own payments"
+  ON public.payments FOR SELECT
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own payments" ON public.payments;
+CREATE POLICY "Users can insert own payments"
+  ON public.payments FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins can read all payments" ON public.payments;
+CREATE POLICY "Admins can read all payments"
+  ON public.payments FOR SELECT
+  USING (public.is_admin());
+
+-- ── Blog Subscribers ──
+
+DROP POLICY IF EXISTS "Anyone can subscribe to blog" ON public.blog_subscribers;
+CREATE POLICY "Anyone can subscribe to blog"
+  ON public.blog_subscribers FOR INSERT
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Admins can view subscribers" ON public.blog_subscribers;
+CREATE POLICY "Admins can view subscribers"
+  ON public.blog_subscribers FOR SELECT
+  USING (public.is_admin());
+
 -- =========================
--- 8) Storage bucket for resumes
+-- 9) Storage bucket for resumes
 -- =========================
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('resumes', 'resumes', true)
 ON CONFLICT (id) DO NOTHING;
 
--- NOTE: storage.objects policies depend on your Supabase setup.
+-- Authenticated users can upload only to their own folder
 DROP POLICY IF EXISTS "Anyone can read resumes" ON storage.objects;
-CREATE POLICY "Anyone can read resumes"
-  ON storage.objects
-  FOR SELECT
-  USING (bucket_id = 'resumes');
-
 DROP POLICY IF EXISTS "Authenticated users can upload resumes" ON storage.objects;
+DROP POLICY IF EXISTS "Applicants can upload resumes" ON storage.objects;
+
 CREATE POLICY "Authenticated users can upload resumes"
-  ON storage.objects
-  FOR INSERT
+  ON storage.objects FOR INSERT
   WITH CHECK (
-    bucket_id = 'resumes' AND auth.uid() IS NOT NULL
+    bucket_id = 'resumes'
+    AND auth.uid() IS NOT NULL
+    AND storage.foldername(name)[1] = auth.uid()::text
   );

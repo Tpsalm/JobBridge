@@ -523,7 +523,6 @@ function ApplyJobModal({ data, onClose }: { data: { job_id?: string; title?: str
     setError('');
 
     try {
-      const token = localStorage.getItem('jobbridge_token');
       let resume_url = '';
       if (cvFile) {
         const fileExt = cvFile.name.split('.').pop();
