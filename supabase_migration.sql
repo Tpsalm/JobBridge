@@ -291,7 +291,6 @@ VALUES ('resumes', 'resumes', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Authenticated users can upload only to their own folder
-DROP POLICY IF EXISTS "Anyone can read resumes" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can upload resumes" ON storage.objects;
 DROP POLICY IF EXISTS "Applicants can upload resumes" ON storage.objects;
 
@@ -300,5 +299,5 @@ CREATE POLICY "Authenticated users can upload resumes"
   WITH CHECK (
     bucket_id = 'resumes'
     AND auth.uid() IS NOT NULL
-    AND storage.foldername(name)[1] = auth.uid()::text
+    AND split_part(name, '/', 1) = auth.uid()::text
   );
