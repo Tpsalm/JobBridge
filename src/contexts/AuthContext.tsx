@@ -220,12 +220,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // If not auto-signed-in (email confirmation on), sign in manually
       if (!data?.session && authUser) {
-        await supabase.auth.signInWithPassword({ email, password });
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) throw signInError;
       }
 
       return { error: null };
-    } catch (error) {
-      return { error: error as Error };
+    } catch (error: any) {
+      const msg = error?.message || error?.error_description || error?.toString() || 'Failed to create account. Please try again.';
+      return { error: new Error(msg) };
     }
   };
 

@@ -38,8 +38,9 @@ export default function Signup() {
       const { error } = await signUp(formData.email, formData.password, formData.name, selectedRole, formData.company);
       setLoading(false);
       if (error) {
-        setError(error.message || 'Failed to create account');
-        window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: error.message || 'Failed to create account', type: 'error' } }));
+        const msg = error?.message || error?.toString() || 'Failed to create account';
+        setError(msg);
+        window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: msg, type: 'error' } }));
         return;
       }
 
