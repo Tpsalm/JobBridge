@@ -112,6 +112,21 @@
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
+
+      /* Anti-copy: prevent text selection on non-input content */
+      body {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+      }
+      input, textarea, [contenteditable] {
+        -webkit-user-select: auto;
+        -moz-user-select: auto;
+        -ms-user-select: auto;
+        user-select: auto;
+      }
     </style>
   </head>
   <body>
@@ -152,6 +167,28 @@
         setTimeout(hideLoader, 2000);
         // Listen for React mount signal
         document.addEventListener('app-mounted', hideLoader);
+      })();
+    </script>
+    <script>
+      (function() {
+        function isInput(el) {
+          return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+        }
+        document.addEventListener('contextmenu', function(e) {
+          if (!isInput(e.target)) e.preventDefault();
+        });
+        document.addEventListener('copy', function(e) {
+          if (!isInput(e.target)) e.preventDefault();
+        });
+        document.addEventListener('cut', function(e) {
+          if (!isInput(e.target)) e.preventDefault();
+        });
+        document.addEventListener('dragstart', function(e) {
+          if (!isInput(e.target)) e.preventDefault();
+        });
+        document.addEventListener('selectstart', function(e) {
+          if (!isInput(e.target)) e.preventDefault();
+        });
       })();
     </script>
   </body>
