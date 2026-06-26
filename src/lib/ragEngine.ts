@@ -3,8 +3,10 @@ import KB, { type KnowledgeSection } from './jobbridgeKnowledge';
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const LLM_MODEL = 'gpt-4o-mini';
-const TOP_K = 5;
-const SIMILARITY_THRESHOLD = 0.25;
+const TOP_K = 7;
+const SIMILARITY_THRESHOLD = 0.22;
+const KEYWORD_BOOST = 0.15;
+const TAG_BOOST = 0.10;
 const MAX_HISTORY = 20;
 const MAX_INPUT_LENGTH = 500;
 const MIN_INTERVAL_MS = 2000;
@@ -12,7 +14,8 @@ const MAX_CALLS_PER_WINDOW = 15;
 const WINDOW_MS = 60000;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY = 2000;
-const CACHE_EMBED_KEY = 'jb_embeddings_v3';
+const MAX_CONTEXT_LENGTH = 3500;
+const CACHE_EMBED_KEY = 'jb_embeddings_v4';
 const CACHE_CONV_KEY = 'jb_conv_';
 
 export interface SourceInfo {
@@ -31,8 +34,6 @@ export interface StreamCallbacks {
 export function hasApiKey(): boolean {
   return !!API_KEY;
 }
-
-// ─── Input sanitization ─────────────────────────────────────────
 
 // ─── Retry helper with exponential backoff ─────────────────────
 
@@ -64,6 +65,8 @@ function releaseEmbedLock(): void {
     embeddingLock = false;
   }
 }
+
+// ─── Input sanitization ─────────────────────────────────────────
 
 function sanitize(input: string): string {
   return input
@@ -105,13 +108,13 @@ function loadEmbedCache(): EmbeddingCache | null {
     const raw = localStorage.getItem(CACHE_EMBED_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed.version === 3 ? parsed : null;
+    return parsed.version === 4 ? parsed : null;
   } catch { return null; }
 }
 
 function saveEmbedCache(chunks: { id: string; embedding: number[] }[]) {
   try {
-    localStorage.setItem(CACHE_EMBED_KEY, JSON.stringify({ version: 3, chunks }));
+    localStorage.setItem(CACHE_EMBED_KEY, JSON.stringify({ version: 4, chunks }));
   } catch {}
 }
 
@@ -146,6 +149,35 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
+// ─── Query expansion ─────────────────────────────────────────────
+
+function expandQuery(query: string): string[] {
+  const expansions: string[] = [query];
+  const lower = query.toLowerCase();
+
+  const synonymMap: Record<string, string[]> = {
+    signup: ['register', 'create account', 'join', 'sign up', 'registration'],
+    login: ['sign in', 'signin', 'log in', 'authenticate'],
+    job: ['position', 'role', 'vacancy', 'opening', 'employment', 'career'],
+    apply: ['application', 'submit', 'candidate'],
+    recruiter: ['employer', 'hiring manager', 'talent acquisition', 'hr'],
+    resume: ['cv', 'curriculum vitae', 'cover letter'],
+    price: ['cost', 'fee', 'subscription', 'plan', 'pricing', 'payment'],
+    ai: ['artificial intelligence', 'chatbot', 'assistant'],
+    help: ['support', 'assist', 'faq', 'guide', 'troubleshoot'],
+    profile: ['settings', 'account', 'edit profile', 'personal info'],
+    save: ['bookmark', 'saved', 'favorite'],
+  };
+
+  for (const [word, synonyms] of Object.entries(synonymMap)) {
+    if (lower.includes(word)) {
+      expansions.push(...synonyms.filter(s => !lower.includes(s)));
+    }
+  }
+
+  return [...new Set(expansions)];
+}
+
 // ─── Conversation memory ────────────────────────────────────────
 
 type HistoryMsg = { role: 'user' | 'assistant'; content: string };
@@ -167,7 +199,7 @@ export function clearConversation(convId: string) {
   try { localStorage.removeItem(CACHE_CONV_KEY + convId); } catch {}
 }
 
-// ─── Retrieval ──────────────────────────────────────────────────
+// ─── Page context map ──────────────────────────────────────────
 
 const pageContextMap: Record<string, string> = {
   '/': 'the home page',
@@ -178,6 +210,7 @@ const pageContextMap: Record<string, string> = {
   '/ai-resume': 'the AI Resume Studio page',
   '/providers': 'the Service Provider Marketplace',
   '/business': 'the Business Advertisements page',
+  '/profile': 'the Profile page',
   '/settings': 'the Settings page',
   '/admin': 'the Admin Dashboard',
   '/support': 'the Support page',
@@ -185,12 +218,19 @@ const pageContextMap: Record<string, string> = {
   '/blog': 'the Blog page',
   '/signup': 'the Sign Up page',
   '/login': 'the Login page',
+  '/about': 'the About page',
+  '/ceo': 'the CEO Vision page',
+  '/games': 'the Games page',
+  '/analytics': 'the Analytics page',
+  '/career': 'the Career page',
 };
 
 function currentPageContext(): string {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   return pageContextMap[path] || `the ${path} page`;
 }
+
+// ─── Retrieval with reranking ──────────────────────────────────
 
 async function retrieveRelevant(question: string, pagePath: string): Promise<KnowledgeSection[]> {
   const trimmed = question.trim();
@@ -215,24 +255,89 @@ async function retrieveRelevant(question: string, pagePath: string): Promise<Kno
     saveEmbedCache(chunkEmbeddings);
   }
 
+  // Query expansion — embed primary query for main score
   const questionEmb = (await embed(trimmed)) as number[];
 
-  const scored = chunkEmbeddings
-    .map(ce => {
-      const section = KB.find(k => k.id === ce.id);
-      let score = cosineSimilarity(questionEmb, ce.embedding);
-      if (section?.pages?.includes(pagePath)) score *= 1.25;
-      return { id: ce.id, score };
-    })
-    .sort((a, b) => b.score - a.score);
+  const lowerQuestion = trimmed.toLowerCase();
 
-  const results = scored.filter(s => s.score > SIMILARITY_THRESHOLD).slice(0, TOP_K);
+  // Score sections using hybrid approach: embedding similarity + keyword overlap + tag match + page boost
+  const scored = chunkEmbeddings.map(ce => {
+    const section = KB.find(k => k.id === ce.id);
+    if (!section) return { id: ce.id, score: 0 };
 
-  const sections = (results.length > 0 ? results : scored.slice(0, 3))
+    let embScore = cosineSimilarity(questionEmb, ce.embedding);
+
+    // Keyword overlap boost
+    const matchedKeywords = section.keywords.filter(kw => lowerQuestion.includes(kw.toLowerCase()));
+    const keywordScore = matchedKeywords.length > 0
+      ? KEYWORD_BOOST * (matchedKeywords.length / Math.max(...section.keywords.length, 1))
+      : 0;
+
+    // Tag overlap boost
+    const matchedTags = section.tags.filter(t => lowerQuestion.includes(t));
+    const tagScore = matchedTags.length > 0 ? TAG_BOOST * matchedTags.length : 0;
+
+    // Page context boost
+    const pageBoost = section.pages.includes(pagePath) ? 0.20 : 0;
+
+    let total = embScore + keywordScore + tagScore + pageBoost;
+
+    return { id: ce.id, score: total };
+  });
+
+  // Sort by combined score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  // Primary: take top sections above threshold
+  let results = scored.filter(s => s.score > SIMILARITY_THRESHOLD).slice(0, TOP_K);
+
+  // Fallback 1: if none above threshold, take any with keyword or tag match
+  if (results.length === 0) {
+    results = scored
+      .filter(s => {
+        const sec = KB.find(k => k.id === s.id);
+        if (!sec) return false;
+        return sec.keywords.some(kw => lowerQuestion.includes(kw.toLowerCase()))
+          || sec.tags.some(t => lowerQuestion.includes(t));
+      })
+      .slice(0, TOP_K);
+  }
+
+  // Fallback 2: if still none, take page-relevant sections
+  if (results.length === 0) {
+    results = chunkEmbeddings
+      .map(ce => ({ id: ce.id, score: 0 }))
+      .filter(ce => {
+        const sec = KB.find(k => k.id === ce.id);
+        return sec?.pages.includes(pagePath);
+      })
+      .slice(0, TOP_K);
+  }
+
+  // Fallback 3: if still nothing relevant, return top 3 by any measure
+  if (results.length === 0) {
+    results = scored.slice(0, 3);
+  }
+
+  const sections = results
     .map(s => KB.find(k => k.id === s.id))
     .filter(Boolean) as KnowledgeSection[];
 
   return sections;
+}
+
+// ─── Context trimming — keep within token budget ──────────────
+
+function trimContext(sections: KnowledgeSection[]): string {
+  let combined = '';
+  const included: KnowledgeSection[] = [];
+  for (const s of sections) {
+    const block = `[${s.title}]\n${s.content}\n\n---\n\n`;
+    if ((combined + block).length > MAX_CONTEXT_LENGTH) break;
+    combined += block;
+    included.push(s);
+  }
+  return combined || `[${sections[0].title}]\n${sections[0].content}`;
 }
 
 // ─── Streaming LLM call ─────────────────────────────────────────
@@ -247,8 +352,8 @@ async function streamLLM(
     body: JSON.stringify({
       model: LLM_MODEL,
       messages,
-      max_tokens: 700,
-      temperature: 0.25,
+      max_tokens: 800,
+      temperature: 0.2,
       stream: true,
     }),
   });
@@ -300,14 +405,14 @@ function buildSystemPrompt(
   return `You are the JobBridge AI Assistant — a helpful, accurate support agent for the JobBridge platform (Nigeria's #1 professional network).
 
 ## Core Rules
-- Answer ONLY based on the knowledge context below. Do not make up information.
-- If the context doesn't contain the answer, say you're not sure and suggest contacting jobbridgesupport@gmail.com.
-- Be concise (2-5 sentences) but thorough when needed.
-- Do not mention "context", "internal notes", or "knowledge base" in your response.
-- Use bullet points for lists of 2+ items.
-- Include relevant page links like /signup, /pricing, /recruiter when helpful.
-- Format naturally with markdown for readability.
-- If the user asks about something outside JobBridge, politely redirect.
+- Answer ONLY based on the knowledge context below. Do not make up information, features, or pricing.
+- If the context doesn't contain the answer, say: "I don't have that information. Please contact jobbridgesupport@gmail.com for help."
+- Be concise (2-5 sentences) but thorough when needed. Use bullet points for lists of 2+ items.
+- Do not mention "context", "internal notes", "knowledge base", or "retrieved" in your response.
+- Include relevant page paths like /signup, /pricing, /recruiter, /profile when helpful.
+- Format naturally with simple markdown for readability. Use **bold** for emphasis.
+- If the user asks about something outside JobBridge, politely redirect to platform topics.
+- When giving instructions, use clear step-by-step format (1. 2. 3.).
 
 ## Current Page
 The user is currently on: ${pageContext}
@@ -343,7 +448,7 @@ export async function streamAnswer(
     return;
   }
 
-    if (!rateLimit.allow()) {
+  if (!rateLimit.allow()) {
     onError('Please wait a moment between questions.');
     return;
   }
@@ -366,7 +471,7 @@ export async function streamAnswer(
     const sourceList = sections.map(s => ({ id: s.id, title: s.title }));
     onSources(sourceList);
 
-    const contextStr = sections.map(s => `[${s.title}]\n${s.content}`).join('\n\n---\n\n');
+    const contextStr = trimContext(sections);
     const pageCtx = currentPageContext();
 
     onPhase('Generating response...');
