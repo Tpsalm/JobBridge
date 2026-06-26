@@ -32,7 +32,8 @@ window.addEventListener('unhandledrejection', (e) => {
   document.body.appendChild(el);
 });
 
-createRoot(document.getElementById('root')!).render(
+const root = createRoot(document.getElementById('root')!);
+root.render(
   <StrictMode>
     <ErrorBoundary>
       <ToastProvider>
@@ -42,3 +43,6 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </StrictMode>
 );
+
+// Notify the pre-loader that React has mounted
+document.dispatchEvent(new Event('app-mounted'));
