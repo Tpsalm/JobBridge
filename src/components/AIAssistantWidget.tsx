@@ -52,6 +52,7 @@ function AIAssistantWidget() {
   const [streamText, setStreamText] = useState('');
   const [streamSources, setStreamSources] = useState<SourceInfo[]>([]);
   const [showIntro, setShowIntro] = useState(false);
+  const lastUserMsgRef = useRef<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const aborterRef = useRef<AbortController | null>(null);
@@ -89,6 +90,7 @@ function AIAssistantWidget() {
     const messageText = text || input.trim();
     if (!messageText || phase !== 'idle') return;
 
+    lastUserMsgRef.current = messageText;
     setMessages(prev => [...prev, { id: nextId(), text: messageText, sender: 'user' }]);
     setInput('');
     setPhase('analyzing');
@@ -111,13 +113,14 @@ function AIAssistantWidget() {
         setPhase('idle');
         setStreamText('');
         setStreamSources([]);
-        appendBotMessage(err);
         setMessages(prev => {
           const last = prev[prev.length - 1];
-          if (last.sender === 'bot' && last.id.startsWith('msg-')) {
-            prev[prev.length - 1] = { ...last, text: err, error: true };
+          if (last && last.sender === 'bot' && last.id.startsWith('msg-')) {
+            const updated = [...prev];
+            updated[updated.length - 1] = { ...last, text: err, error: true };
+            return updated;
           }
-          return [...prev];
+          return [...prev, { id: nextId(), text: err, sender: 'bot', error: true }];
         });
       },
       onDone: (finalText, finalSources) => {
@@ -255,7 +258,7 @@ function AIAssistantWidget() {
                       <button
                         onClick={() => {
                           setMessages(prev => prev.filter(m => m.id !== msg.id));
-                          handleSend(msg.text.includes('?') ? '' : 'Tell me about JobBridge');
+                          if (lastUserMsgRef.current) handleSend(lastUserMsgRef.current);
                         }}
                         className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                       >

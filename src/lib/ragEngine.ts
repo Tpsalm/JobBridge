@@ -7,9 +7,11 @@ const TOP_K = 5;
 const SIMILARITY_THRESHOLD = 0.25;
 const MAX_HISTORY = 20;
 const MAX_INPUT_LENGTH = 500;
-const MIN_INTERVAL_MS = 1000;
-const MAX_CALLS_PER_WINDOW = 30;
+const MIN_INTERVAL_MS = 2000;
+const MAX_CALLS_PER_WINDOW = 15;
 const WINDOW_MS = 60000;
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY = 2000;
 const CACHE_EMBED_KEY = 'jb_embeddings_v3';
 const CACHE_CONV_KEY = 'jb_conv_';
 
@@ -31,6 +33,37 @@ export function hasApiKey(): boolean {
 }
 
 // ─── Input sanitization ─────────────────────────────────────────
+
+// ─── Retry helper with exponential backoff ─────────────────────
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_RETRIES): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, options);
+    if (res.status !== 429 || attempt === retries) return res;
+    const delay = RETRY_BASE_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
+    await new Promise(r => setTimeout(r, delay));
+  }
+  throw new Error('Unreachable');
+}
+
+// ─── Embedding mutex — prevents concurrent embedding calls ────
+
+let embeddingLock = false;
+const embedQueue: (() => void)[] = [];
+
+async function acquireEmbedLock(): Promise<void> {
+  if (!embeddingLock) { embeddingLock = true; return; }
+  return new Promise(resolve => { embedQueue.push(resolve); });
+}
+
+function releaseEmbedLock(): void {
+  if (embedQueue.length > 0) {
+    const next = embedQueue.shift()!;
+    next();
+  } else {
+    embeddingLock = false;
+  }
+}
 
 function sanitize(input: string): string {
   return input
@@ -83,19 +116,24 @@ function saveEmbedCache(chunks: { id: string; embedding: number[] }[]) {
 }
 
 async function embed(text: string | string[]): Promise<number[] | number[][]> {
-  const input = Array.isArray(text) ? text : [text];
-  const res = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Embedding API error: ${res.status} — ${err}`);
+  await acquireEmbedLock();
+  try {
+    const input = Array.isArray(text) ? text : [text];
+    const res = await fetchWithRetry('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: EMBEDDING_MODEL, input }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Embedding API error: ${res.status} — ${err}`);
+    }
+    const data = await res.json();
+    const embs = data.data.sort((a: any, b: any) => a.index - b.index).map((d: any) => d.embedding);
+    return Array.isArray(text) ? embs : embs[0];
+  } finally {
+    releaseEmbedLock();
   }
-  const data = await res.json();
-  const embs = data.data.sort((a: any, b: any) => a.index - b.index).map((d: any) => d.embedding);
-  return Array.isArray(text) ? embs : embs[0];
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -203,7 +241,7 @@ async function streamLLM(
   messages: { role: string; content: string }[],
   onToken: (token: string) => void,
 ): Promise<string> {
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetchWithRetry('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -305,8 +343,8 @@ export async function streamAnswer(
     return;
   }
 
-  if (!rateLimit.allow()) {
-    onError('You are sending requests too quickly. Please wait a moment before asking another question.');
+    if (!rateLimit.allow()) {
+    onError('Please wait a moment between questions.');
     return;
   }
 
@@ -359,7 +397,7 @@ export async function streamAnswer(
     if (msg.includes('401')) {
       onError('OpenAI API key is invalid. Please check your VITE_OPENAI_API_KEY.');
     } else if (msg.includes('429') || msg.includes('rate')) {
-      onError('Too many requests. Please wait a moment and try again.');
+      onError('The AI service is temporarily busy. Please try again in a few seconds.');
     } else if (msg.includes('fetch') || msg.includes('network')) {
       onError('Network error. Check your internet connection and try again.');
     } else {
