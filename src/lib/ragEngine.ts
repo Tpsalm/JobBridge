@@ -292,9 +292,8 @@ export async function streamAnswer(
 
   if (!API_KEY) {
     onError(
-      'The AI assistant is not fully configured. ' +
-      'Set VITE_OPENAI_API_KEY in your environment to enable intelligent answers. ' +
-      'For now, visit the Support page at /support or email jobbridgesupport@gmail.com.',
+      'The AI assistant is currently unavailable. ' +
+      'Please visit the Support page or email jobbridgesupport@gmail.com for help.',
     );
     return;
   }
