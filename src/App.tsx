@@ -16,6 +16,7 @@ import Analytics from './pages/Analytics';
 import Games from './pages/Games';
 import Providers from './pages/Providers';
 import Settings from './pages/Settings';
+import Profile from './pages/Profile';
 import Blog from './pages/Blog';
 import BlogDetail from './pages/BlogDetail';
 import CEO from './pages/CEO';
@@ -61,6 +62,8 @@ export default function App() {
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/ai-resume" element={<AIResume />} />
             <Route path="/revenue" element={<Pricing />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             <Route path="*" element={<Home />} />
           </Routes>

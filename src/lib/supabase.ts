@@ -49,6 +49,17 @@ export type Profile = {
   avatar_url?: string;
   location?: string;
   bio?: string;
+  date_of_birth?: string;
+  gender?: string;
+  is_disabled?: string;
+  is_displaced?: string;
+  professional_headline?: string;
+  years_of_experience?: string;
+  function?: string;
+  work_type?: string;
+  highest_qualification?: string;
+  availability?: string;
+  salary_expectation?: string;
   subscription?: SubscriptionInfo;
   created_at: string;
   updated_at: string;

@@ -163,6 +163,17 @@ export async function updateProfile(userId: string, updates: Partial<{
   location: string;
   bio: string;
   company: string;
+  date_of_birth: string;
+  gender: string;
+  is_disabled: string;
+  is_displaced: string;
+  professional_headline: string;
+  years_of_experience: string;
+  function: string;
+  work_type: string;
+  highest_qualification: string;
+  availability: string;
+  salary_expectation: string;
   is_premium: boolean;
   subscription_tier: string;
   subscription_expires_at: string;

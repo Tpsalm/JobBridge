@@ -86,9 +86,9 @@ export default function Header() {
   const initials = displayName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
 
   const profileMenuItems = [
-    { label: 'My Profile', path: '/settings', icon: UserCircle },
+    { label: 'My Profile', path: '/profile', icon: UserCircle },
     { label: 'My Jobs', path: '/my-jobs', icon: Bookmark },
-    { label: 'Account Settings', path: '/settings', icon: Settings },
+    { label: 'Account Settings', path: '/profile', icon: Settings },
     { label: 'Help', path: '/support', icon: HelpCircle },
     { label: 'Privacy Center', path: '/about', icon: Shield },
   ];
@@ -349,7 +349,7 @@ export default function Header() {
               {isAuthenticated ? (
                 <>
                   <Link
-                    to="/settings"
+                    to="/profile"
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
                   >
