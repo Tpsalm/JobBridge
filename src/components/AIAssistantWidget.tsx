@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Bot, X, Send, ChevronUp, Sparkles, FileText, MessageCircle, TrendingUp, Trash2, AlertCircle, RefreshCw, BookOpen } from 'lucide-react';
-import { streamAnswer, hasApiKey, clearConversation, type SourceInfo } from '../lib/ragEngine';
+import { streamAnswer, hasApiKey, clearConversation, prewarmEmbeddings, type SourceInfo } from '../lib/ragEngine';
 
 interface Message {
   id: string;
@@ -38,7 +38,7 @@ const defaultPrompts = ['What is JobBridge?', 'How to find a job?', 'Recruiter p
 let msgCounter = 0;
 function nextId() { return `msg-${++msgCounter}`; }
 
-export default function AIAssistantWidget() {
+function AIAssistantWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -68,6 +68,14 @@ export default function AIAssistantWidget() {
 
   useEffect(() => {
     return () => { aborterRef.current?.abort(); };
+  }, []);
+
+  useEffect(() => {
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => prewarmEmbeddings());
+    } else {
+      setTimeout(prewarmEmbeddings, 2000);
+    }
   }, []);
 
   const path = window.location.pathname.replace(/\/$/, '') || '/';
@@ -364,3 +372,5 @@ export default function AIAssistantWidget() {
     </>
   );
 }
+
+export default memo(AIAssistantWidget);

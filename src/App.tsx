@@ -1,8 +1,9 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ModalProvider } from './contexts/ModalContext';
 import { ModalRenderer } from './components/Modal';
-import AIAssistantWidget from './components/AIAssistantWidget';
+const AIAssistantWidget = lazy(() => import('./components/AIAssistantWidget'));
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import Home from './pages/Home';
@@ -62,7 +63,9 @@ export default function App() {
             <Route path="*" element={<Home />} />
           </Routes>
           <ModalRenderer />
-          <AIAssistantWidget />
+          <Suspense fallback={null}>
+            <AIAssistantWidget />
+          </Suspense>
         </ModalProvider>
       </AuthProvider>
     </BrowserRouter>

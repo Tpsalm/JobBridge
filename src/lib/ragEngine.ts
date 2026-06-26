@@ -6,6 +6,10 @@ const LLM_MODEL = 'gpt-4o-mini';
 const TOP_K = 5;
 const SIMILARITY_THRESHOLD = 0.25;
 const MAX_HISTORY = 20;
+const MAX_INPUT_LENGTH = 500;
+const MIN_INTERVAL_MS = 3000;
+const MAX_CALLS_PER_WINDOW = 10;
+const WINDOW_MS = 60000;
 const CACHE_EMBED_KEY = 'jb_embeddings_v3';
 const CACHE_CONV_KEY = 'jb_conv_';
 
@@ -25,6 +29,36 @@ export interface StreamCallbacks {
 export function hasApiKey(): boolean {
   return !!API_KEY;
 }
+
+// ─── Input sanitization ─────────────────────────────────────────
+
+function sanitize(input: string): string {
+  return input
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_INPUT_LENGTH);
+}
+
+// ─── Client-side rate limiter ──────────────────────────────────
+
+const rateLimit = (() => {
+  let lastCall = 0;
+  let callCount = 0;
+  let windowStart = Date.now();
+  return {
+    allow(): boolean {
+      const now = Date.now();
+      if (now - windowStart > WINDOW_MS) { callCount = 0; windowStart = now; }
+      if (now - lastCall < MIN_INTERVAL_MS) return false;
+      if (callCount >= MAX_CALLS_PER_WINDOW) return false;
+      lastCall = now;
+      callCount++;
+      return true;
+    },
+  };
+})();
 
 // ─── Embedding cache ─────────────────────────────────────────────
 
@@ -265,6 +299,18 @@ export async function streamAnswer(
     return;
   }
 
+  const questionClean = sanitize(question);
+
+  if (!questionClean) {
+    onError('Please enter a valid question.');
+    return;
+  }
+
+  if (!rateLimit.allow()) {
+    onError('You are sending requests too quickly. Please wait a moment before asking another question.');
+    return;
+  }
+
   const pagePath = window.location.pathname.replace(/\/$/, '') || '/';
 
   try {
@@ -273,7 +319,7 @@ export async function streamAnswer(
     const history = getConversation(conversationId);
 
     onPhase('Searching knowledge base...');
-    const sections = await retrieveRelevant(question, pagePath);
+    const sections = await retrieveRelevant(questionClean, pagePath);
 
     if (sections.length === 0) {
       onError("I couldn't find relevant information in the knowledge base. Try rephrasing your question or contact jobbridgesupport@gmail.com for help.");
@@ -292,7 +338,7 @@ export async function streamAnswer(
     const messages = [
       { role: 'system', content: systemPrompt },
       ...history,
-      { role: 'user', content: question },
+      { role: 'user', content: questionClean },
     ];
 
     let fullText = '';
@@ -303,7 +349,7 @@ export async function streamAnswer(
 
     const updatedHistory: HistoryMsg[] = [
       ...history,
-      { role: 'user', content: question },
+      { role: 'user', content: questionClean },
       { role: 'assistant', content: fullText },
     ];
     saveConversation(conversationId, updatedHistory);
@@ -311,7 +357,7 @@ export async function streamAnswer(
     onDone(fullText, sourceList);
   } catch (err: any) {
     const msg = err?.message || '';
-    if (msg.includes('401') || msg.includes('401')) {
+    if (msg.includes('401')) {
       onError('OpenAI API key is invalid. Please check your VITE_OPENAI_API_KEY.');
     } else if (msg.includes('429') || msg.includes('rate')) {
       onError('Too many requests. Please wait a moment and try again.');
@@ -321,4 +367,26 @@ export async function streamAnswer(
       onError(`Something went wrong: ${msg || 'unexpected error'}. Please try again.`);
     }
   }
+}
+
+// ─── Pre-warm embedding cache (call on idle) ───────────────────
+
+export function prewarmEmbeddings(): void {
+  if (!API_KEY) return;
+  if (loadEmbedCache()?.chunks?.length === KB.length) return;
+  const batchSize = 20;
+  (async () => {
+    const chunks: { id: string; embedding: number[] }[] = [];
+    for (let i = 0; i < KB.length; i += batchSize) {
+      const batch = KB.slice(i, i + batchSize);
+      const texts = batch.map(s => `Title: ${s.title}\nKeywords: ${s.keywords.join(', ')}\n\n${s.content}`);
+      try {
+        const embs = (await embed(texts)) as number[][];
+        for (let j = 0; j < batch.length; j++) {
+          chunks.push({ id: batch[j].id, embedding: embs[j] });
+        }
+      } catch {}
+    }
+    if (chunks.length === KB.length) saveEmbedCache(chunks);
+  })();
 }
