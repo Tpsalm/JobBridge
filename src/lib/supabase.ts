@@ -21,7 +21,7 @@ function createErrorClient(message: string) {
 
 export const supabase = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)
-  : createErrorClient('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set in your environment. Add them to Vercel project settings.');
+  : createErrorClient('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set in your environment. Add them as GitHub Actions secrets or create a .env.production file.');
 
 // All features now use Supabase directly. VITE_LOCAL_API_URL is no longer needed.
 
