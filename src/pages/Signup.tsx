@@ -35,17 +35,23 @@ export default function Signup() {
     (async () => {
       setLoading(true);
       setError(null);
-      const { error } = await signUp(formData.email, formData.password, formData.name, selectedRole, formData.company);
-      setLoading(false);
-      if (error) {
-        const msg = error?.message || error?.toString() || 'Failed to create account';
-        setError(msg);
-        window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: msg, type: 'error' } }));
-        return;
+      try {
+        const { error } = await signUp(formData.email, formData.password, formData.name, selectedRole, formData.company);
+        if (error) {
+          const msg = error?.message || String(error) || 'Failed to create account';
+          console.error('[Signup Error]', error);
+          setError(msg);
+          window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: msg, type: 'error' } }));
+          setLoading(false);
+          return;
+        }
+        navigate('/');
+        window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created!', type: 'success' } }));
+      } catch (e: any) {
+        console.error('[Signup Exception]', e);
+        setError(e?.message || String(e) || 'An unexpected error occurred');
+        setLoading(false);
       }
-
-      navigate('/');
-      window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created!', type: 'success' } }));
     })();
   };
 
@@ -322,9 +328,9 @@ export default function Signup() {
                 </label>
               </div>
 
-              {error && (
+              {error !== null && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  {error}
+                  {typeof error === 'string' ? error : 'Error signing up. Please try again.'}
                 </div>
               )}
 
