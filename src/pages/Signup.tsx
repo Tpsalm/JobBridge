@@ -81,27 +81,27 @@ export default function Signup() {
             <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">Choose how you want to join</h2>
             <p className="text-gray-500 text-center mb-8">Select your role to get started</p>
 
-            <div className="grid sm:grid-cols-2 gap-4">
-              {/* Recruiter */}
+            <div className="flex flex-col gap-4">
+              {/* Job Seeker — default recommendation */}
               <button
-                onClick={() => handleRoleSelect('recruiter')}
-                className="group relative p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all text-left"
+                onClick={() => handleRoleSelect('job_seeker')}
+                className="group relative p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-2xl hover:border-purple-500 hover:shadow-lg transition-all text-left"
               >
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                    <Building className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 rounded-xl bg-purple-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                    <User className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 text-lg">Sign up as Recruiter</h3>
-                    <p className="text-sm text-gray-600 mt-1">Post jobs, find talent, and hire top candidates</p>
+                    <h3 className="font-bold text-gray-900 text-lg">Sign-up as a Job Seeker</h3>
+                    <p className="text-sm text-gray-600 mt-1">Browse jobs, apply with AI-optimized resumes, and land your dream role</p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="w-5 h-5 text-purple-600 group-hover:translate-x-1 transition-transform" />
                 </div>
-                <div className="mt-4 pt-4 border-t border-blue-200">
+                <div className="mt-4 pt-4 border-t border-purple-200">
                   <ul className="space-y-2">
-                    {['Post unlimited jobs', 'Access talent database', 'AI-powered matching', 'Schedule interviews'].map((feature) => (
+                    {['Search thousands of jobs', 'AI resume builder', 'Cover letter generator', 'Track applications'].map((feature) => (
                       <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
-                        <Check className="w-4 h-4 text-blue-600" />
+                        <Check className="w-4 h-4 text-purple-600" />
                         {feature}
                       </li>
                     ))}
@@ -109,32 +109,61 @@ export default function Signup() {
                 </div>
               </button>
 
-              {/* Service Provider */}
-              <button
-                onClick={() => handleRoleSelect('provider')}
-                className="group relative p-6 bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-2xl hover:border-emerald-500 hover:shadow-lg transition-all text-left"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                    <Wrench className="w-6 h-6 text-white" />
+              <div className="grid sm:grid-cols-2 gap-4">
+                {/* Recruiter */}
+                <button
+                  onClick={() => handleRoleSelect('recruiter')}
+                  className="group relative p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all text-left"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                      <Building className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-gray-900 text-lg">Sign up as Recruiter</h3>
+                      <p className="text-sm text-gray-600 mt-1">Post jobs, find talent, and hire top candidates</p>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 text-lg">Sign up as Service Provider</h3>
-                    <p className="text-sm text-gray-600 mt-1">Offer services, get clients, grow your business</p>
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <ul className="space-y-2">
+                      {['Post unlimited jobs', 'Access talent database', 'AI-powered matching', 'Schedule interviews'].map((feature) => (
+                        <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
+                          <Check className="w-4 h-4 text-blue-600" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform" />
-                </div>
-                <div className="mt-4 pt-4 border-t border-emerald-200">
-                  <ul className="space-y-2">
-                    {['Create service profile', 'Receive inquiries', 'Chat with clients', 'Get featured visibility'].map((feature) => (
-                      <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
-                        <Check className="w-4 h-4 text-emerald-600" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </button>
+                </button>
+
+                {/* Service Provider */}
+                <button
+                  onClick={() => handleRoleSelect('provider')}
+                  className="group relative p-6 bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-2xl hover:border-emerald-500 hover:shadow-lg transition-all text-left"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                      <Wrench className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-gray-900 text-lg">Sign up as Service Provider</h3>
+                      <p className="text-sm text-gray-600 mt-1">Offer services, get clients, grow your business</p>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-emerald-200">
+                    <ul className="space-y-2">
+                      {['Create service profile', 'Receive inquiries', 'Chat with clients', 'Get featured visibility'].map((feature) => (
+                        <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
+                          <Check className="w-4 h-4 text-emerald-600" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </button>
+              </div>
             </div>
 
             <div className="mt-8 pt-6 border-t border-gray-100 text-center">
