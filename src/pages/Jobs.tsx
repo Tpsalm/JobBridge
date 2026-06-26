@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MapPin, Clock, Bookmark, Share2, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Search, MapPin, Clock, Bookmark, Share2, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
-import { useModal } from '../contexts/ModalContext';
-import { useAuthRequired } from '../hooks/useAuthRequired';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchJobs, incrementJobViews } from '../lib/supabaseQueries';
+import { fetchJobs, incrementJobViews, createApplication } from '../lib/supabaseQueries';
 import PageHero from '../components/PageHero';
 import CompanyLogo from '../components/CompanyLogo';
 import { HERO_CAROUSELS, IMG } from '../lib/media';
@@ -45,7 +44,7 @@ function parseBenefits(benefits: string | string[] | null): string[] {
 
 const Jobs = () => {
   const navigate = useNavigate();
-  const { openModal } = useModal();
+  const { user, profile } = useAuth();
   const { isAuthenticated } = useAuth();
   const { savedJobs, toggleSaveJob, markApplied, appliedJobs } = useAuth();
 
@@ -54,11 +53,68 @@ const Jobs = () => {
       navigate('/signup');
       return;
     }
-    const modalData = { job_id: job.id, title: job.title, company: job.company };
-    openModal('apply-job', modalData);
+    setShowApplication(true);
     markApplied(job.id);
     setAppliedLocal(prev => prev.includes(job.id) ? prev : [...prev, job.id]);
   };
+
+  // Application form state
+  const [showApplication, setShowApplication] = useState(false);
+  const [appForm, setAppForm] = useState({
+    date_of_birth: '',
+    gender: '',
+    is_disabled: 'no',
+    is_displaced: 'no',
+    professional_headline: '',
+    years_of_experience: '',
+    function: '',
+    work_type: '',
+    highest_qualification: '',
+    location: '',
+    availability: '',
+    salary_expectation: '',
+    cover_letter: '',
+  });
+  const [appStep, setAppStep] = useState(1);
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [cvName, setCvName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [appError, setAppError] = useState('');
+  const [applied, setApplied] = useState(false);
+
+  const updateAppForm = (field: string, value: any) => setAppForm(prev => ({ ...prev, [field]: value }));
+
+  const handleCvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const allowed = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/rtf', 'text/rtf'];
+      if (!allowed.includes(file.type) && !file.name.match(/\.(pdf|doc|docx|rtf)$/i)) { setAppError('Only pdf, doc, docx & rtf files allowed'); return; }
+      if (file.size > 10 * 1024 * 1024) { setAppError('File must be smaller than 10MB'); return; }
+      setAppError(''); setCvFile(file); setCvName(file.name);
+    }
+  };
+
+  const handleSubmitApplication = async (jobId: string) => {
+    if (!appForm.professional_headline || !appForm.years_of_experience) { setAppError('Professional headline and years of experience are required'); return; }
+    setSubmitting(true); setAppError('');
+    try {
+      let resume_url = '';
+      if (cvFile) {
+        const fileExt = cvFile.name.split('.').pop();
+        const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('resumes').upload(fileName, cvFile);
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(fileName);
+          resume_url = urlData?.publicUrl || '';
+        }
+      }
+      await createApplication({ job_id: jobId, applicant_id: user?.id || '', cover_letter: appForm.cover_letter, resume_url });
+      window.dispatchEvent(new CustomEvent('applications:updated'));
+      setApplied(true);
+    } catch (err: any) { setAppError(err.message || 'Failed to submit application'); }
+    finally { setSubmitting(false); }
+  };
+
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [search, setSearch] = useState('');
@@ -101,6 +157,10 @@ const Jobs = () => {
     setSelectedJob(job);
     setShowBenefits(true);
     setMobileDetail(true);
+    setShowApplication(false);
+    setAppStep(1);
+    setApplied(false);
+    setAppError('');
     // Increment view count
     setJobs(prev => prev.map(j => j.id === job.id ? { ...j, views: (j.views || 0) + 1 } : j));
     incrementJobViews(job.id, job.views).catch(() => {});
@@ -273,7 +333,7 @@ const Jobs = () => {
               <>
                 {/* Mobile back button */}
                 <button
-                  onClick={() => { setMobileDetail(false); setSelectedJob(null); }}
+                  onClick={() => { setMobileDetail(false); setSelectedJob(null); setShowApplication(false); setAppStep(1); }}
                   className="lg:hidden flex items-center gap-1 text-sm text-blue-700 font-medium px-4 py-3 border-b border-gray-100 hover:bg-gray-50"
                 >
                   <ArrowLeft className="w-4 h-4" /> Back to jobs
@@ -304,15 +364,15 @@ const Jobs = () => {
                   <div className="flex items-center gap-3 mt-5">
                     <button
                       onClick={() => handleApply(selectedJob)}
-                      disabled={appliedLocal.includes(selectedJob.id)}
+                      disabled={appliedLocal.includes(selectedJob.id) || applied}
                       className={`flex-1 font-semibold py-3 rounded-lg transition text-sm flex items-center justify-center gap-2 ${
-                        appliedLocal.includes(selectedJob.id)
+                        appliedLocal.includes(selectedJob.id) || applied
                           ? 'bg-green-100 text-green-700 cursor-default'
                           : 'bg-blue-700 hover:bg-blue-800 text-white'
                       }`}
                     >
                       <Briefcase className="w-4 h-4" />
-                      {appliedLocal.includes(selectedJob.id) ? 'Applied' : 'Apply Now'}
+                      {appliedLocal.includes(selectedJob.id) || applied ? 'Applied' : 'Apply Now'}
                     </button>
                     <button
                       onClick={() => toggleSave(selectedJob.id)}
@@ -394,22 +454,197 @@ const Jobs = () => {
                   </div>
                 </div>
 
-                {/* Bottom Apply CTA */}
-                <div className="px-6 py-5 border-t border-gray-100 bg-gray-50 sticky bottom-0">
-                  <button
-                    onClick={() => handleApply(selectedJob)}
-                    disabled={appliedLocal.includes(selectedJob.id)}
-                    className={`w-full font-semibold py-3 rounded-lg transition text-sm flex items-center justify-center gap-2 ${
-                      appliedLocal.includes(selectedJob.id)
-                        ? 'bg-green-100 text-green-700 cursor-default'
-                        : 'bg-blue-700 hover:bg-blue-800 text-white'
-                    }`}
-                  >
-                    {appliedLocal.includes(selectedJob.id) ? 'Applied ✓' : 'Apply Now'}
-                  </button>
-                  <p className="text-xs text-gray-400 text-center mt-2">
-                    {selectedJob.applications_count || 0} people have already applied
-                  </p>
+                {/* Bottom Apply CTA / Application Form */}
+                <div className="border-t border-gray-100 bg-gray-50">
+                  {!showApplication ? (
+                    <div className="px-6 py-5">
+                      <button
+                        onClick={() => handleApply(selectedJob)}
+                        disabled={appliedLocal.includes(selectedJob.id) || applied}
+                        className={`w-full font-semibold py-3 rounded-lg transition text-sm flex items-center justify-center gap-2 ${
+                          appliedLocal.includes(selectedJob.id) || applied
+                            ? 'bg-green-100 text-green-700 cursor-default'
+                            : 'bg-blue-700 hover:bg-blue-800 text-white'
+                        }`}
+                      >
+                        <Briefcase className="w-4 h-4" />
+                        {applied || appliedLocal.includes(selectedJob.id) ? 'Applied ✓' : 'Apply Now'}
+                      </button>
+                      <p className="text-xs text-gray-400 text-center mt-2">
+                        {selectedJob.applications_count || 0} people have already applied
+                      </p>
+                    </div>
+                  ) : applied ? (
+                    <div className="px-6 py-8 text-center">
+                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle className="w-8 h-8 text-green-600" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-1">Application Submitted!</h3>
+                      <p className="text-sm text-gray-500">Good luck! You'll hear from the recruiter if you're shortlisted.</p>
+                    </div>
+                  ) : (
+                    <div className="px-6 py-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                          <Briefcase className="w-4 h-4 text-blue-700" /> Apply for {selectedJob.title}
+                        </h3>
+                        <button onClick={() => setShowApplication(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                      </div>
+                      <p className="text-sm text-gray-600">Let's get started, please take the time to fill out this form.</p>
+
+                      {appError && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{appError}</div>}
+
+                      {appStep === 1 && (
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Date of birth *</label>
+                            <input type="date" value={appForm.date_of_birth} onChange={e => updateAppForm('date_of_birth', e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Gender *</label>
+                            <div className="flex gap-4">
+                              {['Male', 'Female'].map(g => (
+                                <button key={g} type="button" onClick={() => updateAppForm('gender', g.toLowerCase())}
+                                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${appForm.gender === g.toLowerCase() ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-500'}`}>{g}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Disabled *</label>
+                            <div className="flex gap-4">
+                              {['Yes', 'No'].map(v => (
+                                <button key={v} type="button" onClick={() => updateAppForm('is_disabled', v.toLowerCase())}
+                                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${appForm.is_disabled === v.toLowerCase() ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-500'}`}>{v}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Internally displaced person *</label>
+                            <div className="flex gap-4">
+                              {['Yes', 'No'].map(v => (
+                                <button key={v} type="button" onClick={() => updateAppForm('is_displaced', v.toLowerCase())}
+                                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${appForm.is_displaced === v.toLowerCase() ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-500'}`}>{v}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                            <p className="text-xs text-blue-700 leading-relaxed"><span className="font-semibold">Note:</span> Inclusion is our culture. We champion all talent: women, men, displaced, and PWDs.</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Professional headline / title *</label>
+                            <input type="text" value={appForm.professional_headline} onChange={e => updateAppForm('professional_headline', e.target.value)} placeholder="e.g. Senior Accountant"
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Years of Experience *</label>
+                            <select value={appForm.years_of_experience} onChange={e => updateAppForm('years_of_experience', e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                              <option value="">Select...</option>
+                              {['Entry (0-1)', '1-2', '3-5', '5-7', '7-10', '10+'].map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Function *</label>
+                            <select value={appForm.function} onChange={e => updateAppForm('function', e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                              <option value="">Select...</option>
+                              {['Accounting', 'Administration', 'Banking & Finance', 'Customer Service', 'Education', 'Engineering', 'Healthcare', 'Hospitality', 'Human Resources', 'IT & Software', 'Legal', 'Logistics', 'Marketing', 'Operations', 'Sales', 'Security', 'Other'].map(f => <option key={f} value={f}>{f}</option>)}
+                            </select>
+                          </div>
+                          <button onClick={() => setAppStep(2)} disabled={!appForm.professional_headline || !appForm.years_of_experience || !appForm.function}
+                            className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Continue</button>
+                        </div>
+                      )}
+
+                      {appStep === 2 && (
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Work Type *</label>
+                            <select value={appForm.work_type} onChange={e => updateAppForm('work_type', e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                              <option value="">Select...</option>
+                              {['Full-time', 'Part-time', 'Contract', 'Remote', 'Hybrid', 'Freelance'].map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Highest Qualification *</label>
+                            <select value={appForm.highest_qualification} onChange={e => updateAppForm('highest_qualification', e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                              <option value="">Select...</option>
+                              {['SSCE / O-Level', 'OND / Diploma', 'HND / Bachelors', "Master's", 'PhD', 'Professional Certification', 'Vocational Training'].map(q => <option key={q} value={q}>{q}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Location *</label>
+                            <input type="text" value={appForm.location} onChange={e => updateAppForm('location', e.target.value)} placeholder="City, State"
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Availability *</label>
+                            <select value={appForm.availability} onChange={e => updateAppForm('availability', e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                              <option value="">Select...</option>
+                              {['Immediately', '2 weeks', '1 month', 'Notice period'].map(a => <option key={a} value={a}>{a}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Monthly Salary Expectation (Gross) *</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-500">NGN</span>
+                              <input type="number" value={appForm.salary_expectation} onChange={e => updateAppForm('salary_expectation', e.target.value)} placeholder="0"
+                                className="w-full border border-gray-300 rounded-lg pl-14 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                          </div>
+                          <div className="flex gap-3">
+                            <button onClick={() => setAppStep(1)} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition-colors text-sm">Back</button>
+                            <button onClick={() => setAppStep(3)} disabled={!appForm.work_type || !appForm.highest_qualification || !appForm.location || !appForm.availability || !appForm.salary_expectation}
+                              className="flex-1 bg-blue-700 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm">Continue</button>
+                          </div>
+                        </div>
+                      )}
+
+                      {appStep === 3 && (
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Upload your CV</label>
+                            <p className="text-xs text-gray-500 mb-2">pdf, doc, docx & rtf files no bigger than 10MB.</p>
+                            <label className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-blue-500 transition-colors block">
+                              <input type="file" accept=".pdf,.doc,.docx,.rtf" onChange={handleCvChange} className="hidden" />
+                              {cvName ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <CheckCircle className="w-5 h-5 text-green-600" />
+                                  <span className="text-sm font-medium text-gray-700">{cvName}</span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <Upload className="w-8 h-8 mx-auto text-gray-400" />
+                                  <p className="mt-1 text-sm font-semibold text-gray-700">Tap to upload your CV</p>
+                                </div>
+                              )}
+                            </label>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Cover letter (optional)</label>
+                            <textarea value={appForm.cover_letter} onChange={e => updateAppForm('cover_letter', e.target.value)} rows={4}
+                              placeholder="Tell the employer why you're a great fit..."
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                          </div>
+                          <div className="flex gap-3">
+                            <button onClick={() => setAppStep(2)} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition-colors text-sm">Back</button>
+                            <button onClick={() => handleSubmitApplication(selectedJob.id)} disabled={submitting}
+                              className="flex-1 bg-blue-700 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm flex items-center justify-center gap-2">
+                              {submitting ? (
+                                <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Submitting...</>
+                              ) : (
+                                <><Send className="w-4 h-4" /> Submit and apply</>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
