@@ -1,91 +1,150 @@
-import { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, ChevronUp, Sparkles, FileText, MessageCircle, TrendingUp } from 'lucide-react';
-import { answerWithRAG, hasApiKey } from '../lib/ragEngine';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Bot, X, Send, ChevronUp, Sparkles, FileText, MessageCircle, TrendingUp, Trash2, AlertCircle, RefreshCw, BookOpen } from 'lucide-react';
+import { streamAnswer, hasApiKey, clearConversation, type SourceInfo } from '../lib/ragEngine';
 
 interface Message {
-  id: number;
+  id: string;
   text: string;
   sender: 'user' | 'bot';
-  timestamp: Date;
+  sources?: SourceInfo[];
+  error?: boolean;
 }
 
-const suggestedPrompts = [
-  'What is JobBridge?',
-  'How to find a job?',
-  'AI Resume Builder',
-  'Recruiter plans',
-  'How to apply?',
-  'Contact support',
-];
+type Phase = 'idle' | 'analyzing' | 'searching' | 'generating';
+
+const CONVERSATION_ID = 'jobbridge-ai-widget';
+const PHASE_LABELS: Record<Phase, string> = {
+  idle: '',
+  analyzing: 'Analyzing your question',
+  searching: 'Searching knowledge base',
+  generating: 'Generating response',
+};
+
+const pagePrompts: Record<string, string[]> = {
+  '/': ['What is JobBridge?', 'How to find a job?', 'Recruiter plans', 'AI Resume Builder'],
+  '/jobs': ['How to apply?', 'Job types available', 'Save jobs', 'Application tips'],
+  '/my-jobs': ['Track applications', 'Saved jobs', 'Application status', 'Job alerts'],
+  '/recruiter': ['Post a job', 'AI candidate ranking', 'Applications panel', 'Recruiter plans'],
+  '/pricing': ['Recruiter plans', 'AI tools pricing', 'How to pay', 'Payment methods'],
+  '/ai-resume': ['Build resume', 'Cover letter', 'Extract skills', 'AI subscription'],
+  '/providers': ['Become a provider', 'Provider plans', 'Featured listing', 'Service categories'],
+  '/business': ['Ad packages', 'Create advert', 'Featured business', 'Promote business'],
+  '/settings': ['Change password', 'Notifications', 'Privacy', 'Delete account'],
+  '/admin': ['Admin tools', 'Manage users', 'Approve jobs', 'Platform stats'],
+};
+
+const defaultPrompts = ['What is JobBridge?', 'How to find a job?', 'Recruiter plans', 'Contact support'];
+
+let msgCounter = 0;
+function nextId() { return `msg-${++msgCounter}`; }
 
 export default function AIAssistantWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [showIntro, setShowIntro] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: 1,
-      text: "👋 Hello! I'm your JobBridge AI assistant. I can help you find jobs, build your resume, explain our plans, and more. What would you like to know?\n\n🌐 Visit us: **https://jobbridge.com**",
+      id: nextId(),
+      text: "Hello! I'm your JobBridge AI assistant. I can answer questions about finding jobs, posting vacancies, pricing, AI tools, and more. What would you like to know?",
       sender: 'bot',
-      timestamp: new Date(),
     },
   ]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [streamText, setStreamText] = useState('');
+  const [streamSources, setStreamSources] = useState<SourceInfo[]>([]);
+  const [showIntro, setShowIntro] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const aborterRef = useRef<AbortController | null>(null);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
+
+  useEffect(() => { scrollToBottom(); }, [messages, streamText, phase]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (isOpen) inputRef.current?.focus();
+  }, [isOpen]);
 
-  const addBotMessage = (text: string) => {
-    setMessages((prev) => [...prev, {
-      id: prev.length + 1,
-      text,
-      sender: 'bot',
-      timestamp: new Date(),
-    }]);
-  };
+  useEffect(() => {
+    return () => { aborterRef.current?.abort(); };
+  }, []);
 
-  const handleSend = async (text?: string) => {
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  const suggestedPrompts = pagePrompts[path] || defaultPrompts;
+
+  function appendBotMessage(text: string, sources?: SourceInfo[]) {
+    setMessages(prev => [...prev, { id: nextId(), text, sender: 'bot', sources }]);
+  }
+
+  function handleSend(text?: string) {
     const messageText = text || input.trim();
-    if (!messageText || loading) return;
+    if (!messageText || phase !== 'idle') return;
 
-    setMessages((prev) => [...prev, {
-      id: prev.length + 1,
-      text: messageText,
-      sender: 'user',
-      timestamp: new Date(),
-    }]);
+    setMessages(prev => [...prev, { id: nextId(), text: messageText, sender: 'user' }]);
     setInput('');
-    setLoading(true);
+    setPhase('analyzing');
+    setStreamText('');
+    setStreamSources([]);
 
-    try {
-      if (hasApiKey()) {
-        const result = await answerWithRAG(messageText);
-        addBotMessage(result.answer);
-      } else {
-        addBotMessage("The AI assistant is not fully configured. Set VITE_OPENAI_API_KEY in your environment to enable intelligent answers. For now, try the Support page at /support or email jobbridgesupport@gmail.com.");
-      }
-    } catch (err) {
-      addBotMessage("Sorry, I encountered an error. Please try again or contact jobbridgesupport@gmail.com for help.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    streamAnswer(messageText, CONVERSATION_ID, {
+      onPhase: (p) => {
+        if (p.includes('Analyzing')) setPhase('analyzing');
+        else if (p.includes('Searching')) setPhase('searching');
+        else setPhase('generating');
+      },
+      onToken: (token) => {
+        setStreamText(prev => prev + token);
+      },
+      onSources: (sources) => {
+        setStreamSources(sources);
+      },
+      onError: (err) => {
+        setPhase('idle');
+        setStreamText('');
+        setStreamSources([]);
+        appendBotMessage(err);
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last.sender === 'bot' && last.id.startsWith('msg-')) {
+            prev[prev.length - 1] = { ...last, text: err, error: true };
+          }
+          return [...prev];
+        });
+      },
+      onDone: (finalText, finalSources) => {
+        setPhase('idle');
+        appendBotMessage(finalText, finalSources);
+        setStreamText('');
+        setStreamSources([]);
+      },
+    });
+  }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  function handleClear() {
+    clearConversation(CONVERSATION_ID);
+    setMessages([
+      {
+        id: nextId(),
+        text: "Conversation cleared. How can I help you?",
+        sender: 'bot',
+      },
+    ]);
+    setStreamText('');
+    setStreamSources([]);
+    setPhase('idle');
+  }
+
+  function handleKeyPress(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  };
+  }
 
   return (
     <>
+      {/* Launcher button */}
       <button
         onClick={() => setShowIntro(true)}
         className={`fixed bottom-20 right-4 md:bottom-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center ${isOpen ? 'scale-0' : 'scale-100'}`}
@@ -96,17 +155,18 @@ export default function AIAssistantWidget() {
         </div>
       </button>
 
-      {showIntro && (
+      {/* Intro modal */}
+      {showIntro && !isOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
           onClick={() => setShowIntro(false)}
         >
           <div
             className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
-            <h2 className="text-lg font-bold text-on-surface mb-3">Say hello to your AI Career Assistant!</h2>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap mb-3">We've just launched an innovative tool to help you boost your career chances, whether you're just starting out or aiming for your next leadership role.</p>
+            <h2 className="text-lg font-bold mb-3">Say hello to your AI Career Assistant!</h2>
+            <p className="text-sm text-gray-700 mb-3">We've just launched an innovative tool to help you boost your career chances, whether you're just starting out or aiming for your next leadership role.</p>
             <p className="text-sm text-gray-700 font-semibold mb-2">Now you can easily:</p>
             <ul className="list-disc list-inside text-sm text-gray-700 mb-4 space-y-1">
               <li>Build a standout CV from scratch or improve your current one</li>
@@ -115,44 +175,30 @@ export default function AIAssistantWidget() {
               <li>Negotiate job offers confidently with AI-generated counteroffers</li>
             </ul>
             <p className="text-sm text-gray-700 mb-4">And the best part? It's affordable.</p>
-            <p className="text-sm text-gray-700 mb-4">Run out of time? Don't worry, our packages are still available and very affordable for you.</p>
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowIntro(false)}
-                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowIntro(false);
-                  setIsOpen(true);
-                }}
-                className="px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800"
-              >
-                Try it now
-              </button>
+              <button onClick={() => setShowIntro(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => { setShowIntro(false); setIsOpen(true); }} className="px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800">Try it now</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Chat panel */}
       <div
         className={`fixed z-50 transition-all duration-300 ${
-          isOpen
-            ? 'opacity-100 translate-y-0'
-            : 'opacity-0 translate-y-4 pointer-events-none'
+          isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
         }`}
         style={{
           bottom: '80px',
           right: '16px',
           width: 'calc(100vw - 32px)',
-          maxWidth: '380px',
+          maxWidth: '400px',
           maxHeight: 'calc(100vh - 120px)',
         }}
       >
-        <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
                 <Bot className="w-5 h-5 text-white" />
@@ -163,45 +209,105 @@ export default function AIAssistantWidget() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"><ChevronUp className="w-4 h-4 text-white" /></button>
-              <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"><X className="w-4 h-4 text-white" /></button>
+              <button onClick={handleClear} title="Clear conversation" className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                <Trash2 className="w-4 h-4 text-white" />
+              </button>
+              <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                <ChevronUp className="w-4 h-4 text-white" />
+              </button>
+              <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                <X className="w-4 h-4 text-white" />
+              </button>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[200px] max-h-[350px] bg-gray-50">
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${
-                  message.sender === 'user'
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50" style={{ minHeight: '200px' }}>
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[88%] px-3 py-2 rounded-xl text-sm ${
+                  msg.sender === 'user'
                     ? 'bg-blue-700 text-white rounded-br-sm'
                     : 'bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100'
                 }`}>
-                  <p className="whitespace-pre-wrap">{message.text}</p>
+                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                  {msg.sender === 'bot' && msg.sources && msg.sources.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-gray-100">
+                      {msg.sources.map(s => (
+                        <span key={s.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">
+                          <BookOpen className="w-2.5 h-2.5" />
+                          {s.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {msg.sender === 'bot' && msg.error && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <button
+                        onClick={() => {
+                          setMessages(prev => prev.filter(m => m.id !== msg.id));
+                          handleSend(msg.text.includes('?') ? '' : 'Tell me about JobBridge');
+                        }}
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Retry
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
-            {loading && (
+
+            {/* Streaming message */}
+            {(phase !== 'idle' || streamText) && (
               <div className="flex justify-start">
-                <div className="max-w-[85%] px-3 py-2 rounded-xl text-sm bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100">
-                  <div className="flex gap-1 items-center">
-                    <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
-                    <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                    <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                  </div>
+                <div className="max-w-[88%] px-3 py-2 rounded-xl text-sm bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100">
+                  {!streamText && phase !== 'idle' ? (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
+                          <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+                          <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+                        </div>
+                        <span className="text-xs text-gray-500">{PHASE_LABELS[phase]}...</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="whitespace-pre-wrap">{streamText}</p>
+                      {phase === 'generating' && (
+                        <span className="inline-block w-1.5 h-4 bg-blue-600 ml-0.5 animate-pulse" style={{ verticalAlign: 'text-bottom' }} />
+                      )}
+                      {streamSources.length > 0 && !streamText && (
+                        <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-gray-100">
+                          {streamSources.map(s => (
+                            <span key={s.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">
+                              <BookOpen className="w-2.5 h-2.5" />
+                              {s.title}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}
+
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="px-3 py-2 bg-white border-t border-gray-100">
-            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+          {/* Suggested prompts */}
+          <div className="px-3 py-2 bg-white border-t border-gray-100 shrink-0">
+            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
               {suggestedPrompts.map((prompt) => (
                 <button
                   key={prompt}
                   onClick={() => handleSend(prompt)}
-                  disabled={loading}
-                  className="shrink-0 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs text-gray-700 transition-colors disabled:opacity-50"
+                  disabled={phase !== 'idle'}
+                  className="shrink-0 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs text-gray-700 transition-colors disabled:opacity-40 whitespace-nowrap"
                 >
                   {prompt}
                 </button>
@@ -209,24 +315,8 @@ export default function AIAssistantWidget() {
             </div>
           </div>
 
-          <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="p-3 bg-white border-t border-gray-100">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask me anything..."
-                disabled={loading}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50"
-              />
-              <button type="submit" disabled={!input.trim() || loading} className="p-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </form>
-
-          <div className="px-3 pb-3 bg-white">
+          {/* Quick action buttons */}
+          <div className="px-3 pb-1 bg-white shrink-0">
             <div className="grid grid-cols-4 gap-1.5">
               {[
                 { icon: FileText, label: 'Resume' },
@@ -237,8 +327,8 @@ export default function AIAssistantWidget() {
                 <button
                   key={label}
                   onClick={() => handleSend(`Tell me about ${label.toLowerCase()}`)}
-                  disabled={loading}
-                  className="flex flex-col items-center gap-1 p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                  disabled={phase !== 'idle'}
+                  className="flex flex-col items-center gap-1 p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
                 >
                   <Icon className="w-4 h-4 text-blue-700" />
                   <span className="text-[10px] text-gray-600">{label}</span>
@@ -246,6 +336,29 @@ export default function AIAssistantWidget() {
               ))}
             </div>
           </div>
+
+          {/* Input */}
+          <form onSubmit={e => { e.preventDefault(); handleSend(); }} className="p-3 bg-white border-t border-gray-100 shrink-0">
+            <div className="flex gap-2">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="Ask me anything..."
+                disabled={phase !== 'idle'}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || phase !== 'idle'}
+                className="p-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </>

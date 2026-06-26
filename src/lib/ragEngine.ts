@@ -1,54 +1,67 @@
-// RAG Engine: Retrieval-Augmented Generation for the JobBridge AI Assistant
-// Uses OpenAI embeddings for retrieval + GPT-4o-mini for natural answers.
-
 import KB, { type KnowledgeSection } from './jobbridgeKnowledge';
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const LLM_MODEL = 'gpt-4o-mini';
 const TOP_K = 5;
-const CACHE_KEY = 'jobbridge_rag_embeddings';
-const CACHE_VERSION = 1;
+const SIMILARITY_THRESHOLD = 0.25;
+const MAX_HISTORY = 20;
+const CACHE_EMBED_KEY = 'jb_embeddings_v3';
+const CACHE_CONV_KEY = 'jb_conv_';
 
-// ─── Embedding helpers ─────────────────────────────────────────────────
+export interface SourceInfo {
+  id: string;
+  title: string;
+}
+
+export interface StreamCallbacks {
+  onToken: (token: string) => void;
+  onSources: (sources: SourceInfo[]) => void;
+  onError: (err: string) => void;
+  onPhase: (phase: string) => void;
+  onDone: (fullText: string, sources: SourceInfo[]) => void;
+}
+
+export function hasApiKey(): boolean {
+  return !!API_KEY;
+}
+
+// ─── Embedding cache ─────────────────────────────────────────────
 
 interface EmbeddingCache {
   version: number;
   chunks: { id: string; embedding: number[] }[];
 }
 
-function loadCache(): EmbeddingCache | null {
+function loadEmbedCache(): EmbeddingCache | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(CACHE_EMBED_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed.version !== CACHE_VERSION) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+    return parsed.version === 3 ? parsed : null;
+  } catch { return null; }
 }
 
-function saveCache(chunks: { id: string; embedding: number[] }[]) {
+function saveEmbedCache(chunks: { id: string; embedding: number[] }[]) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ version: CACHE_VERSION, chunks }));
-  } catch {
-    // localStorage may be full — silently ignore
-  }
+    localStorage.setItem(CACHE_EMBED_KEY, JSON.stringify({ version: 3, chunks }));
+  } catch {}
 }
 
-async function embed(text: string): Promise<number[]> {
+async function embed(text: string | string[]): Promise<number[] | number[][]> {
+  const input = Array.isArray(text) ? text : [text];
   const res = await fetch('https://api.openai.com/v1/embeddings', {
     method: 'POST',
     headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: text }),
+    body: JSON.stringify({ model: EMBEDDING_MODEL, input }),
   });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Embedding API error: ${res.status} — ${err}`);
   }
   const data = await res.json();
-  return data.data[0].embedding;
+  const embs = data.data.sort((a: any, b: any) => a.index - b.index).map((d: any) => d.embedding);
+  return Array.isArray(text) ? embs : embs[0];
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -58,125 +71,254 @@ function cosineSimilarity(a: number[], b: number[]): number {
     na += a[i] * a[i];
     nb += b[i] * b[i];
   }
-  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+  return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-// ─── RAG pipeline ──────────────────────────────────────────────────────
+// ─── Conversation memory ────────────────────────────────────────
 
-export interface RAGResult {
-  answer: string;
-  sources: { id: string; title: string }[];
-  fromCache: boolean;
+type HistoryMsg = { role: 'user' | 'assistant'; content: string };
+
+function getConversation(convId: string): HistoryMsg[] {
+  try {
+    const raw = localStorage.getItem(CACHE_CONV_KEY + convId);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 }
 
-/**
- * Answer a user question using RAG:
- * 1. Embed the question
- * 2. Find top-k most similar knowledge sections
- * 3. Feed them as context to GPT-4o-mini
- * 4. Return the generated answer + sources
- */
-export async function answerWithRAG(question: string): Promise<RAGResult> {
+function saveConversation(convId: string, msgs: HistoryMsg[]) {
+  try {
+    localStorage.setItem(CACHE_CONV_KEY + convId, JSON.stringify(msgs.slice(-MAX_HISTORY)));
+  } catch {}
+}
+
+export function clearConversation(convId: string) {
+  try { localStorage.removeItem(CACHE_CONV_KEY + convId); } catch {}
+}
+
+// ─── Retrieval ──────────────────────────────────────────────────
+
+const pageContextMap: Record<string, string> = {
+  '/': 'the home page',
+  '/jobs': 'the Jobs listing page',
+  '/my-jobs': 'the My Jobs page',
+  '/recruiter': 'the Recruiter Dashboard',
+  '/pricing': 'the Pricing page',
+  '/ai-resume': 'the AI Resume Studio page',
+  '/providers': 'the Service Provider Marketplace',
+  '/business': 'the Business Advertisements page',
+  '/settings': 'the Settings page',
+  '/admin': 'the Admin Dashboard',
+  '/support': 'the Support page',
+  '/contact': 'the Contact page',
+  '/blog': 'the Blog page',
+  '/signup': 'the Sign Up page',
+  '/login': 'the Login page',
+};
+
+function currentPageContext(): string {
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  return pageContextMap[path] || `the ${path} page`;
+}
+
+async function retrieveRelevant(question: string, pagePath: string): Promise<KnowledgeSection[]> {
   const trimmed = question.trim();
-  if (!trimmed) {
-    return { answer: 'Please ask a question.', sources: [], fromCache: false };
-  }
+  if (!trimmed) return [];
 
-  // ── 1. Get or compute embeddings ──
-  const cache = loadCache();
   let chunkEmbeddings: { id: string; embedding: number[] }[];
 
+  const cache = loadEmbedCache();
   if (cache && cache.chunks.length === KB.length) {
     chunkEmbeddings = cache.chunks;
   } else {
-    // Embed all knowledge chunks in parallel
-    const texts = KB.map(s => `Title: ${s.title}\nKeywords: ${s.keywords.join(', ')}\n\n${s.content}`);
-    const batchRes = await embed(texts);
-    // The embed function only handles single strings; we need to handle batches
-    // Actually let me handle this differently — embed individually or in batch
-    // For simplicity, embed in parallel batches
-    const batchSize = 10;
+    const batchSize = 20;
     chunkEmbeddings = [];
     for (let i = 0; i < KB.length; i += batchSize) {
       const batch = KB.slice(i, i + batchSize);
-      const batchTexts = batch.map(s => `Title: ${s.title}\nKeywords: ${s.keywords.join(', ')}\n\n${s.content}`);
-      const res = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: EMBEDDING_MODEL, input: batchTexts }),
-      });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Batch embedding API error: ${res.status} — ${err}`);
-      }
-      const data = await res.json();
-      for (let j = 0; j < data.data.length; j++) {
-        chunkEmbeddings.push({ id: batch[j].id, embedding: data.data[j].embedding });
+      const texts = batch.map(s => `Title: ${s.title}\nKeywords: ${s.keywords.join(', ')}\n\n${s.content}`);
+      const embs = (await embed(texts)) as number[][];
+      for (let j = 0; j < batch.length; j++) {
+        chunkEmbeddings.push({ id: batch[j].id, embedding: embs[j] });
       }
     }
-    saveCache(chunkEmbeddings);
+    saveEmbedCache(chunkEmbeddings);
   }
 
-  // ── 2. Embed the question ──
-  const questionEmb = await embed(trimmed);
+  const questionEmb = (await embed(trimmed)) as number[];
 
-  // ── 3. Find top-k similar chunks ──
   const scored = chunkEmbeddings
-    .map(ce => ({
-      id: ce.id,
-      similarity: cosineSimilarity(questionEmb, ce.embedding),
-    }))
-    .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, TOP_K);
+    .map(ce => {
+      const section = KB.find(k => k.id === ce.id);
+      let score = cosineSimilarity(questionEmb, ce.embedding);
+      if (section?.pages?.includes(pagePath)) score *= 1.25;
+      return { id: ce.id, score };
+    })
+    .sort((a, b) => b.score - a.score);
 
-  const topSections: KnowledgeSection[] = scored
+  const results = scored.filter(s => s.score > SIMILARITY_THRESHOLD).slice(0, TOP_K);
+
+  const sections = (results.length > 0 ? results : scored.slice(0, 3))
     .map(s => KB.find(k => k.id === s.id))
     .filter(Boolean) as KnowledgeSection[];
 
-  if (topSections.length === 0) {
-    return {
-      answer: "I'm not sure about that. Try asking differently, or contact jobbridgesupport@gmail.com for help.",
-      sources: [],
-      fromCache: cache !== null,
-    };
-  }
+  return sections;
+}
 
-  // ── 4. Generate answer with LLM ──
-  const context = topSections.map(s =>
-    `[${s.title}]\n${s.content}`
-  ).join('\n\n---\n\n');
+// ─── Streaming LLM call ─────────────────────────────────────────
 
-  const systemPrompt = `You are the JobBridge AI Assistant. Answer the user's question based ONLY on the context provided below. If the context doesn't contain the answer, say you're not sure and suggest contacting support at jobbridgesupport@gmail.com. Be concise (2-4 sentences) and helpful. Do not mention that you are using internal notes or context.`;
-
-  const llmRes = await fetch('https://api.openai.com/v1/chat/completions', {
+async function streamLLM(
+  messages: { role: string; content: string }[],
+  onToken: (token: string) => void,
+): Promise<string> {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: LLM_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Context:\n${context}\n\nQuestion: ${trimmed}` },
-      ],
-      max_tokens: 400,
-      temperature: 0.3,
+      messages,
+      max_tokens: 700,
+      temperature: 0.25,
+      stream: true,
     }),
   });
 
-  if (!llmRes.ok) {
-    const err = await llmRes.text();
-    throw new Error(`LLM API error: ${llmRes.status} — ${err}`);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`API error: ${res.status} — ${err}`);
   }
 
-  const llmData = await llmRes.json();
-  const answer = llmData.choices[0].message.content.trim();
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let full = '';
 
-  return {
-    answer,
-    sources: topSections.map(s => ({ id: s.id, title: s.title })),
-    fromCache: cache !== null,
-  };
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const data = trimmed.slice(5).trim();
+      if (data === '[DONE]') continue;
+      try {
+        const parsed = JSON.parse(data);
+        const token = parsed.choices?.[0]?.delta?.content || '';
+        if (token) {
+          full += token;
+          onToken(token);
+        }
+      } catch {}
+    }
+  }
+
+  return full;
 }
 
-export function hasApiKey(): boolean {
-  return !!API_KEY;
+// ─── System prompt builder ──────────────────────────────────────
+
+function buildSystemPrompt(
+  context: string,
+  pageContext: string,
+  history: HistoryMsg[],
+): string {
+  return `You are the JobBridge AI Assistant — a helpful, accurate support agent for the JobBridge platform (Nigeria's #1 professional network).
+
+## Core Rules
+- Answer ONLY based on the knowledge context below. Do not make up information.
+- If the context doesn't contain the answer, say you're not sure and suggest contacting jobbridgesupport@gmail.com.
+- Be concise (2-5 sentences) but thorough when needed.
+- Do not mention "context", "internal notes", or "knowledge base" in your response.
+- Use bullet points for lists of 2+ items.
+- Include relevant page links like /signup, /pricing, /recruiter when helpful.
+- Format naturally with markdown for readability.
+- If the user asks about something outside JobBridge, politely redirect.
+
+## Current Page
+The user is currently on: ${pageContext}
+
+## Conversation History (last ${MAX_HISTORY} messages)
+${history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n')}
+
+## Knowledge Context (use this to answer)
+${context}`;
+}
+
+// ─── Public API ─────────────────────────────────────────────────
+
+export async function streamAnswer(
+  question: string,
+  conversationId: string,
+  cb: StreamCallbacks,
+): Promise<void> {
+  const { onToken, onSources, onError, onPhase, onDone } = cb;
+
+  if (!API_KEY) {
+    onError(
+      'The AI assistant is not fully configured. ' +
+      'Set VITE_OPENAI_API_KEY in your environment to enable intelligent answers. ' +
+      'For now, visit the Support page at /support or email jobbridgesupport@gmail.com.',
+    );
+    return;
+  }
+
+  const pagePath = window.location.pathname.replace(/\/$/, '') || '/';
+
+  try {
+    onPhase('Analyzing your question...');
+
+    const history = getConversation(conversationId);
+
+    onPhase('Searching knowledge base...');
+    const sections = await retrieveRelevant(question, pagePath);
+
+    if (sections.length === 0) {
+      onError("I couldn't find relevant information in the knowledge base. Try rephrasing your question or contact jobbridgesupport@gmail.com for help.");
+      return;
+    }
+
+    const sourceList = sections.map(s => ({ id: s.id, title: s.title }));
+    onSources(sourceList);
+
+    const contextStr = sections.map(s => `[${s.title}]\n${s.content}`).join('\n\n---\n\n');
+    const pageCtx = currentPageContext();
+
+    onPhase('Generating response...');
+
+    const systemPrompt = buildSystemPrompt(contextStr, pageCtx, history);
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...history,
+      { role: 'user', content: question },
+    ];
+
+    let fullText = '';
+    await streamLLM(messages, (token) => {
+      fullText += token;
+      onToken(token);
+    });
+
+    const updatedHistory: HistoryMsg[] = [
+      ...history,
+      { role: 'user', content: question },
+      { role: 'assistant', content: fullText },
+    ];
+    saveConversation(conversationId, updatedHistory);
+
+    onDone(fullText, sourceList);
+  } catch (err: any) {
+    const msg = err?.message || '';
+    if (msg.includes('401') || msg.includes('401')) {
+      onError('OpenAI API key is invalid. Please check your VITE_OPENAI_API_KEY.');
+    } else if (msg.includes('429') || msg.includes('rate')) {
+      onError('Too many requests. Please wait a moment and try again.');
+    } else if (msg.includes('fetch') || msg.includes('network')) {
+      onError('Network error. Check your internet connection and try again.');
+    } else {
+      onError(`Something went wrong: ${msg || 'unexpected error'}. Please try again.`);
+    }
+  }
 }
