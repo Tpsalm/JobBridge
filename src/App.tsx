@@ -4,7 +4,6 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ModalProvider } from './contexts/ModalContext';
 import { ModalRenderer } from './components/Modal';
 const AIAssistantWidget = lazy(() => import('./components/AIAssistantWidget'));
-import Watermark from './components/Watermark';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import Home from './pages/Home';
@@ -67,7 +66,6 @@ export default function App() {
           <Suspense fallback={null}>
             <AIAssistantWidget />
           </Suspense>
-          <Watermark />
         </ModalProvider>
       </AuthProvider>
     </BrowserRouter>
