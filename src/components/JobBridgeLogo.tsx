@@ -11,7 +11,7 @@ interface JobBridgeLogoProps {
   className?: string;
 }
 
-const LOGO_PATH = '/images/jobbridge-logo.jpeg';
+const LOGO_PATH = `${import.meta.env.BASE_URL}images/jobbridge-logo.jpeg`;
 
 /* ─── Image Logo Mark ─── */
 const LogoMark: React.FC<{ size: number }> = ({ size }) => (
