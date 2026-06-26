@@ -40,6 +40,9 @@ BEGIN
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'handle_new_user error: % (state: %)', SQLERRM, SQLSTATE;
+  RETURN NEW;
 END;
 $$;
 
