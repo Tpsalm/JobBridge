@@ -211,7 +211,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        const fullMsg = error?.message || error?.error_description || JSON.stringify(error) || 'Signup failed';
+        console.error('[AuthContext signUp] Supabase error:', error);
+        return { error: new Error(fullMsg) };
+      }
 
       const authUser = data?.user;
       if (authUser) {
