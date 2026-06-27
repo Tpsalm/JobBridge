@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -39,7 +39,7 @@ export default function Payment() {
   const [selectedMethod, setSelectedMethod] = useState<'card' | 'transfer'>('card');
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<ReactNode>('');
 
   const total = plan.price;
 
@@ -66,7 +66,7 @@ export default function Payment() {
       const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
 
       if (!publicKey) {
-        setError('Payment is not configured. Please contact jobbridgesupport@gmail.com.');
+        setError(<>Payment is not configured. Please contact <a href="mailto:jobbridgesupport@gmail.com" className="underline font-medium">jobbridgesupport@gmail.com</a>.</>);
         setPaying(false);
         return;
       }

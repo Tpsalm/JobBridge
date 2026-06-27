@@ -174,7 +174,13 @@ export default function Support() {
                       {category.faqs.map((faq, idx) => (
                         <div key={idx} className="pb-4 border-b last:pb-0 last:border-b-0">
                           <h4 className="font-medium text-gray-900 mb-2">{faq.question}</h4>
-                          <p className="text-gray-700 text-sm">{faq.answer}</p>
+                          <p className="text-gray-700 text-sm">
+                            {faq.answer.split(/(jobbridgesupport@gmail\.com)/).map((part, i) =>
+                              part.match(/jobbridgesupport@gmail\.com/) ? (
+                                <a key={i} href={`mailto:${part}`} className="text-blue-700 hover:underline">{part}</a>
+                              ) : part
+                            )}
+                          </p>
                         </div>
                       ))}
                     </div>

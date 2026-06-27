@@ -10,7 +10,7 @@ export default function Footer() {
         <div className="text-sm text-gray-700">
           <div className="font-semibold text-gray-900">Contact JobBridge</div>
           <div className="mt-1">No 4, Phenol Crystal Street, Koomi Rd, Saki, Oyo State</div>
-          <div className="mt-1">Email: jobbridgesupport@gmail.com</div>
+          <div className="mt-1">Email: <a href="mailto:jobbridgesupport@gmail.com" className="text-blue-700 hover:underline">jobbridgesupport@gmail.com</a></div>
           <div>WhatsApp: 09136171354</div>
         </div>
 
