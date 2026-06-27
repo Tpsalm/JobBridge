@@ -64,21 +64,14 @@ export default function Payment() {
 
     try {
       const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
-      const reference = 'JB-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 
       if (!publicKey) {
-        // No Paystack key configured — auto-activate (dev mode)
-        await activatePremiumPlan(user.id, planKey, plan.price);
-        await recordPayment({ user_id: user.id, plan: planKey, amount: plan.price, reference, status: 'completed' });
-        if (plan.ai) {
-          await fetchAiSubscription();
-        } else {
-          await fetchSubscription();
-        }
-        setPaid(true);
+        setError('Payment is not configured. Please contact jobbridgesupport@gmail.com.');
         setPaying(false);
         return;
       }
+
+      const reference = 'JB-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 
       // Open Paystack Inline checkout directly
       const handler = PaystackPop.setup({
@@ -117,7 +110,11 @@ export default function Payment() {
   };
 
   const handlePayWithTransfer = () => {
-    setPaid(true);
+    setPaying(true);
+    setTimeout(() => {
+      setPaying(false);
+      setError('Bank transfers are verified manually. Please allow up to 24 hours for activation after payment.');
+    }, 1000);
   };
 
   const handlePay = () => {
