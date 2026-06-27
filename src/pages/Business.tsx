@@ -35,8 +35,8 @@ const initialAdverts: Advert[] = [
     status: 'active',
     startDate: '2026-06-01',
     endDate: '2026-06-07',
-    views: 1234,
-    clicks: 89,
+    views: 0,
+    clicks: 0,
     featured: false,
   },
   {
@@ -50,8 +50,8 @@ const initialAdverts: Advert[] = [
     status: 'active',
     startDate: '2026-05-15',
     endDate: '2026-06-15',
-    views: 3456,
-    clicks: 234,
+    views: 0,
+    clicks: 0,
     featured: true,
   },
   {
