@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { supabase, Profile, SubscriptionInfo, AiSubscriptionInfo } from '../lib/supabase';
+import { fetchUserApplications } from '../lib/supabaseQueries';
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -148,6 +149,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(p);
           setLoading(false);
         });
+        // Validate applied jobs against actual Supabase data — clear stale localStorage entries
+        fetchUserApplications(sess.user.id).then(apps => {
+          const validIds = apps.map((a: any) => a.job_id).filter(Boolean);
+          setAppliedJobs(prev => {
+            const clean = prev.filter(id => validIds.includes(id));
+            localStorage.setItem('jobbridge_applied_jobs', JSON.stringify(clean));
+            return clean;
+          });
+        }).catch(() => {});
       } else {
         setLoading(false);
       }
