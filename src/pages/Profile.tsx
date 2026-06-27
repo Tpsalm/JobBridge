@@ -82,6 +82,7 @@ export default function Profile() {
       if (!user) { setProfileLoading(false); return; }
       setProfileLoading(true);
       const fresh = await fetchProfile(user.id);
+      let coverUrl = '';
       if (fresh) {
         const fields: Record<string, string> = {};
         Object.keys(PROFILE_FIELDS).forEach(key => {
@@ -93,10 +94,7 @@ export default function Profile() {
           }
         });
         fields.avatar_url = (fresh as any).avatar_url || '';
-        fields.cover_url = (fresh as any).cover_url || '';
-        if (!fields.cover_url) {
-          try { const saved = localStorage.getItem('jobbridge_cover_url'); if (saved) fields.cover_url = saved; } catch {}
-        }
+        coverUrl = (fresh as any).cover_url || '';
         fields.email = fresh.email || user?.email || '';
         setForm(fields);
       } else {
@@ -109,8 +107,21 @@ export default function Profile() {
           salary_expectation: '', bio: '', specialty: '', hourly_rate: '', skills: '',
           avatar_url: '', cover_url: '',
         });
-        try { const saved = localStorage.getItem('jobbridge_cover_url'); if (saved) setForm(f => ({ ...f, cover_url: saved })); } catch {}
       }
+      if (!coverUrl) {
+        try { coverUrl = localStorage.getItem('jobbridge_cover_url') || ''; } catch {}
+      }
+      if (!coverUrl) {
+        try {
+          const cache = await caches.open('jobbridge-images');
+          const resp = await cache.match('cover');
+          if (resp) {
+            const blob = await resp.blob();
+            coverUrl = URL.createObjectURL(blob);
+          }
+        } catch {}
+      }
+      if (coverUrl) setForm(f => ({ ...f, cover_url: coverUrl }));
       setProfileLoading(false);
     }
     loadProfile();
@@ -137,24 +148,22 @@ export default function Profile() {
   async function handleUpload(file: File) {
     if (!user) return;
     setUploading(true);
-    let url = '';
+    const blobUrl = URL.createObjectURL(file);
+    setLocalCover(blobUrl);
+    try {
+      const cache = await caches.open('jobbridge-images');
+      await cache.put('cover', new Response(file, { headers: { 'content-type': file.type } }));
+    } catch {}
     try {
       const ext = file.name.split('.').pop();
       const filePath = `${user.id}/cover_${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('profile-images').upload(filePath, file, { upsert: true });
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from('profile-images').getPublicUrl(filePath);
-      url = publicUrl;
-    } catch {
-      const reader = new FileReader();
-      url = await new Promise<string>(resolve => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-    }
-    updateField('cover_url', url);
-    setLocalCover(URL.createObjectURL(file));
-    try { localStorage.setItem('jobbridge_cover_url', url); } catch {}
+      if (!uploadError) {
+        const { data: { publicUrl } } = supabase.storage.from('profile-images').getPublicUrl(filePath);
+        updateField('cover_url', publicUrl);
+        try { localStorage.setItem('jobbridge_cover_url', publicUrl); } catch {}
+      }
+    } catch {}
     setUploading(false);
   }
 
