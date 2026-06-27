@@ -137,24 +137,25 @@ export default function Profile() {
   async function handleUpload(file: File) {
     if (!user) return;
     setUploading(true);
+    let url = '';
     try {
       const ext = file.name.split('.').pop();
       const filePath = `${user.id}/cover_${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('profile-images').upload(filePath, file, { upsert: true });
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('profile-images').getPublicUrl(filePath);
-      updateField('cover_url', publicUrl);
-      setLocalCover(URL.createObjectURL(file));
-      try { localStorage.setItem('jobbridge_cover_url', publicUrl); } catch {}
-    } catch (err: any) {
-      if (err.message?.includes('bucket')) {
-        alert('Profile uploads are not configured. Contact support.');
-      } else {
-        alert(err.message || 'Upload failed');
-      }
-    } finally {
-      setUploading(false);
+      url = publicUrl;
+    } catch {
+      const reader = new FileReader();
+      url = await new Promise<string>(resolve => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
     }
+    updateField('cover_url', url);
+    setLocalCover(URL.createObjectURL(file));
+    try { localStorage.setItem('jobbridge_cover_url', url); } catch {}
+    setUploading(false);
   }
 
   const handleSave = async () => {
@@ -260,18 +261,6 @@ export default function Profile() {
           </div>
           <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
-        </div>
-
-        {/* Profile Info */}
-        <div className="mb-6 -mt-12 relative z-10 px-4">
-          <h1 className="text-2xl font-bold text-white drop-shadow-lg">
-            {form.full_name || user?.user_metadata?.full_name || 'Your Name'}
-          </h1>
-          {form.bio && (
-            <p className="text-sm text-white/90 mt-1 line-clamp-2 drop-shadow">
-              {form.bio}
-            </p>
-          )}
         </div>
 
         {/* Completeness Meter */}
