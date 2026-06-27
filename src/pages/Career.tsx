@@ -94,7 +94,7 @@ export default function Career() {
       <Header />
       <PageHero compact title="Career Hub" subtitle="Your complete career growth ecosystem — coming soon" images={HERO_CAROUSELS.career || []} imageAlt="Career" overlay="dark" />
 
-      <div className="max-w-6xl mx-auto px-4 -mt-6 relative z-10">
+      <div className="max-w-6xl mx-auto px-4 mt-6 relative z-10">
         {/* Intro Banner */}
         <AnimatedSection direction="up">
           <div className="bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl p-6 sm:p-8 text-white mb-8 relative overflow-hidden">
