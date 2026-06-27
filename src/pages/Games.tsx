@@ -346,7 +346,7 @@ export default function Games() {
                     ? 'bg-emerald-50 border border-emerald-300 scale-95 opacity-70'
                     : card.flipped
                       ? 'bg-white border-2 border-blue-400 shadow-md scale-100'
-                      : 'bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 hover:scale-105 text-gray-400'
+                      : 'bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 hover:shadow-md text-gray-400'
                 }`}
               >
                 {(card.flipped || card.matched) ? card.emoji : '?'}

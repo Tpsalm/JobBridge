@@ -88,13 +88,13 @@ export default function Home() {
                 AI-powered job matching, verified employers, and real-time talent search — all in one professional network.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 preserve-3d" style={{ transform: 'translateZ(30px)' }}>
-                <Link to="/jobs" className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:scale-105 shadow-lg">
+                <Link to="/jobs" className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:shadow-xl shadow-lg">
                   <Search className="w-4 h-4" /> Find Jobs
                 </Link>
-                <Link to="/providers" className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:scale-105 border border-blue-500">
+                <Link to="/providers" className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:shadow-xl border border-blue-500">
                   <Users className="w-4 h-4" /> Hire Talent
                 </Link>
-                <Link to="/ai-resume" className="inline-flex items-center justify-center gap-2 bg-transparent text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/10 transition-all hover:scale-105 border border-white/30">
+                <Link to="/ai-resume" className="inline-flex items-center justify-center gap-2 bg-transparent text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/10 transition-all hover:shadow-xl border border-white/30">
                   <Zap className="w-4 h-4" /> AI Resume
                 </Link>
               </div>
@@ -302,12 +302,12 @@ export default function Home() {
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Ready to find your next opportunity?</h2>
             <p className="text-blue-100 mb-7 max-w-lg mx-auto">Join over 2 million professionals already using JobBridge to advance their careers.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link to="/payment" className="bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:scale-105">
+              <Link to="/payment" className="bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:shadow-xl">
                 Go to Payment
               </Link>
               <button
                 onClick={() => openModal('premium')}
-                className="bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:scale-105 border border-blue-500"
+                className="bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:shadow-xl border border-blue-500"
               >
                 View Premium Plans
               </button>
