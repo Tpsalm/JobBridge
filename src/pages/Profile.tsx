@@ -228,7 +228,7 @@ export default function Profile() {
         {/* Cover Photo */}
         <div className="relative rounded-2xl overflow-hidden mb-6 h-56 sm:h-64 group">
           <img src={localCover || form.cover_url || IMG.profile.cover} alt=""
-            className="w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
+            className="w-full h-full object-contain bg-gray-900 cursor-grab active:cursor-grabbing select-none"
             style={{ objectPosition: `${coverPos.x}% ${coverPos.y}%` }}
             onMouseDown={e => startDrag(e, 'cover')}
             onTouchStart={e => startDrag(e, 'cover')}
