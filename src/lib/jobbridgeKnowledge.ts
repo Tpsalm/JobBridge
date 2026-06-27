@@ -200,7 +200,7 @@ const KB: KnowledgeSection[] = [
     title: 'Career Resources & Blog',
     tags: ['career', 'content'],
     pages: ['/blog'],
-    keywords: ['career resources', 'career advice', 'blog', 'articles', 'career tips', 'jobbridge blog', 'insights', 'career development'],
+    keywords: ['blog', 'blog page', 'insights', 'articles', 'career resources', 'career advice', 'blog posts', 'jobbridge blog', 'read blog', 'blog articles', 'newsletter'],
     content: `JobBridge offers career resources through its Insights blog at /blog with articles on: Career Advice, AI & Tech in Hiring, Remote Work tips, Salary & Benefits guides, and Leadership development. You can subscribe to the blog newsletter for weekly updates. Topics include "The Future of AI in Hiring", "10 Resume Mistakes That Cost You Interviews", and "How to Ace Your Remote Interview". New articles are added regularly.`,
   },
 
@@ -392,7 +392,7 @@ const KB: KnowledgeSection[] = [
     title: 'Service Provider Marketplace',
     tags: ['providers', 'marketplace'],
     pages: ['/providers'],
-    keywords: ['service provider', 'service provider marketplace', 'providers page', '/providers', 'find services', 'hire provider', 'professional services'],
+    keywords: ['service provider', 'service providers', 'provider', 'providers', 'provider page', 'providers page', 'service provider marketplace', '/providers', 'find services', 'hire provider', 'professional services', 'marketplace'],
     content: `The Service Providers page at /providers showcases professionals offering services in: Engineering (web and mobile development), Design (UI/UX, graphic design), Marketing (digital marketing, SEO, social media), Finance (financial analysis, accounting, bookkeeping), Legal (lawyers, legal consultants), Photography (event and portrait photography), Writing (content writing, copywriting, technical writing), and Consulting (business and career consulting). You can browse providers, view their profiles, check ratings, and send inquiries.`,
   },
   {
@@ -436,7 +436,7 @@ const KB: KnowledgeSection[] = [
     title: 'Business Advertisements',
     tags: ['business', 'advertising'],
     pages: ['/business'],
-    keywords: ['business advertisement', 'advert', 'advertising', 'promote business', 'business ads', 'ad packages', 'create advert', '/business'],
+    keywords: ['business', 'business page', 'business advertisement', 'advert', 'advertising', 'advertise', 'promote business', 'business ads', 'ad packages', 'create advert', '/business', 'ad campaign'],
     content: `The Business page at /business lets you create advertisements to promote your business to the JobBridge audience. Ad Packages: Weekly Ad (₦2,000 / 7 days), Monthly Ad (₦7,500 / 30 days), Featured Business (₦15,000 / 30 days with homepage spotlight carousel). Create an advert by providing: business name, title, description, category, optional image and website URL, phone, email, and location. Payments are handled via Paystack.`,
   },
   {
@@ -576,7 +576,7 @@ const KB: KnowledgeSection[] = [
     title: 'Career Page',
     tags: ['general', 'company'],
     pages: ['/career'],
-    keywords: ['career page', 'join jobbridge', 'work at jobbridge', 'career opportunities', '/career'],
+    keywords: ['career page', 'career', 'join jobbridge', 'work at jobbridge', 'career opportunities', 'jobbridge careers', '/career', 'jobs at jobbridge', 'hiring'],
     content: `The Career page at /career is JobBridge's "Coming Soon" careers section. It invites interested professionals to get notified when the company starts hiring. Click "Get Notified When Live" to subscribe your email for updates when career opportunities at JobBridge become available. Subscriptions are stored in the blog_subscribers table.`,
   },
 

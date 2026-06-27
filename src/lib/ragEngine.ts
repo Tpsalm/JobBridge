@@ -331,7 +331,15 @@ export async function streamAnswer(
     const pageCtx = currentPageContext();
 
     if (noApiKey) {
-      const best = sections[0];
+      const q = questionClean.toLowerCase();
+      const ranked = [...KB].map(s => ({
+        section: s,
+        kw: s.keywords.filter(k => q.includes(k.toLowerCase())).length,
+        tag: s.tags.filter(t => q.includes(t)).length,
+        word: q.split(/\s+/).filter(w => w.length > 2 && (s.title + ' ' + s.content).toLowerCase().includes(w)).length,
+      }));
+      ranked.sort((a, b) => (b.kw * 3 + b.tag * 2 + b.word * 0.5) - (a.kw * 3 + a.tag * 2 + a.word * 0.5));
+      const best = ranked[0].section;
       const showSources = [{ id: best.id, title: best.title }];
 
       const sentences = best.content.match(/[^.!?]+[.!?]+/g) || [best.content];
