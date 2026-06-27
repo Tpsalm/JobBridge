@@ -20,6 +20,21 @@ const PHASE_LABELS: Record<Phase, string> = {
   generating: 'Generating response',
 };
 
+function formatMessage(text: string) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('http://') || part.startsWith('https://')) {
+      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{part}</a>;
+    }
+    const lines = part.split('\n');
+    return lines.map((line, j) => {
+      const trimmed = line.trim();
+      if (!trimmed) return <br key={`${i}-${j}`} />;
+      return <p key={`${i}-${j}`} className="mb-2 last:mb-0">{trimmed}</p>;
+    });
+  });
+}
+
 const pagePrompts: Record<string, string[]> = {
   '/': ['What is JobBridge?', 'How to find a job?', 'Recruiter plans', 'AI Resume Builder'],
   '/jobs': ['How to apply?', 'Job types available', 'Save jobs', 'Application tips'],
@@ -241,7 +256,7 @@ function AIAssistantWidget() {
                     ? 'bg-blue-700 text-white rounded-br-sm'
                     : 'bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100'
                 }`}>
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                  <div className="text-sm leading-relaxed">{formatMessage(msg.text)}</div>
                   {msg.sender === 'bot' && msg.sources && msg.sources.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-gray-100">
                       {msg.sources.map(s => (
@@ -287,7 +302,7 @@ function AIAssistantWidget() {
                     </div>
                   ) : (
                     <>
-                      <p className="whitespace-pre-wrap">{streamText}</p>
+                      <div className="text-sm leading-relaxed">{formatMessage(streamText)}</div>
                       {phase === 'generating' && (
                         <span className="inline-block w-1.5 h-4 bg-blue-600 ml-0.5 animate-pulse" style={{ verticalAlign: 'text-bottom' }} />
                       )}
