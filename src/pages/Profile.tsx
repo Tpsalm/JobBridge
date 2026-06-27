@@ -23,6 +23,9 @@ const PROFILE_FIELDS = {
   availability: { label: 'Availability', section: 'professional', weight: 1 },
   salary_expectation: { label: 'Salary Expectation', section: 'professional', weight: 1 },
   bio: { label: 'Bio / About', section: 'professional', weight: 2 },
+  specialty: { label: 'Service Specialty (Providers)', section: 'provider', weight: 2 },
+  hourly_rate: { label: 'Hourly Rate (NGN)', section: 'provider', weight: 1 },
+  skills: { label: 'Skills (comma-separated)', section: 'provider', weight: 1 },
 };
 
 const TOTAL_WEIGHT = Object.values(PROFILE_FIELDS).reduce((s, f) => s + f.weight, 0);
@@ -40,7 +43,12 @@ export default function Profile() {
     if (userProfile) {
       const fields: Record<string, string> = {};
       Object.keys(PROFILE_FIELDS).forEach(key => {
-        fields[key] = (userProfile as any)[key] || '';
+        const val = (userProfile as any)[key];
+        if (key === 'skills' && Array.isArray(val)) {
+          fields[key] = val.join(', ');
+        } else {
+          fields[key] = val || '';
+        }
       });
       fields.email = userProfile.email || user?.email || '';
       setForm(fields);
@@ -51,7 +59,7 @@ export default function Profile() {
         phone: '', date_of_birth: '', gender: '', location: '',
         professional_headline: '', years_of_experience: '', function: '',
         work_type: '', highest_qualification: '', availability: '',
-        salary_expectation: '', bio: '',
+        salary_expectation: '', bio: '', specialty: '', hourly_rate: '', skills: '',
       });
     }
   }, [userProfile, user]);
@@ -80,7 +88,11 @@ export default function Profile() {
     try {
       const updates: Record<string, any> = { updated_at: new Date().toISOString() };
       Object.keys(PROFILE_FIELDS).forEach(key => {
-        updates[key] = form[key] || null;
+        if (key === 'skills') {
+          updates[key] = (form[key] || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+        } else {
+          updates[key] = form[key] || null;
+        }
       });
       delete updates.email;
       await updateProfile(user.id, updates as any);
@@ -236,6 +248,22 @@ export default function Profile() {
             </div>
           </div>
         </div>
+
+        {/* Provider Section */}
+        {userProfile?.role === 'provider' && (
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-5">Service Provider Profile</h2>
+            <div className="space-y-4">
+              {renderSelect('specialty', 'Service Specialty', [
+                'Graphic Designer', 'UI/UX Designer', 'Web Developer', 'Mobile Developer',
+                'Photographer', 'Content Writer', 'Digital Marketer', 'Financial Analyst',
+                'Legal Consultant', 'Business Consultant',
+              ])}
+              {renderInput('hourly_rate', 'Hourly Rate (NGN)', 'number')}
+              {renderInput('skills', 'Skills (comma-separated)', 'text', 'e.g. React, Node.js, UI Design')}
+            </div>
+          </div>
+        )}
 
         {/* Inclusion Section */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">

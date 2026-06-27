@@ -60,6 +60,13 @@ export type Profile = {
   highest_qualification?: string;
   availability?: string;
   salary_expectation?: string;
+  specialty?: string;
+  hourly_rate?: number;
+  skills?: string[];
+  is_verified?: boolean;
+  is_featured?: boolean;
+  reviews_count?: number;
+  is_active?: boolean;
   subscription?: SubscriptionInfo;
   created_at: string;
   updated_at: string;

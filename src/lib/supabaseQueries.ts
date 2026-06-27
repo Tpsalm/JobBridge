@@ -156,6 +156,18 @@ export async function fetchProfile(userId: string) {
   return data;
 }
 
+export async function fetchProviders() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'provider')
+    .order('is_featured', { ascending: false })
+    .order('is_verified', { ascending: false })
+    .order('reviews_count', { ascending: false });
+  if (error) throw error;
+  return (data || []) as Profile[];
+}
+
 export async function updateProfile(userId: string, updates: Partial<{
   full_name: string;
   phone: string;
@@ -174,6 +186,13 @@ export async function updateProfile(userId: string, updates: Partial<{
   highest_qualification: string;
   availability: string;
   salary_expectation: string;
+  specialty: string;
+  hourly_rate: number;
+  skills: string[];
+  is_verified: boolean;
+  is_featured: boolean;
+  reviews_count: number;
+  is_active: boolean;
   is_premium: boolean;
   subscription_tier: string;
   subscription_expires_at: string;
@@ -308,15 +327,25 @@ export async function activatePremiumPlan(userId: string, planKey: string, amoun
   const now = new Date();
   const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
+  const updates: Record<string, any> = {
+    is_premium: true,
+    subscription_tier: tier,
+    subscription_expires_at: expiresAt,
+    credits,
+    updated_at: now.toISOString(),
+  };
+
+  if (planKey === 'service_verified') {
+    updates.is_verified = true;
+    updates.is_featured = false;
+  } else if (planKey === 'service_featured') {
+    updates.is_verified = true;
+    updates.is_featured = true;
+  }
+
   const { error } = await supabase
     .from('profiles')
-    .update({
-      is_premium: true,
-      subscription_tier: tier,
-      subscription_expires_at: expiresAt,
-      credits,
-      updated_at: now.toISOString(),
-    })
+    .update(updates)
     .eq('id', userId);
 
   if (error) throw error;
