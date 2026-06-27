@@ -70,6 +70,7 @@ export default function App() {
             <Route path="*" element={<Home />} />
           </Routes>
           <ModalRenderer />
+          <ChatbaseWidget />
           <AIAssistantWidget />
         </ModalProvider>
       </AuthProvider>

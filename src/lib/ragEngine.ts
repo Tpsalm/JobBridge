@@ -290,12 +290,9 @@ export async function streamAnswer(
 ): Promise<void> {
   const { onToken, onSources, onError, onPhase, onDone } = cb;
 
-  if (!API_KEY) {
-    onError(
-      'The AI assistant is currently unavailable. ' +
-      'Please visit the Support page or email jobbridgesupport@gmail.com for help.',
-    );
-    return;
+  const noApiKey = !API_KEY;
+  if (noApiKey) {
+    onPhase('Searching knowledge base...');
   }
 
   const questionClean = sanitize(question);
@@ -330,6 +327,18 @@ export async function streamAnswer(
 
     const contextStr = trimContext(sections);
     const pageCtx = currentPageContext();
+
+    if (noApiKey) {
+      const fullText = sections.map(s => `**${s.title}**\n${s.content}`).join('\n\n---\n\n');
+      const updatedHistory: HistoryMsg[] = [
+        ...history,
+        { role: 'user', content: questionClean },
+        { role: 'assistant', content: fullText },
+      ];
+      saveConversation(conversationId, updatedHistory);
+      onDone(fullText, sourceList);
+      return;
+    }
 
     onPhase('Generating response...');
 
