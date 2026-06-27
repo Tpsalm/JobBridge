@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { updateProfile } from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
-import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle } from 'lucide-react';
+import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle, Upload, Loader } from 'lucide-react';
 import { IMG } from '../lib/media';
 
 type ProfileField = keyof typeof PROFILE_FIELDS;
@@ -38,6 +38,11 @@ export default function Profile() {
   const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
   const [passwordMsg, setPasswordMsg] = useState('');
   const [connectedApps] = useState({ google: true, linkedin: true });
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
+  const [localAvatar, setLocalAvatar] = useState<string | null>(null);
+  const [localCover, setLocalCover] = useState<string | null>(null);
 
   useEffect(() => {
     if (userProfile) {
@@ -50,6 +55,8 @@ export default function Profile() {
           fields[key] = val || '';
         }
       });
+      fields.avatar_url = (userProfile as any).avatar_url || '';
+      fields.cover_url = (userProfile as any).cover_url || '';
       fields.email = userProfile.email || user?.email || '';
       setForm(fields);
     } else if (user) {
@@ -60,6 +67,7 @@ export default function Profile() {
         professional_headline: '', years_of_experience: '', function: '',
         work_type: '', highest_qualification: '', availability: '',
         salary_expectation: '', bio: '', specialty: '', hourly_rate: '', skills: '',
+        avatar_url: '', cover_url: '',
       });
     }
   }, [userProfile, user]);
@@ -82,6 +90,29 @@ export default function Profile() {
 
   const updateField = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
+  async function handleUpload(file: File, type: 'avatar' | 'cover') {
+    if (!user) return;
+    setUploading(type);
+    try {
+      const ext = file.name.split('.').pop();
+      const filePath = `${user.id}/${type}_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('profile-images').upload(filePath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('profile-images').getPublicUrl(filePath);
+      updateField(type === 'avatar' ? 'avatar_url' : 'cover_url', publicUrl);
+      if (type === 'avatar') setLocalAvatar(URL.createObjectURL(file));
+      else setLocalCover(URL.createObjectURL(file));
+    } catch (err: any) {
+      if (err.message?.includes('bucket')) {
+        alert('Profile uploads are not configured. Contact support.');
+      } else {
+        alert(err.message || 'Upload failed');
+      }
+    } finally {
+      setUploading(null);
+    }
+  }
+
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
@@ -95,6 +126,8 @@ export default function Profile() {
         }
       });
       delete updates.email;
+      if (form.avatar_url) updates.avatar_url = form.avatar_url;
+      if (form.cover_url) updates.cover_url = form.cover_url;
       await updateProfile(user.id, updates as any);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -163,17 +196,27 @@ export default function Profile() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-24">
         {/* Cover & Avatar */}
-        <div className="relative rounded-2xl overflow-hidden mb-6 h-36 sm:h-44">
-          <img src={IMG.profile.cover} alt="" className="w-full h-full object-cover" />
+        <div className="relative rounded-2xl overflow-hidden mb-6 h-36 sm:h-44 group">
+          <img src={localCover || form.cover_url || IMG.profile.cover} alt="" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          <button onClick={() => coverInputRef.current?.click()} disabled={!!uploading}
+            className="absolute top-3 right-3 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
+            {uploading === 'cover' ? <Loader className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+          </button>
+          <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f, 'cover'); }} />
           <div className="absolute -bottom-10 left-6">
-            <div className="relative">
-              <img src={IMG.profile.default} alt="Profile" className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg" />
-              <button className="absolute bottom-0 right-0 w-7 h-7 bg-blue-700 text-white rounded-full flex items-center justify-center shadow-md hover:bg-blue-800 transition-colors">
-                <Camera className="w-3.5 h-3.5" />
+            <div className="relative group/avatar">
+              <img src={localAvatar || form.avatar_url || IMG.profile.default} alt="Profile"
+                className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg" />
+              <button onClick={() => avatarInputRef.current?.click()} disabled={!!uploading}
+                className="absolute bottom-0 right-0 w-7 h-7 bg-blue-700 text-white rounded-full flex items-center justify-center shadow-md hover:bg-blue-800 transition-colors">
+                {uploading === 'avatar' ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
               </button>
             </div>
           </div>
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f, 'avatar'); }} />
         </div>
 
         {/* Completeness Meter */}

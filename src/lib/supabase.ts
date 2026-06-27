@@ -47,6 +47,7 @@ export type Profile = {
   company?: string;
   phone?: string;
   avatar_url?: string;
+  cover_url?: string;
   location?: string;
   bio?: string;
   date_of_birth?: string;

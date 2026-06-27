@@ -172,6 +172,7 @@ export async function updateProfile(userId: string, updates: Partial<{
   full_name: string;
   phone: string;
   avatar_url: string;
+  cover_url: string;
   location: string;
   bio: string;
   company: string;
