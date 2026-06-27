@@ -329,14 +329,16 @@ export async function streamAnswer(
     const pageCtx = currentPageContext();
 
     if (noApiKey) {
-      const fullText = sections.map(s => `${s.title}\n${s.content}`).join('\n\n');
+      const best = sections[0];
+      const showSources = [{ id: best.id, title: best.title }];
+      const fullText = `${best.content}`;
       const updatedHistory: HistoryMsg[] = [
         ...history,
         { role: 'user', content: questionClean },
         { role: 'assistant', content: fullText },
       ];
       saveConversation(conversationId, updatedHistory);
-      onDone(fullText, sourceList);
+      onDone(fullText, showSources);
       return;
     }
 
