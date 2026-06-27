@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
-import { updateProfile } from '../lib/supabaseQueries';
+import { updateProfile, fetchProfile } from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
 import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle, Upload, Loader } from 'lucide-react';
 import { IMG } from '../lib/media';
@@ -31,7 +31,7 @@ const PROFILE_FIELDS = {
 const TOTAL_WEIGHT = Object.values(PROFILE_FIELDS).reduce((s, f) => s + f.weight, 0);
 
 export default function Profile() {
-  const { user, profile: userProfile } = useAuth();
+  const { user } = useAuth();
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -75,33 +75,42 @@ export default function Profile() {
     };
   }, []);
 
+  const [profileLoading, setProfileLoading] = useState(true);
+
   useEffect(() => {
-    if (userProfile) {
-      const fields: Record<string, string> = {};
-      Object.keys(PROFILE_FIELDS).forEach(key => {
-        const val = (userProfile as any)[key];
-        if (key === 'skills' && Array.isArray(val)) {
-          fields[key] = val.join(', ');
-        } else {
-          fields[key] = val || '';
-        }
-      });
-      fields.avatar_url = (userProfile as any).avatar_url || '';
-      fields.cover_url = (userProfile as any).cover_url || '';
-      fields.email = userProfile.email || user?.email || '';
-      setForm(fields);
-    } else if (user) {
-      setForm({
-        full_name: user.user_metadata?.full_name || '',
-        email: user.email || '',
-        phone: '', date_of_birth: '', gender: '', location: '',
-        professional_headline: '', years_of_experience: '', function: '',
-        work_type: '', highest_qualification: '', availability: '',
-        salary_expectation: '', bio: '', specialty: '', hourly_rate: '', skills: '',
-        avatar_url: '', cover_url: '',
-      });
+    async function loadProfile() {
+      if (!user) { setProfileLoading(false); return; }
+      setProfileLoading(true);
+      const fresh = await fetchProfile(user.id);
+      if (fresh) {
+        const fields: Record<string, string> = {};
+        Object.keys(PROFILE_FIELDS).forEach(key => {
+          const val = (fresh as any)[key];
+          if (key === 'skills' && Array.isArray(val)) {
+            fields[key] = val.join(', ');
+          } else {
+            fields[key] = val || '';
+          }
+        });
+        fields.avatar_url = (fresh as any).avatar_url || '';
+        fields.cover_url = (fresh as any).cover_url || '';
+        fields.email = fresh.email || user?.email || '';
+        setForm(fields);
+      } else {
+        setForm({
+          full_name: user.user_metadata?.full_name || '',
+          email: user.email || '',
+          phone: '', date_of_birth: '', gender: '', location: '',
+          professional_headline: '', years_of_experience: '', function: '',
+          work_type: '', highest_qualification: '', availability: '',
+          salary_expectation: '', bio: '', specialty: '', hourly_rate: '', skills: '',
+          avatar_url: '', cover_url: '',
+        });
+      }
+      setProfileLoading(false);
     }
-  }, [userProfile, user]);
+    loadProfile();
+  }, [user]);
 
   const completedWeight = useMemo(() => {
     let w = 0;
