@@ -31,7 +31,7 @@ const PROFILE_FIELDS = {
 const TOTAL_WEIGHT = Object.values(PROFILE_FIELDS).reduce((s, f) => s + f.weight, 0);
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, profile: userProfile } = useAuth();
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
