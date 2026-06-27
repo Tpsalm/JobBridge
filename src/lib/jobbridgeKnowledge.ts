@@ -655,9 +655,25 @@ const KB: KnowledgeSection[] = [
     id: 'privacy-center',
     title: 'Privacy Center',
     tags: ['security', 'legal'],
-    pages: ['/about'],
-    keywords: ['privacy center', 'privacy policy', 'data policy', 'terms of service', 'legal', 'compliance'],
-    content: `The Privacy Center on the About page at /about covers JobBridge's commitment to user privacy and data protection. Information about data collection practices, user rights, cookie policy, and compliance with Nigerian data protection regulations. For specific privacy questions, contact jobbridgesupport@gmail.com.`,
+    pages: ['/privacy', '/about'],
+    keywords: ['privacy center', 'privacy policy', 'data policy', 'terms of service', 'legal', 'compliance', 'gdpr', 'ndpr', 'data protection'],
+    content: `The Privacy Center at /privacy explains how JobBridge handles your personal data. Sections include: What Information We Collect (name, email, phone, profile details, resume, payment info through Paystack), How We Use Your Information (account creation, job matching, AI features, payments), Information Sharing (never sold to third parties, shared only with Paystack, OpenAI, Supabase, and Resend under contract), Data Storage & Security (encrypted at rest and in transit on Supabase, hashed passwords), Your Rights & Choices (view, edit, or delete your data anytime), and Cookies & Tracking (only essential cookies and local storage — no third-party tracking). For specific questions, email jobbridgesupport@gmail.com.`,
+  },
+  {
+    id: 'messages-page',
+    title: 'Messages / Inbox',
+    tags: ['general', 'messaging'],
+    pages: ['/messages'],
+    keywords: ['messages', 'inbox', 'conversations', 'chat', 'messaging', '/messages', 'employer messages', 'recruiter messages', 'direct messages'],
+    content: `The Messages page at /messages is your inbox for conversations with employers and recruiters. It shows a list of conversation threads with company names, logos, last message previews, and timestamps. Unread messages are indicated with a badge count. Opening a thread shows the full conversation history with sent and received messages. Messages time-stamped with dates and read receipts (double check marks). New conversations may be locked until a recruiter initiates contact, shown with a lock icon. The page includes a search bar to filter conversations and a mobile-friendly layout that slides the chat panel over the conversation list.`,
+  },
+  {
+    id: 'notifications-page',
+    title: 'Notifications & Alerts',
+    tags: ['general', 'notifications'],
+    pages: ['/notifications'],
+    keywords: ['notifications', 'alerts', 'notification history', 'job alerts', 'activity feed', '/notifications', 'unread notifications', 'notification settings'],
+    content: `The Notifications page at /notifications shows your full notification history and job alert subscriptions. It displays all activity updates grouped by type: Job Applications (status changes on your applications), Messages (new messages from employers), Interviews (interview invitations and schedule updates), Reviews (profile reviews and endorsements), System Notifications (account updates and security alerts), Payments (payment confirmations and subscription updates), and Advert Notifications (business ad performance). Each notification shows its type icon, title, content preview, and time. Unread notifications are highlighted. You can mark individual notifications as read or delete them. The page also has a Job Alerts section where you can create and manage keyword-based search alerts that notify you when new matching jobs are posted.`,
   },
 ];
 

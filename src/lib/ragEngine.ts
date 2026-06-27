@@ -118,6 +118,8 @@ const pageContextMap: Record<string, string> = {
   '/analytics': 'the Analytics page',
   '/career': 'the Career page',
   '/privacy': 'the Privacy Center page',
+  '/messages': 'the Messages / Inbox page',
+  '/notifications': 'the Notifications & Alerts page',
 };
 
 function currentPageContext(): string {
