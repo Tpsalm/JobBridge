@@ -38,19 +38,15 @@ export default function Profile() {
   const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
   const [passwordMsg, setPasswordMsg] = useState('');
   const [connectedApps] = useState({ google: true, linkedin: true });
-  const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
-  const [localAvatar, setLocalAvatar] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [localCover, setLocalCover] = useState<string | null>(null);
-  const [avatarPos, setAvatarPos] = useState({ x: 50, y: 50 });
   const [coverPos, setCoverPos] = useState({ x: 50, y: 50 });
-  const dragRef = useRef<{ type: 'avatar' | 'cover'; startX: number; startY: number; startPos: { x: number; y: number } } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; startPos: { x: number; y: number } } | null>(null);
 
-  function startDrag(e: React.MouseEvent | React.TouchEvent, type: 'avatar' | 'cover') {
-    const pos = type === 'avatar' ? avatarPos : coverPos;
+  function startDrag(e: React.MouseEvent | React.TouchEvent) {
     const ce = 'touches' in e ? e.touches[0] : e;
-    dragRef.current = { type, startX: ce.clientX, startY: ce.clientY, startPos: { ...pos } };
+    dragRef.current = { startX: ce.clientX, startY: ce.clientY, startPos: { ...coverPos } };
   }
 
   function onDrag(e: MouseEvent | TouchEvent) {
@@ -58,10 +54,10 @@ export default function Profile() {
     const ce = 'touches' in e ? e.touches[0] : e;
     const dx = ((ce.clientX - dragRef.current.startX) / 200) * 100;
     const dy = ((ce.clientY - dragRef.current.startY) / 200) * 100;
-    const newX = Math.max(0, Math.min(100, dragRef.current.startPos.x + dx));
-    const newY = Math.max(0, Math.min(100, dragRef.current.startPos.y + dy));
-    if (dragRef.current.type === 'avatar') setAvatarPos({ x: newX, y: newY });
-    else setCoverPos({ x: newX, y: newY });
+    setCoverPos({
+      x: Math.max(0, Math.min(100, dragRef.current.startPos.x + dx)),
+      y: Math.max(0, Math.min(100, dragRef.current.startPos.y + dy)),
+    });
   }
 
   function endDrag() { dragRef.current = null; }
@@ -125,18 +121,17 @@ export default function Profile() {
 
   const updateField = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
-  async function handleUpload(file: File, type: 'avatar' | 'cover') {
+  async function handleUpload(file: File) {
     if (!user) return;
-    setUploading(type);
+    setUploading(true);
     try {
       const ext = file.name.split('.').pop();
-      const filePath = `${user.id}/${type}_${Date.now()}.${ext}`;
+      const filePath = `${user.id}/cover_${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('profile-images').upload(filePath, file, { upsert: true });
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('profile-images').getPublicUrl(filePath);
-      updateField(type === 'avatar' ? 'avatar_url' : 'cover_url', publicUrl);
-      if (type === 'avatar') setLocalAvatar(URL.createObjectURL(file));
-      else setLocalCover(URL.createObjectURL(file));
+      updateField('cover_url', publicUrl);
+      setLocalCover(URL.createObjectURL(file));
     } catch (err: any) {
       if (err.message?.includes('bucket')) {
         alert('Profile uploads are not configured. Contact support.');
@@ -144,7 +139,7 @@ export default function Profile() {
         alert(err.message || 'Upload failed');
       }
     } finally {
-      setUploading(null);
+      setUploading(false);
     }
   }
 
@@ -231,7 +226,7 @@ export default function Profile() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-24">
         {/* Cover Photo */}
-        <div className="relative rounded-2xl overflow-hidden mb-6 h-44 sm:h-52 group">
+        <div className="relative rounded-2xl overflow-hidden mb-6 h-56 sm:h-64 group">
           <img src={localCover || form.cover_url || IMG.profile.cover} alt=""
             className="w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
             style={{ objectPosition: `${coverPos.x}% ${coverPos.y}%` }}
@@ -242,29 +237,11 @@ export default function Profile() {
           <div className="absolute top-3 right-3">
             <button onClick={() => coverInputRef.current?.click()} disabled={!!uploading}
               className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
-              {uploading === 'cover' ? <Loader className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              {uploading ? <Loader className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
             </button>
           </div>
           <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f, 'cover'); }} />
-        </div>
-
-        {/* Profile Picture — separate below cover */}
-        <div className="flex justify-center mt-4 mb-8">
-          <div className="relative group/avatar">
-            <img src={localAvatar || form.avatar_url || IMG.profile.default} alt="Profile"
-              className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg cursor-grab active:cursor-grabbing select-none"
-              style={{ objectPosition: `${avatarPos.x}% ${avatarPos.y}%` }}
-              onMouseDown={e => startDrag(e, 'avatar')}
-              onTouchStart={e => startDrag(e, 'avatar')}
-              draggable={false} />
-            <button onClick={() => avatarInputRef.current?.click()} disabled={!!uploading}
-              className="absolute bottom-2 right-2 w-8 h-8 bg-blue-700 text-white rounded-full flex items-center justify-center shadow-md hover:bg-blue-800 transition-colors">
-              {uploading === 'avatar' ? <Loader className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-            </button>
-          </div>
-          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f, 'avatar'); }} />
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
         </div>
 
         {/* Completeness Meter */}
