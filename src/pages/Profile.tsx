@@ -41,7 +41,7 @@ export default function Profile() {
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [localCover, setLocalCover] = useState<string | null>(null);
-  const [coverPos, setCoverPos] = useState({ x: 50, y: 50 });
+  const [coverPos, setCoverPos] = useState({ x: 50, y: 25 });
   const dragRef = useRef<{ startX: number; startY: number; startPos: { x: number; y: number } } | null>(null);
 
   function startDrag(e: React.MouseEvent | React.TouchEvent) {
@@ -226,9 +226,9 @@ export default function Profile() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-24">
         {/* Cover Photo */}
-        <div className="relative rounded-2xl overflow-hidden mb-6 h-56 sm:h-64 group">
+        <div className="relative rounded-2xl overflow-hidden mb-6 h-80 sm:h-96 group">
           <img src={localCover || form.cover_url || IMG.profile.cover} alt=""
-            className="w-full h-full object-contain bg-gray-900 cursor-grab active:cursor-grabbing select-none"
+            className="w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
             style={{ objectPosition: `${coverPos.x}% ${coverPos.y}%` }}
             onMouseDown={e => startDrag(e, 'cover')}
             onTouchStart={e => startDrag(e, 'cover')}
