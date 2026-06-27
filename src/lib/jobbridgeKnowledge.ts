@@ -212,7 +212,7 @@ const KB: KnowledgeSection[] = [
     title: 'Recruiter Dashboard',
     tags: ['recruiter'],
     pages: ['/recruiter'],
-    keywords: ['recruiter dashboard', 'recruiter page', 'recruiter tools', 'recruiter panel', 'recruiter features', '/recruiter', 'recruiter home'],
+    keywords: ['recruiter', 'recruiters', 'recruiter dashboard', 'recruiter page', 'recruiter tools', 'recruiter panel', 'recruiter features', '/recruiter', 'recruiter home', 'recruiting'],
     content: `The Recruiter Dashboard at /recruiter is your command center. It shows: stats overview (Active Jobs, Total Candidates, Interviews, Offers), subscription status with remaining job credits, "Post New Job" button (requires active subscription), "AI Write Description" tool for generating optimized job descriptions, a list of your active job postings with applicant counts, AI Rank button to score candidates by match percentage, and the Applications Panel to manage all incoming applications. You can filter applications by status: All, Pending, Shortlisted, Reviewed, or Rejected.`,
   },
   {
