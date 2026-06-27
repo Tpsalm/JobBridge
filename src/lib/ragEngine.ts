@@ -330,6 +330,7 @@ export async function streamAnswer(
 
     if (noApiKey) {
       const best = sections[0];
+      const showSources = [{ id: best.id, title: best.title }];
 
       const sentences = best.content.match(/[^.!?]+[.!?]+/g) || [best.content];
       const paragraphs: string[] = [];
