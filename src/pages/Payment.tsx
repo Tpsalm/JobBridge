@@ -125,33 +125,11 @@ export default function Payment() {
     }
   };
 
-  if (paid) {
-    return (
-      <div className="min-h-screen bg-gray-50 pb-24">
-        <Header />
-        <main className="max-w-lg mx-auto px-4 py-20 text-center">
-          <div className="bg-white rounded-2xl p-8 shadow-sm">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-emerald-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
-            <p className="text-gray-600 mb-2">Your <strong>{plan.name}</strong> plan is now active.</p>
-            <p className="text-sm text-gray-500 mb-6">{plan.ai ? 'You can now use AI Career Tools from the AI Resume page.' : plan.service ? 'Your professional listing is now active.' : 'You can now post jobs from your recruiter dashboard.'}</p>
-            <button
-              onClick={() => navigate(plan.ai ? '/ai-resume' : plan.service ? '/providers' : '/recruiter')}
-              className="bg-blue-700 hover:bg-blue-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-            >
-              {plan.ai ? 'Go to AI Resume Studio' : plan.service ? 'Go to My Profile' : 'Go to Dashboard'}
-            </button>
-          </div>
-        </main>
-        <BottomNav />
-      </div>
-    );
-  }
+  const successTarget = plan.ai ? '/ai-resume' : plan.service ? '/providers' : '/recruiter';
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <>
+      <div className={`min-h-screen bg-gray-50 pb-24 ${paid ? 'opacity-30 pointer-events-none select-none' : ''}`}>
       <Header />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
@@ -359,5 +337,31 @@ export default function Payment() {
 
       <BottomNav />
     </div>
+
+    {paid && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
+          <p className="text-gray-600 mb-2">Your <strong>{plan.name}</strong> plan is now active.</p>
+          <p className="text-sm text-gray-500 mb-6">
+            {plan.ai
+              ? 'You can now use AI Career Tools from the AI Resume page.'
+              : plan.service
+                ? 'Your professional listing is now active.'
+                : 'You can now post jobs from your recruiter dashboard.'}
+          </p>
+          <button
+            onClick={() => navigate(successTarget)}
+            className="bg-blue-700 hover:bg-blue-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+          >
+            {plan.ai ? 'Go to AI Resume Studio' : plan.service ? 'Go to My Profile' : 'Go to Dashboard'}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

@@ -305,12 +305,12 @@ export default function Home() {
               <Link to="/payment" className="bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:shadow-xl">
                 Go to Payment
               </Link>
-              <button
-                onClick={() => openModal('premium')}
-                className="bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:shadow-xl border border-blue-500"
+              <Link
+                to="/pricing"
+                className="bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:shadow-xl border border-blue-500 text-center"
               >
                 View Premium Plans
-              </button>
+              </Link>
             </div>
           </div>
         </div>
