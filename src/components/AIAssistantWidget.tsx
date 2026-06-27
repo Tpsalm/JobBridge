@@ -21,10 +21,13 @@ const PHASE_LABELS: Record<Phase, string> = {
 };
 
 function formatMessage(text: string) {
-  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  const parts = text.split(/(https?:\/\/[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g);
   return parts.map((part, i) => {
     if (part.startsWith('http://') || part.startsWith('https://')) {
       return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{part}</a>;
+    }
+    if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(part)) {
+      return <a key={i} href={`mailto:${part}`} className="text-blue-600 underline hover:text-blue-800">{part}</a>;
     }
     const lines = part.split('\n');
     return lines.map((line, j) => {
