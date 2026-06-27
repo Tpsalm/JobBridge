@@ -27,7 +27,10 @@ function formatMessage(text: string) {
       return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{part}</a>;
     }
     if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(part)) {
-      return <a key={i} href={`mailto:${part}`} className="text-blue-600 underline hover:text-blue-800">{part}</a>;
+      const href = part.endsWith('@gmail.com')
+        ? `https://mail.google.com/mail/?view=cm&fs=1&to=${part}`
+        : `mailto:${part}`;
+      return <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">{part}</a>;
     }
     const lines = part.split('\n');
     return lines.map((line, j) => {
