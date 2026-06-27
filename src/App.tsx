@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ModalProvider } from './contexts/ModalContext';
 import { ModalRenderer } from './components/Modal';
-import ChatbaseWidget from './components/ChatbaseWidget';
+import AIAssistantWidget from './components/AIAssistantWidget';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import Home from './pages/Home';
@@ -70,7 +70,7 @@ export default function App() {
             <Route path="*" element={<Home />} />
           </Routes>
           <ModalRenderer />
-          <ChatbaseWidget />
+          <AIAssistantWidget />
         </ModalProvider>
       </AuthProvider>
     </BrowserRouter>
