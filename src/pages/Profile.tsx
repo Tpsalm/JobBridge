@@ -94,6 +94,9 @@ export default function Profile() {
         });
         fields.avatar_url = (fresh as any).avatar_url || '';
         fields.cover_url = (fresh as any).cover_url || '';
+        if (!fields.cover_url) {
+          try { const saved = localStorage.getItem('jobbridge_cover_url'); if (saved) fields.cover_url = saved; } catch {}
+        }
         fields.email = fresh.email || user?.email || '';
         setForm(fields);
       } else {
@@ -106,6 +109,7 @@ export default function Profile() {
           salary_expectation: '', bio: '', specialty: '', hourly_rate: '', skills: '',
           avatar_url: '', cover_url: '',
         });
+        try { const saved = localStorage.getItem('jobbridge_cover_url'); if (saved) setForm(f => ({ ...f, cover_url: saved })); } catch {}
       }
       setProfileLoading(false);
     }
@@ -141,6 +145,7 @@ export default function Profile() {
       const { data: { publicUrl } } = supabase.storage.from('profile-images').getPublicUrl(filePath);
       updateField('cover_url', publicUrl);
       setLocalCover(URL.createObjectURL(file));
+      try { localStorage.setItem('jobbridge_cover_url', publicUrl); } catch {}
     } catch (err: any) {
       if (err.message?.includes('bucket')) {
         alert('Profile uploads are not configured. Contact support.');
@@ -168,6 +173,7 @@ export default function Profile() {
       if (form.avatar_url) updates.avatar_url = form.avatar_url;
       if (form.cover_url) updates.cover_url = form.cover_url;
       await updateProfile(user.id, updates as any);
+      try { if (form.cover_url) localStorage.setItem('jobbridge_cover_url', form.cover_url); } catch {}
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
