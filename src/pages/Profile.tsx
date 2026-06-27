@@ -230,16 +230,16 @@ export default function Profile() {
       <Header />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-24">
-        {/* Cover & Avatar */}
-        <div className="relative rounded-2xl overflow-hidden mb-6 h-36 sm:h-44 group">
+        {/* Cover Photo */}
+        <div className="relative rounded-2xl overflow-hidden mb-6 h-44 sm:h-52 group">
           <img src={localCover || form.cover_url || IMG.profile.cover} alt=""
             className="w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
             style={{ objectPosition: `${coverPos.x}% ${coverPos.y}%` }}
             onMouseDown={e => startDrag(e, 'cover')}
             onTouchStart={e => startDrag(e, 'cover')}
             draggable={false} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
-          <div className="absolute top-3 right-3 flex gap-2">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
+          <div className="absolute top-3 right-3">
             <button onClick={() => coverInputRef.current?.click()} disabled={!!uploading}
               className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
               {uploading === 'cover' ? <Loader className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
@@ -247,19 +247,21 @@ export default function Profile() {
           </div>
           <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f, 'cover'); }} />
-          <div className="absolute -bottom-10 left-6">
-            <div className="relative group/avatar">
-              <img src={localAvatar || form.avatar_url || IMG.profile.default} alt="Profile"
-                className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg cursor-grab active:cursor-grabbing select-none"
-                style={{ objectPosition: `${avatarPos.x}% ${avatarPos.y}%` }}
-                onMouseDown={e => startDrag(e, 'avatar')}
-                onTouchStart={e => startDrag(e, 'avatar')}
-                draggable={false} />
-              <button onClick={() => avatarInputRef.current?.click()} disabled={!!uploading}
-                className="absolute bottom-0 right-0 w-7 h-7 bg-blue-700 text-white rounded-full flex items-center justify-center shadow-md hover:bg-blue-800 transition-colors">
-                {uploading === 'avatar' ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-              </button>
-            </div>
+        </div>
+
+        {/* Profile Picture — separate below cover */}
+        <div className="flex justify-center mt-4 mb-8">
+          <div className="relative group/avatar">
+            <img src={localAvatar || form.avatar_url || IMG.profile.default} alt="Profile"
+              className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg cursor-grab active:cursor-grabbing select-none"
+              style={{ objectPosition: `${avatarPos.x}% ${avatarPos.y}%` }}
+              onMouseDown={e => startDrag(e, 'avatar')}
+              onTouchStart={e => startDrag(e, 'avatar')}
+              draggable={false} />
+            <button onClick={() => avatarInputRef.current?.click()} disabled={!!uploading}
+              className="absolute bottom-2 right-2 w-8 h-8 bg-blue-700 text-white rounded-full flex items-center justify-center shadow-md hover:bg-blue-800 transition-colors">
+              {uploading === 'avatar' ? <Loader className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            </button>
           </div>
           <input ref={avatarInputRef} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f, 'avatar'); }} />
