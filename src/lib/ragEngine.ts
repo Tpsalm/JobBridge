@@ -331,7 +331,14 @@ export async function streamAnswer(
     if (noApiKey) {
       const best = sections[0];
       const showSources = [{ id: best.id, title: best.title }];
-      const fullText = `${best.content}`;
+      const pageLinks = best.pages
+        .filter(p => p !== pagePath)
+        .map(p => `https://tpsalm.github.io/JobBridge${p}`)
+        .slice(0, 2);
+      const link = pageLinks.length
+        ? `\n\nLearn more: ${pageLinks.join(' or ')}`
+        : `\n\nFor more info, email jobbridgesupport@gmail.com`;
+      const fullText = `${best.content}${link}`;
       const updatedHistory: HistoryMsg[] = [
         ...history,
         { role: 'user', content: questionClean },
