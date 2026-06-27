@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MapPin, Clock, Bookmark, Share2, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send } from 'lucide-react';
+import { Search, MapPin, Clock, Bookmark, Share2, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send, Loader2 } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchJobs, incrementJobViews, createApplication } from '../lib/supabaseQueries';
 import PageHero from '../components/PageHero';
 import CompanyLogo from '../components/CompanyLogo';
-import { HERO_CAROUSELS, IMG } from '../lib/media';
+import { HERO_CAROUSELS } from '../lib/media';
 import Card3D from '../components/Card3D';
 
 const COMPANY_COLORS = [
@@ -116,6 +116,7 @@ const Jobs = () => {
   };
 
   const [jobs, setJobs] = useState<any[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [search, setSearch] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
@@ -127,7 +128,8 @@ const Jobs = () => {
   const [appliedLocal, setAppliedLocal] = useState<string[]>(appliedJobs);
 
   useEffect(() => {
-    fetchJobs().then(data => setJobs(data)).catch(() => {});
+    setLoadingJobs(true);
+    fetchJobs().then(data => { setJobs(data); setLoadingJobs(false); }).catch(() => setLoadingJobs(false));
     const handler = () => fetchJobs().then(data => setJobs(data)).catch(() => {});
     window.addEventListener('jobs:updated', handler);
     return () => window.removeEventListener('jobs:updated', handler);
@@ -259,9 +261,14 @@ const Jobs = () => {
         <div className="flex-1 flex overflow-hidden max-w-7xl mx-auto w-full">
           {/* Left Column: Job Cards */}
           <div className={`${selectedJob ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[420px] xl:w-[460px] flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto stagger-children stagger-visible`}>
-            {filteredJobs.length === 0 ? (
+            {loadingJobs ? (
+              <div className="p-12 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-700 mx-auto mb-3" />
+                <p className="text-gray-500 text-sm">Loading jobs...</p>
+              </div>
+            ) : filteredJobs.length === 0 ? (
               <div className="p-8 text-center">
-                <img src={IMG.empty.noJobs} alt="" className="w-full max-w-xs mx-auto rounded-xl mb-4 object-cover" />
+                <Search className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 font-medium">No jobs match your search</p>
                 <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
               </div>
