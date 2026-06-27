@@ -1,21 +1,16 @@
 import KB, { type KnowledgeSection } from './jobbridgeKnowledge';
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const EMBEDDING_MODEL = 'text-embedding-3-small';
 const LLM_MODEL = 'gpt-4o-mini';
-const TOP_K = 7;
-const SIMILARITY_THRESHOLD = 0.22;
-const KEYWORD_BOOST = 0.15;
-const TAG_BOOST = 0.10;
+const TOP_K = 5;
 const MAX_HISTORY = 20;
 const MAX_INPUT_LENGTH = 500;
-const MIN_INTERVAL_MS = 2000;
-const MAX_CALLS_PER_WINDOW = 15;
+const MIN_INTERVAL_MS = 1000;
+const MAX_CALLS_PER_WINDOW = 25;
 const WINDOW_MS = 60000;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY = 2000;
-const MAX_CONTEXT_LENGTH = 3500;
-const CACHE_EMBED_KEY = 'jb_embeddings_v4';
+const MAX_CONTEXT_LENGTH = 4000;
 const CACHE_CONV_KEY = 'jb_conv_';
 
 export interface SourceInfo {
@@ -47,25 +42,6 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_R
   throw new Error('Unreachable');
 }
 
-// ─── Embedding mutex — prevents concurrent embedding calls ────
-
-let embeddingLock = false;
-const embedQueue: (() => void)[] = [];
-
-async function acquireEmbedLock(): Promise<void> {
-  if (!embeddingLock) { embeddingLock = true; return; }
-  return new Promise(resolve => { embedQueue.push(resolve); });
-}
-
-function releaseEmbedLock(): void {
-  if (embedQueue.length > 0) {
-    const next = embedQueue.shift()!;
-    next();
-  } else {
-    embeddingLock = false;
-  }
-}
-
 // ─── Input sanitization ─────────────────────────────────────────
 
 function sanitize(input: string): string {
@@ -95,88 +71,6 @@ const rateLimit = (() => {
     },
   };
 })();
-
-// ─── Embedding cache ─────────────────────────────────────────────
-
-interface EmbeddingCache {
-  version: number;
-  chunks: { id: string; embedding: number[] }[];
-}
-
-function loadEmbedCache(): EmbeddingCache | null {
-  try {
-    const raw = localStorage.getItem(CACHE_EMBED_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed.version === 4 ? parsed : null;
-  } catch { return null; }
-}
-
-function saveEmbedCache(chunks: { id: string; embedding: number[] }[]) {
-  try {
-    localStorage.setItem(CACHE_EMBED_KEY, JSON.stringify({ version: 4, chunks }));
-  } catch {}
-}
-
-async function embed(text: string | string[]): Promise<number[] | number[][]> {
-  await acquireEmbedLock();
-  try {
-    const input = Array.isArray(text) ? text : [text];
-    const res = await fetchWithRetry('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: EMBEDDING_MODEL, input }),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Embedding API error: ${res.status} — ${err}`);
-    }
-    const data = await res.json();
-    const embs = data.data.sort((a: any, b: any) => a.index - b.index).map((d: any) => d.embedding);
-    return Array.isArray(text) ? embs : embs[0];
-  } finally {
-    releaseEmbedLock();
-  }
-}
-
-function cosineSimilarity(a: number[], b: number[]): number {
-  let dot = 0, na = 0, nb = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
-  }
-  return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
-}
-
-// ─── Query expansion ─────────────────────────────────────────────
-
-function expandQuery(query: string): string[] {
-  const expansions: string[] = [query];
-  const lower = query.toLowerCase();
-
-  const synonymMap: Record<string, string[]> = {
-    signup: ['register', 'create account', 'join', 'sign up', 'registration'],
-    login: ['sign in', 'signin', 'log in', 'authenticate'],
-    job: ['position', 'role', 'vacancy', 'opening', 'employment', 'career'],
-    apply: ['application', 'submit', 'candidate'],
-    recruiter: ['employer', 'hiring manager', 'talent acquisition', 'hr'],
-    resume: ['cv', 'curriculum vitae', 'cover letter'],
-    price: ['cost', 'fee', 'subscription', 'plan', 'pricing', 'payment'],
-    ai: ['artificial intelligence', 'chatbot', 'assistant'],
-    help: ['support', 'assist', 'faq', 'guide', 'troubleshoot'],
-    profile: ['settings', 'account', 'edit profile', 'personal info'],
-    save: ['bookmark', 'saved', 'favorite'],
-  };
-
-  for (const [word, synonyms] of Object.entries(synonymMap)) {
-    if (lower.includes(word)) {
-      expansions.push(...synonyms.filter(s => !lower.includes(s)));
-    }
-  }
-
-  return [...new Set(expansions)];
-}
 
 // ─── Conversation memory ────────────────────────────────────────
 
@@ -230,100 +124,62 @@ function currentPageContext(): string {
   return pageContextMap[path] || `the ${path} page`;
 }
 
-// ─── Retrieval with reranking ──────────────────────────────────
+// ─── Instant keyword/tag retrieval (no embedding API needed) ───
 
-async function retrieveRelevant(question: string, pagePath: string): Promise<KnowledgeSection[]> {
+function scoreSection(section: KnowledgeSection, query: string, pagePath: string): number {
+  const lower = query.toLowerCase();
+  const queryWords = lower.split(/\s+/).filter(Boolean);
+
+  let score = 0;
+
+  // Keyword matching (highest weight)
+  const keywordMatches = section.keywords.filter(kw => lower.includes(kw.toLowerCase())).length;
+  if (keywordMatches > 0) {
+    score += keywordMatches * 3;
+  }
+
+  // Tag matching
+  const tagMatches = section.tags.filter(t => lower.includes(t)).length;
+  if (tagMatches > 0) {
+    score += tagMatches * 2;
+  }
+
+  // Page context boost
+  if (section.pages.includes(pagePath)) {
+    score += 4;
+  }
+
+  // Word overlap scoring — how many query words appear in the content/title/keywords
+  const allText = (section.title + ' ' + section.content + ' ' + section.keywords.join(' ')).toLowerCase();
+  const wordMatches = queryWords.filter(w => w.length > 2 && allText.includes(w)).length;
+  score += wordMatches * 0.5;
+
+  return score;
+}
+
+function retrieveRelevant(question: string, pagePath: string): KnowledgeSection[] {
   const trimmed = question.trim();
   if (!trimmed) return [];
 
-  let chunkEmbeddings: { id: string; embedding: number[] }[];
+  const scored = KB.map(section => ({
+    section,
+    score: scoreSection(section, trimmed, pagePath),
+  }));
 
-  const cache = loadEmbedCache();
-  if (cache && cache.chunks.length === KB.length) {
-    chunkEmbeddings = cache.chunks;
-  } else {
-    const batchSize = 20;
-    chunkEmbeddings = [];
-    for (let i = 0; i < KB.length; i += batchSize) {
-      const batch = KB.slice(i, i + batchSize);
-      const texts = batch.map(s => `Title: ${s.title}\nKeywords: ${s.keywords.join(', ')}\n\n${s.content}`);
-      const embs = (await embed(texts)) as number[][];
-      for (let j = 0; j < batch.length; j++) {
-        chunkEmbeddings.push({ id: batch[j].id, embedding: embs[j] });
-      }
-    }
-    saveEmbedCache(chunkEmbeddings);
-  }
-
-  // Query expansion — embed primary query for main score
-  const questionEmb = (await embed(trimmed)) as number[];
-
-  const lowerQuestion = trimmed.toLowerCase();
-
-  // Score sections using hybrid approach: embedding similarity + keyword overlap + tag match + page boost
-  const scored = chunkEmbeddings.map(ce => {
-    const section = KB.find(k => k.id === ce.id);
-    if (!section) return { id: ce.id, score: 0 };
-
-    let embScore = cosineSimilarity(questionEmb, ce.embedding);
-
-    // Keyword overlap boost
-    const matchedKeywords = section.keywords.filter(kw => lowerQuestion.includes(kw.toLowerCase()));
-    const keywordScore = matchedKeywords.length > 0
-      ? KEYWORD_BOOST * (matchedKeywords.length / Math.max(...section.keywords.length, 1))
-      : 0;
-
-    // Tag overlap boost
-    const matchedTags = section.tags.filter(t => lowerQuestion.includes(t));
-    const tagScore = matchedTags.length > 0 ? TAG_BOOST * matchedTags.length : 0;
-
-    // Page context boost
-    const pageBoost = section.pages.includes(pagePath) ? 0.20 : 0;
-
-    let total = embScore + keywordScore + tagScore + pageBoost;
-
-    return { id: ce.id, score: total };
-  });
-
-  // Sort by combined score descending
+  // Sort by score descending
   scored.sort((a, b) => b.score - a.score);
 
-  // Primary: take top sections above threshold
-  let results = scored.filter(s => s.score > SIMILARITY_THRESHOLD).slice(0, TOP_K);
+  const top = scored.filter(s => s.score > 0).slice(0, TOP_K);
 
-  // Fallback 1: if none above threshold, take any with keyword or tag match
-  if (results.length === 0) {
-    results = scored
-      .filter(s => {
-        const sec = KB.find(k => k.id === s.id);
-        if (!sec) return false;
-        return sec.keywords.some(kw => lowerQuestion.includes(kw.toLowerCase()))
-          || sec.tags.some(t => lowerQuestion.includes(t));
-      })
-      .slice(0, TOP_K);
+  // Fallback: if no keyword/tag matches at all, return top 3 by word overlap only
+  if (top.length === 0) {
+    const fallback = scored
+      .filter(s => s.score > 0)
+      .slice(0, 3);
+    if (fallback.length > 0) return fallback.map(s => s.section);
   }
 
-  // Fallback 2: if still none, take page-relevant sections
-  if (results.length === 0) {
-    results = chunkEmbeddings
-      .map(ce => ({ id: ce.id, score: 0 }))
-      .filter(ce => {
-        const sec = KB.find(k => k.id === ce.id);
-        return sec?.pages.includes(pagePath);
-      })
-      .slice(0, TOP_K);
-  }
-
-  // Fallback 3: if still nothing relevant, return top 3 by any measure
-  if (results.length === 0) {
-    results = scored.slice(0, 3);
-  }
-
-  const sections = results
-    .map(s => KB.find(k => k.id === s.id))
-    .filter(Boolean) as KnowledgeSection[];
-
-  return sections;
+  return top.map(s => s.section);
 }
 
 // ─── Context trimming — keep within token budget ──────────────
@@ -353,7 +209,7 @@ async function streamLLM(
       model: LLM_MODEL,
       messages,
       max_tokens: 800,
-      temperature: 0.2,
+      temperature: 0.3,
       stream: true,
     }),
   });
@@ -461,7 +317,7 @@ export async function streamAnswer(
     const history = getConversation(conversationId);
 
     onPhase('Searching knowledge base...');
-    const sections = await retrieveRelevant(questionClean, pagePath);
+    const sections = retrieveRelevant(questionClean, pagePath);
 
     if (sections.length === 0) {
       onError("I couldn't find relevant information in the knowledge base. Try rephrasing your question or contact jobbridgesupport@gmail.com for help.");
@@ -511,24 +367,8 @@ export async function streamAnswer(
   }
 }
 
-// ─── Pre-warm embedding cache (call on idle) ───────────────────
+// ─── No-op prewarm (embeddings no longer needed) ────────────────
 
 export function prewarmEmbeddings(): void {
-  if (!API_KEY) return;
-  if (loadEmbedCache()?.chunks?.length === KB.length) return;
-  const batchSize = 20;
-  (async () => {
-    const chunks: { id: string; embedding: number[] }[] = [];
-    for (let i = 0; i < KB.length; i += batchSize) {
-      const batch = KB.slice(i, i + batchSize);
-      const texts = batch.map(s => `Title: ${s.title}\nKeywords: ${s.keywords.join(', ')}\n\n${s.content}`);
-      try {
-        const embs = (await embed(texts)) as number[][];
-        for (let j = 0; j < batch.length; j++) {
-          chunks.push({ id: batch[j].id, embedding: embs[j] });
-        }
-      } catch {}
-    }
-    if (chunks.length === KB.length) saveEmbedCache(chunks);
-  })();
+  // Embeddings removed — retrieval is instant via keyword/tag matching
 }
