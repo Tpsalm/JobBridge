@@ -90,7 +90,7 @@ export default function Header() {
     { label: 'My Jobs', path: '/my-jobs', icon: Bookmark },
     { label: 'Account Settings', path: '/profile', icon: Settings },
     { label: 'Help', path: '/support', icon: HelpCircle },
-    { label: 'Privacy Center', path: '/about', icon: Shield },
+    { label: 'Privacy Center', path: '/privacy', icon: Shield },
   ];
 
   const isAdmin = user?.role === 'admin' || profile?.role === 'admin';

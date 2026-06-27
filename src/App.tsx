@@ -20,6 +20,7 @@ import Profile from './pages/Profile';
 import Blog from './pages/Blog';
 import BlogDetail from './pages/BlogDetail';
 import CEO from './pages/CEO';
+import Privacy from './pages/Privacy';
 import Business from './pages/Business';
 import Pricing from './pages/Pricing';
 import Payment from './pages/Payment';
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/games" element={<Games />} />
             <Route path="/career" element={<Career />} />
+            <Route path="/privacy" element={<Privacy />} />
             <Route path="/providers" element={<Providers />} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:id" element={<BlogDetail />} />
