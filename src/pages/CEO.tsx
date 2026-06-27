@@ -44,11 +44,14 @@ const CEO: React.FC = () => {
     }
   ];
 
+  const imgSrc = `${import.meta.env.BASE_URL}MrVictor1.jpeg.png`;
+
   const ImageOrPlaceholder: React.FC = () => (
     <img
-      src="/MrVictor1.jpeg.png"
+      src={imgSrc}
       alt="Mr. Victor Eniola, CEO of JobBridge"
       className="w-full h-full object-cover"
+      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
     />
   );
 
@@ -85,9 +88,10 @@ const CEO: React.FC = () => {
           <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-8 border border-blue-200">
             <div className="flex flex-col sm:flex-row gap-8 items-start">
               <img
-                src="/MrVictor1.jpeg.png"
+                src={imgSrc}
                 alt="Mr. Victor Eniola"
                 className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md flex-shrink-0"
+                onError={e => { (e.target as HTMLImageElement).src = ''; }}
               />
               <div className="flex-1">
                 <h2 className="text-2xl font-bold text-gray-900 mb-1">Mr. Victor Eniola</h2>
