@@ -256,6 +256,18 @@ export default function Profile() {
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
         </div>
 
+        {/* Profile Info */}
+        <div className="mb-6 -mt-12 relative z-10 px-4">
+          <h1 className="text-2xl font-bold text-white drop-shadow-lg">
+            {form.full_name || user?.user_metadata?.full_name || 'Your Name'}
+          </h1>
+          {form.bio && (
+            <p className="text-sm text-white/90 mt-1 line-clamp-2 drop-shadow">
+              {form.bio}
+            </p>
+          )}
+        </div>
+
         {/* Completeness Meter */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
           <div className="flex items-center justify-between mb-3">
