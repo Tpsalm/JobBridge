@@ -265,12 +265,9 @@ export default function Recruiter() {
                 <span className="text-amber-800 font-medium">No active plan</span>
                 <span className="text-xs text-amber-600">Subscribe to post jobs</span>
               </div>
-              <button
-                onClick={() => window.location.href = '/pricing'}
-                className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-amber-700 transition-colors"
-              >
+              <Link to="/pricing" className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-amber-700 transition-colors inline-flex items-center">
                 View Plans
-              </button>
+              </Link>
             </div>
           )}
         </AnimatedSection>
@@ -706,12 +703,9 @@ export default function Recruiter() {
                     Get advanced analytics, unlimited job postings, and priority candidate matching.
                   </p>
                 </div>
-                <button
-                  onClick={() => window.location.href = '/pricing'}
-                  className="shrink-0 bg-white text-blue-700 font-semibold px-6 py-2.5 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap ml-4"
-                >
+                <Link to="/pricing" className="shrink-0 bg-white text-blue-700 font-semibold px-6 py-2.5 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap ml-4 inline-flex items-center">
                   {subscription.status === 'active' ? 'Get More Credits' : 'Subscribe Now'}
-                </button>
+                </Link>
               </div>
             </div></AnimatedSection>
           </div>
