@@ -43,6 +43,41 @@ export default function Profile() {
   const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
   const [localAvatar, setLocalAvatar] = useState<string | null>(null);
   const [localCover, setLocalCover] = useState<string | null>(null);
+  const [avatarPos, setAvatarPos] = useState({ x: 50, y: 50 });
+  const [coverPos, setCoverPos] = useState({ x: 50, y: 50 });
+  const dragRef = useRef<{ type: 'avatar' | 'cover'; startX: number; startY: number; startPos: { x: number; y: number } } | null>(null);
+
+  function startDrag(e: React.MouseEvent | React.TouchEvent, type: 'avatar' | 'cover') {
+    const pos = type === 'avatar' ? avatarPos : coverPos;
+    const ce = 'touches' in e ? e.touches[0] : e;
+    dragRef.current = { type, startX: ce.clientX, startY: ce.clientY, startPos: { ...pos } };
+  }
+
+  function onDrag(e: MouseEvent | TouchEvent) {
+    if (!dragRef.current) return;
+    const ce = 'touches' in e ? e.touches[0] : e;
+    const dx = ((ce.clientX - dragRef.current.startX) / 200) * 100;
+    const dy = ((ce.clientY - dragRef.current.startY) / 200) * 100;
+    const newX = Math.max(0, Math.min(100, dragRef.current.startPos.x + dx));
+    const newY = Math.max(0, Math.min(100, dragRef.current.startPos.y + dy));
+    if (dragRef.current.type === 'avatar') setAvatarPos({ x: newX, y: newY });
+    else setCoverPos({ x: newX, y: newY });
+  }
+
+  function endDrag() { dragRef.current = null; }
+
+  useEffect(() => {
+    window.addEventListener('mousemove', onDrag);
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchmove', onDrag, { passive: true });
+    window.addEventListener('touchend', endDrag);
+    return () => {
+      window.removeEventListener('mousemove', onDrag);
+      window.removeEventListener('mouseup', endDrag);
+      window.removeEventListener('touchmove', onDrag);
+      window.removeEventListener('touchend', endDrag);
+    };
+  }, []);
 
   useEffect(() => {
     if (userProfile) {
@@ -197,18 +232,29 @@ export default function Profile() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-24">
         {/* Cover & Avatar */}
         <div className="relative rounded-2xl overflow-hidden mb-6 h-36 sm:h-44 group">
-          <img src={localCover || form.cover_url || IMG.profile.cover} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-          <button onClick={() => coverInputRef.current?.click()} disabled={!!uploading}
-            className="absolute top-3 right-3 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
-            {uploading === 'cover' ? <Loader className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-          </button>
+          <img src={localCover || form.cover_url || IMG.profile.cover} alt=""
+            className="w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
+            style={{ objectPosition: `${coverPos.x}% ${coverPos.y}%` }}
+            onMouseDown={e => startDrag(e, 'cover')}
+            onTouchStart={e => startDrag(e, 'cover')}
+            draggable={false} />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+          <div className="absolute top-3 right-3 flex gap-2">
+            <button onClick={() => coverInputRef.current?.click()} disabled={!!uploading}
+              className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
+              {uploading === 'cover' ? <Loader className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            </button>
+          </div>
           <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f, 'cover'); }} />
           <div className="absolute -bottom-10 left-6">
             <div className="relative group/avatar">
               <img src={localAvatar || form.avatar_url || IMG.profile.default} alt="Profile"
-                className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg" />
+                className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg cursor-grab active:cursor-grabbing select-none"
+                style={{ objectPosition: `${avatarPos.x}% ${avatarPos.y}%` }}
+                onMouseDown={e => startDrag(e, 'avatar')}
+                onTouchStart={e => startDrag(e, 'avatar')}
+                draggable={false} />
               <button onClick={() => avatarInputRef.current?.click()} disabled={!!uploading}
                 className="absolute bottom-0 right-0 w-7 h-7 bg-blue-700 text-white rounded-full flex items-center justify-center shadow-md hover:bg-blue-800 transition-colors">
                 {uploading === 'avatar' ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
