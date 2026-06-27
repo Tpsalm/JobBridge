@@ -329,7 +329,7 @@ export async function streamAnswer(
     const pageCtx = currentPageContext();
 
     if (noApiKey) {
-      const fullText = sections.map(s => `**${s.title}**\n${s.content}`).join('\n\n---\n\n');
+      const fullText = sections.map(s => `${s.title}\n${s.content}`).join('\n\n');
       const updatedHistory: HistoryMsg[] = [
         ...history,
         { role: 'user', content: questionClean },
