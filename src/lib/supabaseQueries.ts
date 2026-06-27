@@ -168,41 +168,10 @@ export async function fetchProviders() {
   return (data || []) as Profile[];
 }
 
-export async function updateProfile(userId: string, updates: Partial<{
-  full_name: string;
-  phone: string;
-  avatar_url: string;
-  cover_url: string;
-  location: string;
-  bio: string;
-  company: string;
-  date_of_birth: string;
-  gender: string;
-  is_disabled: string;
-  is_displaced: string;
-  professional_headline: string;
-  years_of_experience: string;
-  function: string;
-  work_type: string;
-  highest_qualification: string;
-  availability: string;
-  salary_expectation: string;
-  specialty: string;
-  hourly_rate: number;
-  skills: string[];
-  is_verified: boolean;
-  is_featured: boolean;
-  reviews_count: number;
-  is_active: boolean;
-  is_premium: boolean;
-  subscription_tier: string;
-  subscription_expires_at: string;
-  credits: number;
-}>) {
+export async function updateProfile(userId: string, updates: Record<string, any>) {
   const { data, error } = await supabase
     .from('profiles')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', userId)
+    .upsert({ id: userId, ...updates, updated_at: new Date().toISOString() }, { onConflict: 'id' })
     .select()
     .single();
   if (error) throw error;

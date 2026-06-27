@@ -171,7 +171,10 @@ export default function Profile() {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
-      alert(err.message || 'Failed to save profile');
+      console.error('Save error:', err);
+      alert(err.message?.includes('cover_url') || err.message?.includes('avatar_url')
+        ? 'Missing database columns. Run the cover_migration.sql in Supabase SQL Editor.'
+        : err.message || 'Failed to save profile');
     } finally {
       setSaving(false);
     }
