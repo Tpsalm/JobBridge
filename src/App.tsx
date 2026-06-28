@@ -29,8 +29,7 @@ import Messages from './pages/Messages';
 import Notifications from './pages/Notifications';
 import AIResume from './pages/AIResume';
 import Career from './pages/Career';
-import Admin from './pages/Admin';
-import AdminRoute from './components/AdminRoute';
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -66,7 +65,6 @@ export default function App() {
             <Route path="/revenue" element={<Pricing />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             <Route path="*" element={<Home />} />
           </Routes>
           <ModalRenderer />

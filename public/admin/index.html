@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JobBridge Admin Console</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/module/index.js"
+  }
+}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8fafc}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+.modal-overlay{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center}
+.modal-content{background:#fff;border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+th{text-align:left;padding:12px;font-weight:500;color:#64748b;font-size:13px;white-space:nowrap;border-bottom:1px solid #f1f5f9;background:#f8fafc}
+td{padding:12px;border-bottom:1px solid #f8fafc;font-size:13px}
+tr:hover td{background:#f8fafc}
+.table-wrap{overflow-x:auto}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500}
+.badge-admin{background:#f3e8ff;color:#7c3aed}
+.badge-recruiter{background:#dbeafe;color:#1d4ed8}
+.badge-provider{background:#fef3c7;color:#b45309}
+.badge-job_seeker{background:#f1f5f9;color:#475569}
+.badge-active{background:#d1fae5;color:#059669}
+.badge-inactive{background:#fee2e2;color:#dc2626}
+.badge-pending{background:#fef3c7;color:#b45309}
+.badge-hired{background:#d1fae5;color:#059669}
+.badge-rejected{background:#fee2e2;color:#dc2626}
+.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;border:none;cursor:pointer;transition:.15s}
+.btn-blue{background:#2563eb;color:#fff}
+.btn-blue:hover{background:#1d4ed8}
+.btn-green{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+.btn-red{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.btn-red:hover{background:#fee2e2}
+.btn-gray{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
+.btn-gray:hover{background:#e2e8f0}
+input,select,textarea{border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;width:100%;transition:.15s}
+input:focus,select:focus,textarea:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.tab{display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;border:none;cursor:pointer;transition:.15s;background:transparent;color:#64748b}
+.tab:hover{background:#f1f5f9}
+.tab.active{background:#2563eb;color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.25)}
+.tab-count{font-size:11px;padding:1px 6px;border-radius:999px;background:rgba(255,255,255,.2);color:inherit}
+.tab.active .tab-count{background:rgba(255,255,255,.2);color:#fff}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.stat-card{padding:16px;border-radius:12px;color:#fff}
+.stat-card .num{font-size:24px;font-weight:700}
+.stat-card .lbl{font-size:12px;opacity:.8}
+.toast{position:fixed;top:16px;right:16px;z-index:100;padding:12px 20px;border-radius:10px;color:#fff;font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.15);transition:.3s;max-width:400px}
+.toast-success{background:#059669}
+.toast-error{background:#dc2626}
+@media(max-width:768px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .tabs-wrap{overflow-x:auto;display:flex;gap:4px;padding:4px}
+  .tab{white-space:nowrap;padding:8px 12px;font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script type="module">
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://ppramomuckkjzssrfghi.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwcmFtb211Y2tranpzc3JmZ2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzODU2MjcsImV4cCI6MjA5Nzk2MTYyN30.8cWGk5Kbn4YmJKw5XU5FnfWZzCM1mDpOJZRe1PUUlgs';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = (s, p) => (p || document).querySelector(s);
+const $$ = (s, p) => [...(p || document).querySelectorAll(s)];
+
+let state = { user: null, session: null, users: [], jobs: [], apps: [], providers: [], convs: [], msgs: [], notifs: [], ads: [], loading: true, tab: 'dashboard' };
+let filters = { search: '', role: 'all', status: 'all' };
+let modals = { user: null, job: null, app: null, notif: false };
+
+function notify(msg, type = 'success') {
+  const d = document.createElement('div');
+  d.className = `toast toast-${type}`;
+  d.textContent = msg;
+  document.body.appendChild(d);
+  setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 300); }, 2500);
+}
+
+function html(strings, ...vals) {
+  return strings.reduce((a, s, i) => a + s + (vals[i] !== undefined ? vals[i] : ''), '');
+}
+
+const ICONS = {
+  dashboard: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>`,
+  users: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  jobs: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
+  apps: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+  providers: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="9" y1="6" x2="15" y2="6"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg>`,
+  messages: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  ads: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`,
+  notifs: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+  eye: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  trash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
+  x: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+};
+
+const TABS = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'users', label: 'Users' },
+  { id: 'jobs', label: 'Jobs' },
+  { id: 'apps', label: 'Applications' },
+  { id: 'providers', label: 'Providers' },
+  { id: 'messages', label: 'Messages' },
+  { id: 'ads', label: 'Ads' },
+  { id: 'notifs', label: 'Notifications' },
+];
+
+async function fetchAll() {
+  state.loading = true; render();
+  try {
+    const [u, j, a, p, c, n, ad] = await Promise.all([
+      supabase.from('profiles').select('*').order('created_at', { ascending: false }).then(r => r.data || []),
+      supabase.from('jobs').select('*, recruiter:profiles(*)').order('created_at', { ascending: false }).then(r => r.data || []),
+      supabase.from('applications').select('*, job:jobs(*), applicant:profiles(*)').order('created_at', { ascending: false }).then(r => r.data || []),
+      supabase.from('service_providers').select('*, profile:profiles(*)').order('created_at', { ascending: false }).then(r => r.data || []),
+      supabase.from('conversations').select('*, participant1:profiles!participant1_id(*), participant2:profiles!participant2_id(*)').order('last_message_at', { ascending: false }).then(r => r.data || []),
+      supabase.from('notifications').select('*, user:profiles(*)').order('created_at', { ascending: false }).then(r => r.data || []),
+      supabase.from('advertisements').select('*, owner:profiles(*)').order('created_at', { ascending: false }).then(r => r.data || []),
+    ]);
+    Object.assign(state, { users: u || [], jobs: j || [], apps: a || [], providers: p || [], convs: c || [], notifs: n || [], ads: ad || [] });
+  } catch (e) { notify('Fetch failed: ' + e.message, 'error'); }
+  state.loading = false; render();
+}
+
+function doAction(key, fn, msg) {
+  state.loading = true; render();
+  fn().then(() => { notify(msg); return fetchAll(); }).catch(e => { notify(e.message || 'Failed', 'error'); state.loading = false; render(); });
+}
+
+// Login
+function renderLogin() {
+  $('#app').innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f1f5f9;padding:20px">
+      <div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.08)">
+        <div style="text-align:center;margin-bottom:32px">
+          <div style="width:56px;height:56px;background:#2563eb;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px;color:#fff">⚙️</div>
+          <h1 style="font-size:22px;font-weight:700;color:#0f172a">Admin Console</h1>
+          <p style="font-size:13px;color:#64748b;margin-top:4px">Sign in to manage JobBridge</p>
+        </div>
+        <div id="login-error" style="color:#dc2626;font-size:13px;margin-bottom:12px;display:none"></div>
+        <input id="login-email" type="email" placeholder="Email" style="margin-bottom:12px" />
+        <input id="login-pass" type="password" placeholder="Password" style="margin-bottom:20px" />
+        <button id="login-btn" style="width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Sign In</button>
+        <p style="text-align:center;margin-top:20px;font-size:12px;color:#94a3b8">Use your JobBridge account with admin role</p>
+      </div>
+    </div>`;
+  $('#login-btn').onclick = async () => {
+    const email = $('#login-email').value, pass = $('#login-pass').value;
+    if (!email || !pass) { $('#login-error').textContent = 'Enter email and password'; $('#login-error').style.display = 'block'; return; }
+    $('#login-btn').disabled = true; $('#login-btn').innerHTML = '<span class="spinner"></span> Signing in...';
+    const { data, error } = await supabase.auth.signInWithPassword({ email, pass });
+    if (error) {
+      $('#login-error').textContent = error.message; $('#login-error').style.display = 'block';
+      $('#login-btn').disabled = false; $('#login-btn').textContent = 'Sign In'; return;
+    }
+    const { data: prof } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
+    if (prof?.role !== 'admin') {
+      await supabase.auth.signOut();
+      $('#login-error').textContent = 'Access denied. Admin role required.'; $('#login-error').style.display = 'block';
+      $('#login-btn').disabled = false; $('#login-btn').textContent = 'Sign In'; return;
+    }
+    state.user = data.user; state.session = data.session; init();
+  };
+}
+
+function init() {
+  fetchAll();
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'logout') {
+      supabase.auth.signOut(); state.user = null; state.session = null; renderLogin();
+    }
+  });
+}
+
+// Render
+function render() {
+  if (!state.user) { renderLogin(); return; }
+  const s = state;
+  const f = filters;
+  const stats = {
+    users: s.users.length, jobs: s.jobs.length, apps: s.apps.length,
+    providers: s.providers.length, activeJobs: s.jobs.filter(j => j.is_active).length,
+    convs: s.convs.length, notifs: s.notifs.length, ads: s.ads.length,
+    seekers: s.users.filter(u => u.role === 'job_seeker').length,
+    recruiters: s.users.filter(u => u.role === 'recruiter').length,
+    providerCount: s.users.filter(u => u.role === 'provider').length,
+    pendingAds: s.ads.filter(a => a.status === 'pending').length,
+  };
+
+  const filteredUsers = s.users.filter(u => {
+    if (f.search && !(u.full_name || '').toLowerCase().includes(f.search.toLowerCase()) && !(u.email || '').toLowerCase().includes(f.search.toLowerCase())) return false;
+    if (f.role !== 'all' && u.role !== f.role) return false;
+    return true;
+  });
+
+  const filteredJobs = s.jobs.filter(j => {
+    if (f.search && !(j.title || '').toLowerCase().includes(f.search.toLowerCase()) && !(j.company || '').toLowerCase().includes(f.search.toLowerCase())) return false;
+    if (f.status === 'active' && !j.is_active) return false;
+    if (f.status === 'inactive' && j.is_active) return false;
+    return true;
+  });
+
+  const filteredApps = s.apps.filter(a => {
+    if (f.search && !(a.job?.title || '').toLowerCase().includes(f.search.toLowerCase()) && !(a.applicant?.full_name || '').toLowerCase().includes(f.search.toLowerCase())) return false;
+    if (f.status !== 'all' && a.status !== f.status) return false;
+    return true;
+  });
+
+  $('#app').innerHTML = `
+    <div style="min-height:100vh">
+      <header style="background:#fff;border-bottom:1px solid #e2e8f0;position:sticky;top:0;z-index:40">
+        <div style="max-width:1280px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;background:#2563eb;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff">⚙️</div>
+            <div><span style="font-weight:700;font-size:15px;color:#0f172a">JobBridge Admin</span><span style="font-size:11px;color:#94a3b8;display:block">Console</span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:12px;color:#64748b">${state.user?.email}</span>
+            <button data-action="logout" class="btn btn-gray" style="padding:6px 14px">Sign Out</button>
+          </div>
+        </div>
+      </header>
+
+      <div style="max-width:1280px;margin:0 auto;padding:16px 20px">
+        <!-- Tabs -->
+        <div class="tabs-wrap" style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:6px;margin-bottom:16px;display:flex;gap:4px;flex-wrap:wrap">
+          ${TABS.map(t => `<button onclick="changeTab('${t.id}')" class="tab ${s.tab === t.id ? 'active' : ''}">${ICONS[t.id] || ''} ${t.label} <span class="tab-count">${stats[t.id === 'dashboard' ? 'users' : t.id === 'apps' ? 'apps' : t.id === 'convs' ? 'convs' : t.id === 'notifs' ? 'notifs' : t.id] || 0}</span></button>`).join('')}
+        </div>
+
+        ${s.loading ? '<div style="text-align:center;padding:60px 20px"><div class="spinner" style="border-color:#e2e8f0;border-top-color:#2563eb;width:40px;height:40px;margin:0 auto 12px"></div><p style="color:#94a3b8;font-size:14px">Loading data...</p></div>' : ''}
+
+        ${!s.loading && s.tab === 'dashboard' ? renderDashboard(stats, s) : ''}
+        ${!s.loading && s.tab === 'users' ? renderUsers(filteredUsers, s) : ''}
+        ${!s.loading && s.tab === 'jobs' ? renderJobs(filteredJobs, s) : ''}
+        ${!s.loading && s.tab === 'apps' ? renderApps(filteredApps, s) : ''}
+        ${!s.loading && s.tab === 'providers' ? renderProviders(s) : ''}
+        ${!s.loading && s.tab === 'messages' ? renderMessages(s) : ''}
+        ${!s.loading && s.tab === 'ads' ? renderAds(s) : ''}
+        ${!s.loading && s.tab === 'notifs' ? renderNotifs(s) : ''}
+      </div>
+    </div>
+    ${modals.user ? renderUserModal(modals.user) : ''}
+    ${modals.job ? renderJobModal(modals.job) : ''}
+    ${modals.app ? renderAppModal(modals.app) : ''}
+    ${modals.notif ? renderNotifModal() : ''}
+  `;
+}
+
+// ─── Dashboard ───
+function renderDashboard(stats) {
+  const cards = [
+    { label: 'Total Users', value: stats.users, color: 'linear-gradient(135deg,#3b82f6,#2563eb)' },
+    { label: 'Job Seekers', value: stats.seekers, color: 'linear-gradient(135deg,#06b6d4,#0891b2)' },
+    { label: 'Recruiters', value: stats.recruiters, color: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
+    { label: 'Providers', value: stats.providerCount, color: 'linear-gradient(135deg,#f59e0b,#d97706)' },
+    { label: 'Total Jobs', value: stats.jobs, color: 'linear-gradient(135deg,#10b981,#059669)' },
+    { label: 'Active Jobs', value: stats.activeJobs, color: 'linear-gradient(135deg,#34d399,#10b981)' },
+    { label: 'Applications', value: stats.apps, color: 'linear-gradient(135deg,#f43f5e,#e11d48)' },
+    { label: 'All Providers', value: stats.providers, color: 'linear-gradient(135deg,#f97316,#ea580c)' },
+    { label: 'Conversations', value: stats.convs, color: 'linear-gradient(135deg,#14b8a6,#0d9488)' },
+    { label: 'Ads', value: stats.ads, color: 'linear-gradient(135deg,#a855f7,#9333ea)' },
+    { label: 'Pending Ads', value: stats.pendingAds, color: 'linear-gradient(135deg,#ec4899,#db2777)' },
+    { label: 'Notifications', value: stats.notifs, color: 'linear-gradient(135deg,#6366f1,#4f46e5)' },
+  ];
+  return `
+    <div class="stats-grid">
+      ${cards.map(c => `<div class="stat-card" style="background:${c.color}"><div class="num">${c.value}</div><div class="lbl">${c.label}</div></div>`).join('')}
+    </div>
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-top:16px">
+      <h3 style="font-size:14px;font-weight:600;color:#0f172a;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Recent Activity
+      </h3>
+      <div style="max-height:400px;overflow-y:auto">
+        ${state.notifs.slice(0, 25).map(n => `
+          <div style="display:flex;align-items:flex-start;gap:12px;padding:8px;border-radius:8px">
+            <div style="width:32px;height:32px;border-radius:999px;background:${n.is_read ? '#f1f5f9' : '#dbeafe'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${n.type === 'system' ? '🔧' : n.type === 'message' ? '💬' : n.type === 'job_application' ? '📄' : n.type === 'payment' ? '💰' : '📢'}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:${n.is_read ? '400' : '600'};color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.title || n.type}</div>
+              <div style="font-size:11px;color:#94a3b8">${n.content || ''} · ${new Date(n.created_at).toLocaleString()}</div>
+            </div>
+          </div>
+        `).join('')}
+        ${state.notifs.length === 0 ? '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">No recent activity</div>' : ''}
+      </div>
+    </div>`;
+}
+
+// ─── Users ───
+function renderUsers(users) {
+  return `
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+      <div style="padding:16px;border-bottom:1px solid #f1f5f9;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+        <input placeholder="Search users..." style="max-width:250px" oninput="setFilter('search', this.value)" />
+        <select style="max-width:140px" onchange="setFilter('role', this.value)">
+          <option value="all">All Roles</option>
+          <option value="job_seeker">Job Seeker</option>
+          <option value="recruiter">Recruiter</option>
+          <option value="provider">Provider</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button class="btn btn-gray" onclick="fetchAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table style="width:100%">
+          <thead><tr>
+            <th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th style="text-align:right">Actions</th>
+          </tr></thead>
+          <tbody>
+            ${users.map(u => `
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px"><div style="width:32px;height:32px;border-radius:999px;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#2563eb;flex-shrink:0">${(u.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}</div><span style="font-weight:500;color:#0f172a">${u.full_name || 'Unnamed'}</span></div></td>
+                <td style="color:#64748b">${u.email || '—'}</td>
+                <td><span class="badge badge-${u.role || 'job_seeker'}">${u.role || 'job_seeker'}</span></td>
+                <td style="color:#94a3b8;font-size:12px">${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
+                <td style="text-align:right">
+                  <button class="btn btn-blue" style="padding:4px 10px" onclick="viewUser('${u.id}')">${ICONS.eye} View</button>
+                  <select style="width:auto;display:inline;padding:4px 6px;font-size:11px;margin-left:4px" onchange="doAction('role-${u.id}', ()=>supabase.from('profiles').update({role:this.value}).eq('id','${u.id}'), 'Role updated')">
+                    <option value="job_seeker" ${u.role==='job_seeker'?'selected':''}>Job Seeker</option>
+                    <option value="recruiter" ${u.role==='recruiter'?'selected':''}>Recruiter</option>
+                    <option value="provider" ${u.role==='provider'?'selected':''}>Provider</option>
+                    <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+                  </select>
+                  <button class="btn btn-red" style="padding:4px 10px" onclick="confirmDelete('${u.full_name || u.email}','user-${u.id}')">${ICONS.trash}</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${users.length === 0 ? '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px">No users found</div>' : ''}
+    </div>`;
+}
+
+// ─── Jobs ───
+function renderJobs(jobs) {
+  return `
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+      <div style="padding:16px;border-bottom:1px solid #f1f5f9;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+        <input placeholder="Search jobs..." style="max-width:250px" oninput="setFilter('search', this.value)" />
+        <select style="max-width:140px" onchange="setFilter('status', this.value)">
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <button class="btn btn-gray" onclick="fetchAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table style="width:100%">
+          <thead><tr><th>Title</th><th>Company</th><th>Recruiter</th><th>Status</th><th>Created</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${jobs.map(j => `
+              <tr>
+                <td style="font-weight:500;color:#0f172a">${j.title}</td>
+                <td style="color:#64748b">${j.company || '—'}</td>
+                <td style="color:#94a3b8;font-size:12px">${j.recruiter?.full_name || j.recruiter_id?.slice(0, 8) || '—'}</td>
+                <td><span class="badge ${j.is_active ? 'badge-active' : 'badge-inactive'}">${j.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td style="color:#94a3b8;font-size:12px">${j.created_at ? new Date(j.created_at).toLocaleDateString() : '—'}</td>
+                <td style="text-align:right">
+                  <button class="btn btn-blue" style="padding:4px 10px" onclick="viewJob('${j.id}')">${ICONS.eye} View</button>
+                  <button class="btn ${j.is_active ? 'btn-red' : 'btn-green'}" style="padding:4px 10px" onclick="doAction('tog-${j.id}', ()=>supabase.from('jobs').update({is_active:${!j.is_active}}).eq('id','${j.id}'), 'Job ${j.is_active ? 'deactivated' : 'activated'}')">${j.is_active ? 'Deactivate' : 'Activate'}</button>
+                  <button class="btn btn-red" style="padding:4px 10px" onclick="confirmDelete('${j.title}','job-${j.id}')">${ICONS.trash}</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${jobs.length === 0 ? '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px">No jobs found</div>' : ''}
+    </div>`;
+}
+
+// ─── Applications ───
+function renderApps(apps) {
+  return `
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+      <div style="padding:16px;border-bottom:1px solid #f1f5f9;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+        <input placeholder="Search..." style="max-width:250px" oninput="setFilter('search', this.value)" />
+        <select style="max-width:140px" onchange="setFilter('status', this.value)">
+          <option value="all">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="reviewed">Reviewed</option>
+          <option value="shortlisted">Shortlisted</option>
+          <option value="rejected">Rejected</option>
+          <option value="hired">Hired</option>
+        </select>
+        <button class="btn btn-gray" onclick="fetchAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table style="width:100%">
+          <thead><tr><th>Applicant</th><th>Job</th><th>Status</th><th>Applied</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${apps.map(a => {
+              const st = a.status || 'pending';
+              const badgeClass = st === 'hired' ? 'badge-active' : st === 'shortlisted' || st === 'reviewed' ? 'badge-admin' : st === 'rejected' ? 'badge-inactive' : 'badge-pending';
+              return `<tr>
+                <td style="font-weight:500;color:#0f172a">${a.applicant?.full_name || 'Unknown'}</td>
+                <td style="color:#64748b;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.job?.title || '—'}</td>
+                <td><span class="badge ${badgeClass}">${st}</span></td>
+                <td style="color:#94a3b8;font-size:12px">${a.created_at ? new Date(a.created_at).toLocaleDateString() : '—'}</td>
+                <td style="text-align:right">
+                  <select style="width:auto;display:inline;padding:4px 6px;font-size:11px" onchange="doAction('app-${a.id}', ()=>supabase.from('applications').update({status:this.value}).eq('id','${a.id}'), 'Status updated')">
+                    <option value="pending" ${st==='pending'?'selected':''}>Pending</option>
+                    <option value="reviewed" ${st==='reviewed'?'selected':''}>Reviewed</option>
+                    <option value="shortlisted" ${st==='shortlisted'?'selected':''}>Shortlisted</option>
+                    <option value="rejected" ${st==='rejected'?'selected':''}>Rejected</option>
+                    <option value="hired" ${st==='hired'?'selected':''}>Hired</option>
+                  </select>
+                  <button class="btn btn-red" style="padding:4px 10px" onclick="confirmDelete('application','app-${a.id}')">${ICONS.trash}</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${apps.length === 0 ? '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px">No applications found</div>' : ''}
+    </div>`;
+}
+
+// ─── Providers ───
+function renderProviders(s) {
+  return `
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+      <div style="padding:16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+        <h3 style="font-size:14px;font-weight:600;color:#0f172a">Service Providers (${s.providers.length})</h3>
+        <button class="btn btn-gray" onclick="fetchAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table style="width:100%">
+          <thead><tr><th>Business</th><th>Specialty</th><th>Verified</th><th>Active</th><th>Rating</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${s.providers.map(p => `
+              <tr>
+                <td style="font-weight:500;color:#0f172a">${p.business_name || p.profile?.full_name || '—'}</td>
+                <td style="color:#64748b">${p.specialty || '—'}</td>
+                <td><span class="badge ${p.is_verified ? 'badge-active' : ''}">${p.is_verified ? 'Verified' : 'Unverified'}</span></td>
+                <td><span class="badge ${p.is_active !== false ? 'badge-active' : 'badge-inactive'}">${p.is_active !== false ? 'Active' : 'Suspended'}</span></td>
+                <td style="color:#64748b">${p.rating ? p.rating + '⭐' : '—'}</td>
+                <td style="text-align:right">
+                  <button class="btn ${p.is_verified ? 'btn-red' : 'btn-green'}" style="padding:4px 10px" onclick="doAction('ver-${p.id}', ()=>supabase.from('service_providers').update({is_verified:${!p.is_verified}}).eq('id','${p.id}'), 'Provider ${p.is_verified ? 'unverified' : 'verified'}')">${p.is_verified ? 'Unverify' : 'Verify'}</button>
+                  <button class="btn btn-red" style="padding:4px 10px" onclick="confirmDelete('${p.business_name || 'provider'}','prov-${p.id}')">${ICONS.trash}</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${s.providers.length === 0 ? '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px">No providers found</div>' : ''}
+    </div>`;
+}
+
+// ─── Messages ───
+function renderMessages(s) {
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+        <div style="padding:16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+          <h3 style="font-size:14px;font-weight:600;color:#0f172a">Conversations (${s.convs.length})</h3>
+        </div>
+        <div style="max-height:60vh;overflow-y:auto">
+          ${s.convs.map(c => `
+            <div onclick="selectConv('${c.id}')" style="padding:12px;border-bottom:1px solid #f8fafc;cursor:pointer;${state.selectedConv === c.id ? 'background:#eff6ff' : ''}" class="hover-bg">
+              <div style="font-size:13px;font-weight:500;color:#0f172a">${c.participant1?.full_name || '?'} ↔ ${c.participant2?.full_name || '?'}</div>
+              <div style="font-size:11px;color:#94a3b8">${c.last_message_at ? new Date(c.last_message_at).toLocaleString() : ''}</div>
+              <button class="btn btn-red" style="padding:2px 8px;margin-top:4px;font-size:11px" onclick="event.stopPropagation();confirmDelete('conversation','conv-${c.id}')">Delete</button>
+            </div>
+          `).join('')}
+          ${s.convs.length === 0 ? '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px">No conversations</div>' : ''}
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+        <div style="padding:16px;border-bottom:1px solid #f1f5f9">
+          <h3 style="font-size:14px;font-weight:600;color:#0f172a">${state.selectedConv ? 'Messages' : 'Messages (select a conversation)'}</h3>
+        </div>
+        <div style="max-height:60vh;overflow-y:auto;padding:16px">
+          ${s.msgs.map(m => `
+            <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:12px">
+              <div style="width:24px;height:24px;border-radius:999px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#64748b;flex-shrink:0">${(m.sender?.full_name || 'U')[0]}</div>
+              <div style="flex:1">
+                <div style="font-size:11px;font-weight:500;color:#64748b">${m.sender?.full_name || 'Unknown'} · <span style="color:#94a3b8">${m.created_at ? new Date(m.created_at).toLocaleTimeString() : ''}</span></div>
+                <div style="font-size:13px;color:#334155;margin-top:2px">${m.content}</div>
+              </div>
+              <button class="btn btn-red" style="padding:2px 6px" onclick="doAction('delm-${m.id}', ()=>supabase.from('messages').delete().eq('id','${m.id}'), 'Message deleted')">${ICONS.x}</button>
+            </div>
+          `).join('')}
+          ${state.selectedConv && s.msgs.length === 0 ? '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">No messages</div>' : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ─── Ads ───
+function renderAds(s) {
+  return `
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+      <div style="padding:16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+        <h3 style="font-size:14px;font-weight:600;color:#0f172a">Advertisements (${s.ads.length})</h3>
+        <button class="btn btn-gray" onclick="fetchAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table style="width:100%">
+          <thead><tr><th>Business</th><th>Title</th><th>Package</th><th>Status</th><th>Paid</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody>
+            ${s.ads.map(a => `
+              <tr>
+                <td style="font-weight:500;color:#0f172a">${a.business_name || a.owner?.full_name || '—'}</td>
+                <td style="color:#64748b;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.title || '—'}</td>
+                <td><span class="badge" style="background:#f1f5f9">${a.package || '—'}</span></td>
+                <td><span class="badge ${a.status === 'active' ? 'badge-active' : a.status === 'pending' ? 'badge-pending' : a.status === 'rejected' ? 'badge-inactive' : ''}">${a.status || 'pending'}</span></td>
+                <td>${a.payment_status === 'paid' ? '✅' : '❌'}</td>
+                <td style="text-align:right">
+                  ${a.status === 'pending' ? `
+                    <button class="btn btn-green" style="padding:4px 10px" onclick="doAction('appr-${a.id}', ()=>supabase.from('advertisements').update({status:'active'}).eq('id','${a.id}'), 'Ad approved')">${ICONS.check} Approve</button>
+                    <button class="btn btn-red" style="padding:4px 10px" onclick="doAction('rej-${a.id}', ()=>supabase.from('advertisements').update({status:'rejected'}).eq('id','${a.id}'), 'Ad rejected')">${ICONS.x} Reject</button>
+                  ` : ''}
+                  <button class="btn btn-red" style="padding:4px 10px" onclick="confirmDelete('ad','ad-${a.id}')">${ICONS.trash}</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${s.ads.length === 0 ? '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px">No advertisements</div>' : ''}
+    </div>`;
+}
+
+// ─── Notifications ───
+function renderNotifs(s) {
+  return `
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+      <div style="padding:16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+        <h3 style="font-size:14px;font-weight:600;color:#0f172a">Notifications (${s.notifs.length})</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-blue" onclick="openNotifModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Create</button>
+          <button class="btn btn-gray" onclick="fetchAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refresh</button>
+        </div>
+      </div>
+      <div style="max-height:60vh;overflow-y:auto">
+        ${s.notifs.map(n => `
+          <div style="display:flex;align-items:flex-start;gap:12px;padding:16px;border-bottom:1px solid #f8fafc">
+            <div style="width:32px;height:32px;border-radius:999px;background:${n.is_read ? '#f1f5f9' : '#dbeafe'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${n.type === 'system' ? '⚙️' : n.type === 'message' ? '💬' : n.type === 'job_application' ? '📄' : n.type === 'payment' ? '💰' : '📢'}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:13px;font-weight:${n.is_read ? '400' : '600'};color:#0f172a">${n.title || n.type}</span>
+                ${!n.is_read ? '<span style="width:8px;height:8px;border-radius:999px;background:#2563eb;display:inline-block"></span>' : ''}
+              </div>
+              <div style="font-size:11px;color:#64748b;margin-top:2px">${n.content || ''}</div>
+              <div style="font-size:10px;color:#94a3b8;margin-top:2px">${n.user?.full_name || n.user_id?.slice(0, 8) || 'All'} · ${new Date(n.created_at).toLocaleString()}</div>
+            </div>
+            <button class="btn btn-red" style="padding:4px 8px" onclick="confirmDelete('notification','notif-${n.id}')">${ICONS.x}</button>
+          </div>
+        `).join('')}
+        ${s.notifs.length === 0 ? '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px">No notifications</div>' : ''}
+      </div>
+    </div>`;
+}
+
+// ─── Modals ───
+function renderUserModal(u) {
+  return `<div class="modal-overlay" onclick="closeModal('user')"><div class="modal-content" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:16px;font-weight:700;color:#0f172a">User Details</h3><button onclick="closeModal('user')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8">&times;</button></div>
+    <div style="display:grid;gap:8px">
+      ${Object.entries(u).filter(([k]) => k !== 'skills').map(([k, v]) => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0"><span style="color:#64748b;text-transform:capitalize">${k.replace(/_/g, ' ')}</span><span style="color:#0f172a;font-weight:500;text-align:right;max-width:60%">${v === null || v === undefined ? '—' : Array.isArray(v) ? v.join(', ') : String(v)}</span></div>`).join('')}
+    </div>
+  </div></div>`;
+}
+
+function renderJobModal(j) {
+  return `<div class="modal-overlay" onclick="closeModal('job')"><div class="modal-content" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:16px;font-weight:700;color:#0f172a">${j.title}</h3><button onclick="closeModal('job')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8">&times;</button></div>
+    <div style="display:grid;gap:8px">
+      ${Object.entries(j).filter(([k]) => !['id', 'recruiter'].includes(k)).map(([k, v]) => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0"><span style="color:#64748b;text-transform:capitalize">${k.replace(/_/g, ' ')}</span><span style="color:#0f172a;font-weight:500;text-align:right;max-width:70%">${v === null || v === undefined ? '—' : Array.isArray(v) ? v.join(', ') : String(v)}</span></div>`).join('')}
+      ${j.recruiter ? `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0"><span style="color:#64748b">Recruiter</span><span style="color:#0f172a;font-weight:500">${j.recruiter.full_name || j.recruiter.email}</span></div>` : ''}
+    </div>
+  </div></div>`;
+}
+
+function renderNotifModal() {
+  return `<div class="modal-overlay" onclick="closeModal('notif')"><div class="modal-content" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:16px;font-weight:700;color:#0f172a">Create Notification</h3><button onclick="closeModal('notif')" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8">&times;</button></div>
+    <div style="display:grid;gap:12px">
+      <div><label style="font-size:12px;font-weight:500;color:#475569;display:block;margin-bottom:4px">User ID (optional)</label><input id="notif-user" placeholder="leave empty for broadcast" /></div>
+      <div><label style="font-size:12px;font-weight:500;color:#475569;display:block;margin-bottom:4px">Type</label><select id="notif-type"><option value="system">System</option><option value="message">Message</option><option value="job_application">Job Application</option><option value="payment">Payment</option><option value="advert">Advertisement</option></select></div>
+      <div><label style="font-size:12px;font-weight:500;color:#475569;display:block;margin-bottom:4px">Title *</label><input id="notif-title" placeholder="Notification title" /></div>
+      <div><label style="font-size:12px;font-weight:500;color:#475569;display:block;margin-bottom:4px">Content</label><textarea id="notif-content" style="height:80px;resize:none" placeholder="Optional"></textarea></div>
+      <button class="btn btn-blue" style="width:100%;justify-content:center;padding:10px" onclick="createNotif()">Create Notification</button>
+    </div>
+  </div></div>`;
+}
+
+// ─── Global Functions (exposed to onclick) ───
+window.changeTab = (tab) => { state.tab = tab; render(); };
+window.setFilter = (key, val) => { filters[key] = val; render(); };
+window.fetchAll = fetchAll;
+window.doAction = doAction;
+window.viewUser = (id) => { modals.user = state.users.find(u => u.id === id); render(); };
+window.viewJob = (id) => { modals.job = state.jobs.find(j => j.id === id); render(); };
+window.closeModal = (type) => { modals[type] = null; render(); };
+window.openNotifModal = () => { modals.notif = true; render(); };
+window.selectConv = async (id) => {
+  state.selectedConv = id;
+  try {
+    const { data } = await supabase.from('messages').select('*, sender:profiles(*)').eq('conversation_id', id).order('created_at', { ascending: true });
+    state.msgs = data || [];
+  } catch {}
+  render();
+};
+window.createNotif = async () => {
+  const title = $('#notif-title').value;
+  if (!title) return notify('Title is required', 'error');
+  const userId = $('#notif-user').value || state.users[0]?.id || '';
+  const type = $('#notif-type').value;
+  const content = $('#notif-content').value;
+  doAction('createnotif', () => supabase.from('notifications').insert([{ user_id: userId, type, title, content: content || undefined, data: {} }]), 'Notification created');
+  modals.notif = false;
+};
+window.confirmDelete = (name, key) => {
+  const [entity, id] = key.split('-');
+  if (!confirm(`Delete ${name}? This cannot be undone.`)) return;
+  let fn;
+  if (entity === 'user') fn = supabase.from('profiles').delete().eq('id', id);
+  else if (entity === 'job') fn = supabase.from('jobs').delete().eq('id', id);
+  else if (entity === 'app') fn = supabase.from('applications').delete().eq('id', id);
+  else if (entity === 'prov') fn = supabase.from('service_providers').delete().eq('id', id);
+  else if (entity === 'conv') fn = supabase.from('conversations').delete().eq('id', id);
+  else if (entity === 'notif') fn = supabase.from('notifications').delete().eq('id', id);
+  else if (entity === 'ad') fn = supabase.from('advertisements').delete().eq('id', id);
+  doAction('del-' + key, () => fn, `${entity} deleted`);
+};
+
+// Auth state listener
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') { state.user = null; state.session = null; renderLogin(); }
+});
+
+// Boot
+(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    const { data: prof } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
+    if (prof?.role === 'admin') { state.user = session.user; state.session = session; init(); return; }
+  }
+  renderLogin();
+})();
+</script>
+</body>
+</html>
