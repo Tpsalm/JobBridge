@@ -388,7 +388,10 @@ const Jobs = () => {
                     >
                       <Bookmark className="w-5 h-5" fill={savedJobs.includes(selectedJob.id) ? 'currentColor' : 'none'} />
                     </button>
-                    <button className="p-3 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 transition">
+                    <button onClick={() => {
+                      const text = `*${selectedJob.title}* at ${selectedJob.company}\n\n${window.location.origin}/job/${selectedJob.id}`;
+                      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                    }} className="p-3 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 transition">
                       <Share2 className="w-5 h-5" />
                     </button>
                   </div>
