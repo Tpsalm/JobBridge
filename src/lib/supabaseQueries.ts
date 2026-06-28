@@ -245,6 +245,123 @@ export async function adminToggleJobActive(id: string, isActive: boolean) {
   if (error) throw error;
 }
 
+export async function adminFetchServiceProviders() {
+  const { data, error } = await supabase
+    .from('service_providers')
+    .select('*, profile:profiles(*)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminFetchConversations() {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('*, participant1:profiles!participant1_id(*), participant2:profiles!participant2_id(*)')
+    .order('last_message_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminFetchMessages(conversationId: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*, sender:profiles(*)')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminFetchNotifications() {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*, user:profiles(*)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminFetchAdvertisements() {
+  const { data, error } = await supabase
+    .from('advertisements')
+    .select('*, owner:profiles(*)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminDeleteProfile(userId: string) {
+  const { error } = await supabase.from('profiles').delete().eq('id', userId);
+  if (error) throw error;
+}
+
+export async function adminUpdateProfile(userId: string, updates: Record<string, any>) {
+  const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
+  if (error) throw error;
+}
+
+export async function adminDeleteJob(jobId: string) {
+  const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+  if (error) throw error;
+}
+
+export async function adminUpdateJob(jobId: string, updates: Record<string, any>) {
+  const { error } = await supabase.from('jobs').update(updates).eq('id', jobId);
+  if (error) throw error;
+}
+
+export async function adminDeleteApplication(appId: string) {
+  const { error } = await supabase.from('applications').delete().eq('id', appId);
+  if (error) throw error;
+}
+
+export async function adminUpdateApplication(appId: string, updates: Record<string, any>) {
+  const { error } = await supabase.from('applications').update(updates).eq('id', appId);
+  if (error) throw error;
+}
+
+export async function adminDeleteConversation(conversationId: string) {
+  const { error } = await supabase.from('conversations').delete().eq('id', conversationId);
+  if (error) throw error;
+}
+
+export async function adminDeleteMessage(messageId: string) {
+  const { error } = await supabase.from('messages').delete().eq('id', messageId);
+  if (error) throw error;
+}
+
+export async function adminDeleteNotification(notificationId: string) {
+  const { error } = await supabase.from('notifications').delete().eq('id', notificationId);
+  if (error) throw error;
+}
+
+export async function adminCreateNotification(notification: { user_id: string; type: string; title: string; content?: string; data?: any }) {
+  const { data, error } = await supabase.from('notifications').insert([notification]).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function adminDeleteAdvertisement(adId: string) {
+  const { error } = await supabase.from('advertisements').delete().eq('id', adId);
+  if (error) throw error;
+}
+
+export async function adminUpdateAdvertisementStatus(adId: string, status: string) {
+  const { error } = await supabase.from('advertisements').update({ status }).eq('id', adId);
+  if (error) throw error;
+}
+
+export async function adminVerifyProvider(providerId: string, verified: boolean) {
+  const { error } = await supabase.from('service_providers').update({ is_verified: verified }).eq('id', providerId);
+  if (error) throw error;
+}
+
+export async function adminDeleteServiceProvider(providerId: string) {
+  const { error } = await supabase.from('service_providers').delete().eq('id', providerId);
+  if (error) throw error;
+}
+
 // ─── Blog Subscriptions ────────────────────────────────────────────────────
 
 export async function subscribeToBlog(email: string) {
