@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useModal } from '../contexts/ModalContext';
 import {
   Bell, Menu, X, Briefcase, Home, Users, Wrench, BarChart3, CreditCard,
   ChevronDown, Bookmark, MessageSquare, UserCircle, Star, Settings, HelpCircle,
@@ -30,6 +31,7 @@ const moreLinks = [
 
 export default function Header() {
   const { user, profile, isAuthenticated, savedJobs, signOut } = useAuth();
+  const { openModal } = useModal();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -78,7 +80,7 @@ export default function Header() {
   const handleSignOut = async () => {
     setProfileOpen(false);
     await signOut();
-    navigate('/');
+    openModal('signup', { pendingAction: 'signout' });
   };
 
   const displayName = profile?.full_name || user?.email || 'User';
