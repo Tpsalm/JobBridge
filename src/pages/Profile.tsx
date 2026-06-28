@@ -4,7 +4,7 @@ import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { updateProfile, fetchProfile } from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
-import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle, Upload, Loader } from 'lucide-react';
+import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle, Upload, Loader, Eye, EyeOff } from 'lucide-react';
 import { IMG } from '../lib/media';
 
 type ProfileField = keyof typeof PROFILE_FIELDS;
@@ -36,6 +36,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
+  const [showPasswords, setShowPasswords] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState('');
   const [connectedApps] = useState({ google: true, linkedin: true });
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -395,12 +396,30 @@ export default function Profile() {
           {/* Password Change */}
           <div className="space-y-4 mb-6 pb-6 border-b border-gray-100">
             <h3 className="font-semibold text-gray-800">Change Password</h3>
-            <input type="password" value={passwordForm.current} onChange={e => setPasswordForm({ ...passwordForm, current: e.target.value })}
-              placeholder="Current password" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
-            <input type="password" value={passwordForm.newPass} onChange={e => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
-              placeholder="New password" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
-            <input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-              placeholder="Confirm new password" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
+            <div className="relative">
+              <input type={showPasswords ? 'text' : 'password'} value={passwordForm.current} onChange={e => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                placeholder="Current password" className="w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
+              <button type="button" onClick={() => setShowPasswords(!showPasswords)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <div className="relative">
+              <input type={showPasswords ? 'text' : 'password'} value={passwordForm.newPass} onChange={e => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
+                placeholder="New password" className="w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
+              <button type="button" onClick={() => setShowPasswords(!showPasswords)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <div className="relative">
+              <input type={showPasswords ? 'text' : 'password'} value={passwordForm.confirm} onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                placeholder="Confirm new password" className="w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
+              <button type="button" onClick={() => setShowPasswords(!showPasswords)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
             {passwordMsg && (
               <p className={`text-sm font-medium ${passwordMsg.includes('success') ? 'text-emerald-600' : 'text-red-600'}`}>{passwordMsg}</p>
             )}
