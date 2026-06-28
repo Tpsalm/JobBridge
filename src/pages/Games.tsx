@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS } from '../lib/media';
-import { Flame, RotateCcw, Star, Zap, Trophy, Brain, Clock, CheckCircle, Medal, Sparkles, X } from 'lucide-react';
+import { Flame, RotateCcw, Star, Zap, Trophy, Brain, Clock, CheckCircle, Medal, Sparkles, X, Music, VolumeX, ChevronRight, Lock, Unlock } from 'lucide-react';
 
 interface StreakData {
   current: number;
@@ -21,7 +21,105 @@ interface MemoryCard {
   matched: boolean;
 }
 
+interface QuizQuestion {
+  question: string;
+  options: string[];
+  correct: number;
+}
+
+interface GameStage {
+  id: number;
+  name: string;
+  description: string;
+  type: 'memory' | 'quiz';
+  unlocked: boolean;
+  completed: boolean;
+}
+
 const DEFAULT_STREAK: StreakData = { current: 0, best: 0, lastDate: '', points: 0, gamesPlayed: 0 };
+
+// ─── Jazz Background Music ──────────────────────────────────────
+let jazzCtx: AudioContext | null = null;
+let jazzGain: GainNode | null = null;
+let jazzPlaying = false;
+let jazzTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function getJazzCtx(): AudioContext {
+  if (!jazzCtx) jazzCtx = new AudioContext();
+  return jazzCtx;
+}
+
+function startJazzMusic() {
+  if (jazzPlaying) return;
+  const ctx = getJazzCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+  jazzPlaying = true;
+  if (!jazzGain) {
+    jazzGain = ctx.createGain();
+    jazzGain.gain.setValueAtTime(0.06, ctx.currentTime);
+    jazzGain.connect(ctx.destination);
+  }
+
+  const chords = [
+    [261.63, 329.63, 392.00, 493.88],
+    [220.00, 329.63, 392.00, 440.00],
+    [293.66, 349.23, 440.00, 523.25],
+    [196.00, 293.66, 392.00, 466.16],
+  ];
+
+  const bassNotes = [130.81, 110.00, 146.83, 98.00];
+  let stopped = false;
+
+  function playChord(chord: number[], startTime: number, volume: number) {
+    chord.forEach(freq => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(volume, startTime);
+      gain.gain.linearRampToValueAtTime(0, startTime + 3.8);
+      osc.connect(gain);
+      gain.connect(jazzGain!);
+      osc.start(startTime);
+      osc.stop(startTime + 3.8);
+    });
+  }
+
+  function playBass(freq: number, startTime: number) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, startTime);
+    gain.gain.setValueAtTime(0.08, startTime);
+    gain.gain.linearRampToValueAtTime(0, startTime + 3.8);
+    osc.connect(gain);
+    gain.connect(jazzGain!);
+    osc.start(startTime);
+    osc.stop(startTime + 3.8);
+  }
+
+  let chordIndex = 0;
+  const chordDuration = 4;
+
+  function scheduleLoop() {
+    if (stopped || !jazzPlaying) return;
+    const now = ctx.currentTime;
+    for (let i = 0; i < 4; i++) {
+      const idx = (chordIndex + i) % chords.length;
+      playChord(chords[idx], now + i * chordDuration, 0.025);
+      playBass(bassNotes[idx], now + i * chordDuration);
+    }
+    chordIndex = (chordIndex + 4) % chords.length;
+    jazzTimeout = setTimeout(scheduleLoop, chordDuration * 4 * 1000 - 100);
+  }
+
+  scheduleLoop();
+}
+
+function stopJazzMusic() {
+  jazzPlaying = false;
+  if (jazzTimeout) { clearTimeout(jazzTimeout); jazzTimeout = null; }
+}
 
 // ─── Sound effects (Web Audio API) ──────────────────────────────
 let audioCtx: AudioContext | null = null;
@@ -61,7 +159,14 @@ function playWinSound() {
   const notes = [523, 587, 659, 698, 784, 880, 988, 1047];
   notes.forEach((n, i) => setTimeout(() => playTone(n, 0.2, 'sine', 0.12), i * 80));
 }
+function playCorrectSound() { playTone(784, 0.15, 'sine', 0.12); setTimeout(() => playTone(988, 0.2, 'sine', 0.12), 120); }
+function playWrongSound() { playTone(250, 0.2, 'square', 0.08); }
+function playStageCompleteSound() {
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((n, i) => setTimeout(() => playTone(n, 0.25, 'sine', 0.12), i * 150));
+}
 
+// ─── Memory Card Data ───────────────────────────────────────────
 const CARD_PAIRS = [
   { emoji: '💼', label: 'Career' },
   { emoji: '🚀', label: 'Growth' },
@@ -71,6 +176,63 @@ const CARD_PAIRS = [
   { emoji: '📈', label: 'Success' },
   { emoji: '🏆', label: 'Achieve' },
   { emoji: '⭐', label: 'Excellence' },
+];
+
+// ─── Quiz Questions Pool ────────────────────────────────────────
+const QUIZ_POOL: QuizQuestion[] = [
+  { question: 'What does the STAR method stand for in interviews?', options: ['Situation, Task, Action, Result', 'Start, Think, Answer, Respond', 'State, Track, Analyze, Review', 'Structure, Time, Action, Rating'], correct: 0 },
+  { question: 'When asked "Tell me about yourself", what should you focus on?', options: ['Your entire life story', 'Your professional background relevant to the role', 'Your personal hobbies only', 'Complaints about your last job'], correct: 1 },
+  { question: 'What is the best way to prepare for an interview?', options: ['Show up without preparation', 'Research the company and practice common questions', 'Only read the job title', 'Memorize one answer'], correct: 1 },
+  { question: 'What should you wear to a professional job interview?', options: ['Casual clothes', 'Professional attire matching company culture', 'Costume', 'Sportswear'], correct: 1 },
+  { question: 'How should you handle a question about your weaknesses?', options: ['Say you have no weaknesses', 'Be honest and mention how you are improving', 'Lie about a weakness', 'Change the subject'], correct: 1 },
+  { question: 'What is the ideal length for a resume?', options: ['One page for most professionals', 'As long as possible', 'Only half a page', 'At least 5 pages'], correct: 0 },
+  { question: 'What does "networking" mean in a job search context?', options: ['Fixing computer networks', 'Building professional relationships for opportunities', 'Attending parties only', 'Sending spam emails'], correct: 1 },
+  { question: 'When should you send a thank-you email after an interview?', options: ['One month later', 'Within 24 hours', 'Never', 'Only if you got the job'], correct: 1 },
+  { question: 'What is a "soft skill"?', options: ['Technical programming ability', 'Interpersonal skills like communication and teamwork', 'Physical strength', 'Knowledge of software'], correct: 1 },
+  { question: 'What should you do if you don\'t know the answer to an interview question?', options: ['Panic and remain silent', 'Be honest and explain how you would find the answer', 'Make up an answer', 'Walk out'], correct: 1 },
+  { question: 'What is the purpose of a cover letter?', options: ['Repeat your resume', 'Introduce yourself and explain why you are a good fit', 'Write a novel', 'List your references'], correct: 1 },
+  { question: 'How should you negotiate salary?', options: ['Accept the first offer immediately', 'Research market rates and make a reasoned case', 'Demand an unrealistic amount', 'Avoid talking about money'], correct: 1 },
+  { question: 'What is a "behavioral question" in an interview?', options: ['A question about your behavior outside work', 'A question asking how you handled past situations', 'A trick question', 'A personality test'], correct: 1 },
+  { question: 'What does "upskilling" mean?', options: ['Moving to a higher floor', 'Learning new skills to advance your career', 'Working faster', 'Changing job titles'], correct: 1 },
+  { question: 'What is the best way to answer "Why do you want this job?"', options: ['I need a job', 'Connect your skills and goals to the company\'s mission', 'The salary is good', 'I don\'t know'], correct: 1 },
+  { question: 'How should you handle a gap in employment on your resume?', options: ['Hide it', 'Be honest and highlight what you learned during the gap', 'Make up a job', 'Ignore the question'], correct: 1 },
+  { question: 'What is a "portfolio" in a job application?', options: ['A briefcase', 'A collection of your work samples and achievements', 'A type of resume', 'A cover letter'], correct: 1 },
+  { question: 'What should you do before accepting a job offer?', options: ['Accept immediately', 'Review the offer, ask questions, and consider your goals', 'Ignore the details', 'Ask friends to decide'], correct: 1 },
+  { question: 'What is "company culture"?', options: ['The company\'s office design', 'The values, behaviors, and environment of a workplace', 'The company logo', 'The product they sell'], correct: 1 },
+  { question: 'How can you make your resume stand out?', options: ['Use fancy fonts and colors', 'Quantify achievements and tailor it to the job', 'Make it 10 pages long', 'Use emojis throughout'], correct: 1 },
+  { question: 'What is "work-life balance"?', options: ['Working all the time', 'Balancing professional responsibilities with personal life', 'Working from home only', 'Taking long vacations'], correct: 1 },
+  { question: 'What should you do during a phone screening?', options: ['Multi-task while talking', 'Be prepared, speak clearly, and ask thoughtful questions', 'Whisper so no one hears', 'Rush through the call'], correct: 1 },
+  { question: 'What does "professional development" mean?', options: ['Going to college forever', 'Ongoing learning to improve your career skills', 'Getting a promotion', 'Changing careers'], correct: 1 },
+  { question: 'How should you answer "Where do you see yourself in 5 years?"', options: ['I don\'t plan ahead', 'Share realistic career goals aligned with the role', 'Your job', 'Retired'], correct: 1 },
+  { question: 'What is the best way to build a professional network?', options: ['Collect business cards without talking', 'Attend industry events, connect genuinely, and follow up', 'Send connection requests to everyone', 'Only talk to recruiters'], correct: 1 },
+  { question: 'What is a "reference check"?', options: ['Checking your social media', 'Contacting people who can vouch for your work', 'A background check', 'A credit check'], correct: 1 },
+  { question: 'How should you handle rejection after an interview?', options: ['Give up on job searching', 'Ask for feedback and keep applying to other roles', 'Argue with the recruiter', 'Ignore it'], correct: 1 },
+  { question: 'What is "mentorship" in a career context?', options: ['A formal class', 'Guidance from an experienced professional to help you grow', 'A type of promotion', 'A training program'], correct: 1 },
+  { question: 'What does "remote work readiness" mean to employers?', options: ['Having a fast internet connection', 'Being self-motivated, communicative, and organized while working remotely', 'Owning a laptop', 'Working from a coffee shop'], correct: 1 },
+  { question: 'What should you include in a follow-up email after an interview?', options: ['Ask if you got the job', 'Thank them, reiterate your interest, and highlight a key point from the interview', 'Complain about the process', 'Send your resume again'], correct: 1 },
+  { question: 'What is a "hard skill"?', options: ['Being friendly', 'A teachable technical ability like coding or data analysis', 'Personality trait', 'Emotional intelligence'], correct: 1 },
+  { question: 'How can you identify your transferable skills?', options: ['Only look at job-specific skills', 'Review your experiences and identify skills useful across different roles', 'Ignore past experience', 'Focus on education only'], correct: 1 },
+  { question: 'What does "job hopping" mean?', options: ['Jumping between job sites', 'Changing jobs frequently within short periods', 'A type of commute', 'Working multiple jobs'], correct: 1 },
+  { question: 'How should you address a career change in an interview?', options: ['Avoid explaining it', 'Frame it positively by connecting past experience to the new path', 'Apologize for changing careers', 'Say you disliked your old field'], correct: 1 },
+  { question: 'What is the best approach to answering "Tell me about a time you failed"?', options: ['Say you never fail', 'Be honest, describe what you learned, and how you improved', 'Blame others', 'Make up a fake failure'], correct: 1 },
+  { question: 'What does "personal brand" mean for your career?', options: ['The clothes you wear', 'How you present your professional reputation and expertise', 'Your social media followers', 'Your job title'], correct: 1 },
+  { question: 'How should you research a company before an interview?', options: ['Just read the job description', 'Study their website, recent news, products, and company culture', 'Look at their logo', 'Ask friends about the company'], correct: 1 },
+  { question: 'What is a "skills gap"?', options: ['A gap between buildings', 'The difference between skills you have and skills a job requires', 'A missing tool', 'A type of interview question'], correct: 1 },
+  { question: 'What does "diversity and inclusion" mean in the workplace?', options: ['Hiring people from the same background', 'Creating an environment where all employees feel valued and respected', 'Only hiring minorities', 'A legal requirement'], correct: 1 },
+  { question: 'What is the best way to answer "What are your salary expectations?"', options: ['Give a number immediately', 'Provide a range based on market research and your experience', 'Refuse to answer', 'Ask for the maximum'], correct: 1 },
+];
+
+const STAGES: GameStage[] = [
+  { id: 1, name: 'Memory Match', description: 'Match the career pairs', type: 'memory', unlocked: true, completed: false },
+  { id: 2, name: 'Interview Basics', description: 'Essential interview knowledge', type: 'quiz', unlocked: false, completed: false },
+  { id: 3, name: 'Behavioral Mastery', description: 'Tackle behavioral questions', type: 'quiz', unlocked: false, completed: false },
+  { id: 4, name: 'Resume & Portfolio', description: 'Craft your professional story', type: 'quiz', unlocked: false, completed: false },
+  { id: 5, name: 'Salary & Negotiation', description: 'Know your worth', type: 'quiz', unlocked: false, completed: false },
+  { id: 6, name: 'Workplace Wisdom', description: 'Navigate workplace scenarios', type: 'quiz', unlocked: false, completed: false },
+  { id: 7, name: 'Career Strategy', description: 'Plan your career path', type: 'quiz', unlocked: false, completed: false },
+  { id: 8, name: 'Networking Pro', description: 'Build meaningful connections', type: 'quiz', unlocked: false, completed: false },
+  { id: 9, name: 'Leadership Edge', description: 'Show leadership potential', type: 'quiz', unlocked: false, completed: false },
+  { id: 10, name: 'Final Challenge', description: 'The ultimate interview test', type: 'quiz', unlocked: false, completed: false },
 ];
 
 function shuffle<T>(arr: T[]): T[] {
@@ -133,17 +295,36 @@ function updateStreak(): StreakData {
   return streak;
 }
 
+function loadStageProgress(): number[] {
+  try {
+    const raw = localStorage.getItem('jobbridge_stage_progress');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [1];
+}
+
+function saveStageProgress(completed: number[]) {
+  localStorage.setItem('jobbridge_stage_progress', JSON.stringify(completed));
+}
+
 export default function Games() {
+  const [musicOn, setMusicOn] = useState(false);
+  const [currentScreen, setCurrentScreen] = useState<'stages' | 'memory' | 'quiz'>('stages');
+  const [currentStage, setCurrentStage] = useState(1);
+  const [completedStages, setCompletedStages] = useState<number[]>(() => loadStageProgress());
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [quizIndex, setQuizIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [quizFinished, setQuizFinished] = useState(false);
+  const [quizPassed, setQuizPassed] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [showAnswer, setShowAnswer] = useState(false);
+
+  // Memory game state
   const [cards, setCards] = useState<MemoryCard[]>(() =>
-    shuffle(
-      [...CARD_PAIRS, ...CARD_PAIRS].map((pair, i) => ({
-        id: i,
-        emoji: pair.emoji,
-        label: pair.label,
-        flipped: false,
-        matched: false,
-      }))
-    )
+    shuffle([...CARD_PAIRS, ...CARD_PAIRS].map((pair, i) => ({
+      id: i, emoji: pair.emoji, label: pair.label, flipped: false, matched: false,
+    })))
   );
   const [flippedIds, setFlippedIds] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);
@@ -157,12 +338,28 @@ export default function Games() {
     try { return parseInt(localStorage.getItem('jobbridge_best_moves') || '999'); } catch { return 999; }
   });
 
+  // Stage progress
+  const stages = STAGES.map(s => ({
+    ...s,
+    unlocked: completedStages.includes(s.id - 1) || s.id === 1,
+    completed: completedStages.includes(s.id),
+  }));
+
+  // Toggle music
   useEffect(() => {
-    if (gameComplete) return;
+    if (musicOn) startJazzMusic();
+    else stopJazzMusic();
+    return () => stopJazzMusic();
+  }, [musicOn]);
+
+  // Memory game timer
+  useEffect(() => {
+    if (gameComplete || currentScreen !== 'memory') return;
     const interval = setInterval(() => setTimer(t => t + 1), 1000);
     return () => clearInterval(interval);
-  }, [gameComplete]);
+  }, [gameComplete, currentScreen]);
 
+  // Memory match logic
   useEffect(() => {
     if (flippedIds.length !== 2) return;
     const [first, second] = flippedIds;
@@ -213,7 +410,7 @@ export default function Games() {
     playFlipSound();
   }, [gameComplete, flippedIds, cards]);
 
-  const resetGame = () => {
+  const resetMemoryGame = () => {
     setCards(shuffle([...CARD_PAIRS, ...CARD_PAIRS].map((pair, i) => ({
       id: i, emoji: pair.emoji, label: pair.label, flipped: false, matched: false,
     }))));
@@ -225,169 +422,344 @@ export default function Games() {
     setShowResult(false);
   };
 
+  const startMemoryStage = () => {
+    resetMemoryGame();
+    setCurrentScreen('memory');
+  };
+
+  const completeMemoryStage = () => {
+    const newCompleted = [...new Set([...completedStages, 1])];
+    setCompletedStages(newCompleted);
+    saveStageProgress(newCompleted);
+    setCurrentScreen('stages');
+  };
+
+  const startQuizStage = (stageId: number) => {
+    const pool = shuffle([...QUIZ_POOL]);
+    const count = stageId <= 3 ? 5 : stageId <= 6 ? 6 : 8;
+    setQuizQuestions(pool.slice(0, count));
+    setQuizIndex(0);
+    setScore(0);
+    setQuizFinished(false);
+    setQuizPassed(false);
+    setSelectedAnswer(null);
+    setShowAnswer(false);
+    setCurrentStage(stageId);
+    setCurrentScreen('quiz');
+  };
+
+  const handleAnswer = (optionIndex: number) => {
+    if (showAnswer) return;
+    setSelectedAnswer(optionIndex);
+    setShowAnswer(true);
+    if (optionIndex === quizQuestions[quizIndex].correct) {
+      setScore(s => s + 1);
+      playCorrectSound();
+    } else {
+      playWrongSound();
+    }
+  };
+
+  const nextQuizQuestion = () => {
+    if (quizIndex < quizQuestions.length - 1) {
+      setQuizIndex(i => i + 1);
+      setSelectedAnswer(null);
+      setShowAnswer(false);
+    } else {
+      const passThreshold = Math.ceil(quizQuestions.length * 0.6);
+      const passed = score >= passThreshold || score > quizQuestions.length / 2;
+      setQuizFinished(true);
+      setQuizPassed(passed);
+      if (passed) {
+        playStageCompleteSound();
+        const newCompleted = [...new Set([...completedStages, currentStage])];
+        setCompletedStages(newCompleted);
+        saveStageProgress(newCompleted);
+      }
+    }
+  };
+
   const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
   const streakLevel = streak.current >= 30 ? 'Legendary' : streak.current >= 14 ? 'Unstoppable' : streak.current >= 7 ? 'On Fire' : streak.current >= 3 ? 'Rising' : streak.current >= 1 ? 'Getting Started' : 'Not Started';
   const streakEmoji = streak.current >= 30 ? '👑' : streak.current >= 14 ? '🔥🔥' : streak.current >= 7 ? '🔥' : streak.current >= 3 ? '⭐' : streak.current >= 1 ? '✨' : '💤';
 
-  return (
-    <div className="min-h-screen bg-stone-50 pb-24">
-      <Header />
-      <PageHero compact title="Career Match" subtitle="Match the pairs, build your streak, sharpen your mind" images={HERO_CAROUSELS.games} imageAlt="Career Match game" overlay="dark" />
+  // ─── Render: Stage Map ────────────────────────────────────────
+  if (currentScreen === 'stages') {
+    return (
+      <div className="min-h-screen bg-stone-50 pb-24">
+        <Header />
+        <PageHero compact title="Career Games" subtitle="Complete stages to unlock new challenges" images={HERO_CAROUSELS.games} imageAlt="Career games" overlay="dark" />
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        {/* Streak Bar */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+          {/* Streak Bar */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+                  streak.current > 0 ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white' : 'bg-gray-100 text-gray-400'
+                }`}>
+                  {streak.current > 0 ? streakEmoji : '💤'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-bold text-gray-900">{streak.current}</span>
+                    <span className="text-xs text-amber-600 font-medium uppercase tracking-wider">{streakLevel}</span>
+                  </div>
+                  <p className="text-xs text-gray-500">day streak · Best: {streak.best} · {streak.points.toLocaleString()} pts</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min((streak.current / 30) * 100, 100)}%` }} />
+            </div>
+          </div>
+
+          {/* Music Toggle & Stats */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
-                streak.current > 0 ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white' : 'bg-gray-100 text-gray-400'
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Brain className="w-4 h-4" />
+              <span>{completedStages.length}/10 stages</span>
+            </div>
+            <button onClick={() => setMusicOn(!musicOn)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
+                musicOn ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
               }`}>
-                {streak.current > 0 ? streakEmoji : '💤'}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900">{streak.current}</span>
-                  <span className="text-xs text-amber-600 font-medium uppercase tracking-wider">{streakLevel}</span>
-                </div>
-                <p className="text-xs text-gray-500">day streak · Best: {streak.best} · {streak.points.toLocaleString()} pts</p>
-              </div>
-            </div>
-            <div className="hidden sm:flex items-center gap-1 text-xs text-gray-400">
-              <Trophy className="w-3.5 h-3.5" />
-              Best: {bestScore < 999 ? `${bestScore} moves` : '—'}
-            </div>
+              {musicOn ? <Music className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              {musicOn ? 'Music On' : 'Music Off'}
+            </button>
           </div>
-          <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full transition-all duration-500"
-              style={{ width: `${Math.min((streak.current / 30) * 100, 100)}%` }}
-            />
-          </div>
-          <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-            <span>0</span>
-            <span className={streak.current >= 3 ? 'text-amber-600 font-medium' : ''}>3⭐</span>
-            <span className={streak.current >= 7 ? 'text-amber-600 font-medium' : ''}>7🔥</span>
-            <span className={streak.current >= 14 ? 'text-amber-600 font-medium' : ''}>14🔥🔥</span>
-            <span className={streak.current >= 30 ? 'text-amber-600 font-medium' : ''}>30👑</span>
-          </div>
-        </div>
 
-        {/* Game Stats */}
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { label: 'Time', value: formatTime(timer), icon: Clock, color: 'from-cyan-500 to-blue-600' },
-            { label: 'Moves', value: moves.toString(), icon: Zap, color: 'from-violet-500 to-purple-600' },
-            { label: 'Matched', value: `${matchedCount}/${CARD_PAIRS.length}`, icon: CheckCircle, color: 'from-emerald-500 to-green-600' },
-            { label: 'Best', value: bestScore < 999 ? `${bestScore}` : '—', icon: Trophy, color: 'from-amber-500 to-orange-600' },
-          ].map(s => (
-            <div key={s.label} className={`bg-gradient-to-br ${s.color} rounded-xl p-3 text-center`}>
-              <s.icon className="w-4 h-4 mx-auto mb-1 text-white/80" />
-              <p className="text-lg font-bold text-white">{s.value}</p>
-              <p className="text-[10px] text-white/70">{s.label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Game Board */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          {showResult && gameComplete && (
-            <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl text-center">
-              <div className="text-3xl mb-1">🎉</div>
-              <h3 className="text-lg font-bold text-gray-900">Great Job!</h3>
-              <p className="text-sm text-amber-700">
-                Solved in {formatTime(timer)} · {moves} moves · +10 pts
-              </p>
-              {streak.current >= 7 && (
-                <div className="mt-1 inline-flex items-center gap-1 text-xs text-amber-600 font-medium">
-                  <Flame className="w-3 h-3" /> {streak.current}-day streak!
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Streak completion popup */}
-          {showStreakPopup && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setShowStreakPopup(false)}>
-              <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center relative animate-bounce-in" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setShowStreakPopup(false)} className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100">
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-3xl shadow-lg">
-                  🏆
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Excellent Job!</h3>
-                <p className="text-amber-600 font-semibold text-lg mb-1">You are on a Streak!</p>
-                <p className="text-sm text-gray-500 mb-4">
-                  {streak.current}-day streak · {streak.points.toLocaleString()} total points
-                </p>
-                <div className="flex items-center justify-center gap-2 mb-4">
-                  {streak.current >= 7 && <span className="text-2xl">🔥</span>}
-                  <span className="text-4xl font-bold text-amber-500">{streak.current}</span>
-                  <span className="text-sm text-gray-400">days</span>
-                </div>
-                <button
-                  onClick={() => setShowStreakPopup(false)}
-                  className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-semibold hover:from-amber-600 hover:to-orange-600 transition-all"
-                >
-                  Keep Going!
-                </button>
-              </div>
-            </div>
-          )}
-          <div className="grid grid-cols-4 gap-2 sm:gap-3">
-            {cards.map(card => (
-              <button
-                key={card.id}
-                onClick={() => handleCardClick(card.id)}
-                disabled={card.flipped || card.matched || gameComplete}
-                className={`aspect-square rounded-xl text-2xl sm:text-3xl flex items-center justify-center transition-all duration-300 cursor-pointer ${
-                  card.matched
-                    ? 'bg-emerald-50 border border-emerald-300 scale-95 opacity-70'
-                    : card.flipped
-                      ? 'bg-white border-2 border-blue-400 shadow-md scale-100'
-                      : 'bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 hover:shadow-md text-gray-400'
+          {/* Stage List */}
+          <div className="space-y-3">
+            {stages.map(stage => (
+              <div key={stage.id}
+                className={`rounded-xl border p-4 transition ${
+                  stage.completed
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : stage.unlocked
+                      ? 'bg-white border-gray-200 cursor-pointer hover:shadow-md'
+                      : 'bg-gray-50 border-gray-200 opacity-60'
                 }`}
+                onClick={() => {
+                  if (!stage.unlocked || stage.completed) return;
+                  if (stage.type === 'memory') startMemoryStage();
+                  else startQuizStage(stage.id);
+                }}
               >
-                {(card.flipped || card.matched) ? card.emoji : '?'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Controls */}
-        <button
-          onClick={resetGame}
-          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all"
-        >
-          <RotateCcw className="w-4 h-4" /> New Game
-        </button>
-
-        {/* Streak Milestones */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <Medal className="w-4 h-4 text-amber-500" /> Streak Milestones
-          </h3>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { days: 3, label: 'Rising Star', icon: '⭐', reached: streak.current >= 3 },
-              { days: 7, label: 'On Fire!', icon: '🔥', reached: streak.current >= 7 },
-              { days: 14, label: 'Unstoppable', icon: '🔥🔥', reached: streak.current >= 14 },
-              { days: 30, label: 'Legend', icon: '👑', reached: streak.current >= 30 },
-            ].map(m => (
-              <div key={m.days} className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
-                m.reached ? 'bg-amber-50 text-amber-700' : 'bg-gray-50 text-gray-500'
-              }`}>
-                <span>{m.reached ? m.icon : '⚪'}</span>
-                <span className="font-medium">{m.label}</span>
-                <span className="ml-auto text-[10px] opacity-60">{m.days} days</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
+                      stage.completed
+                        ? 'bg-emerald-100 text-emerald-600'
+                        : stage.unlocked
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'bg-gray-100 text-gray-400'
+                    }`}>
+                      {stage.completed ? '✅' : stage.unlocked ? stage.id.toString() : '🔒'}
+                    </div>
+                    <div>
+                      <p className={`font-semibold ${stage.completed ? 'text-emerald-800' : 'text-gray-900'}`}>
+                        Stage {stage.id}: {stage.name}
+                      </p>
+                      <p className="text-xs text-gray-500">{stage.description}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {stage.completed ? (
+                      <CheckCircle className="w-5 h-5 text-emerald-500" />
+                    ) : stage.unlocked ? (
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    ) : (
+                      <Lock className="w-5 h-5 text-gray-300" />
+                    )}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </div>
+        <BottomNav />
       </div>
+    );
+  }
 
-      <BottomNav />
-    </div>
-  );
+  // ─── Render: Memory Game ──────────────────────────────────────
+  if (currentScreen === 'memory') {
+    return (
+      <div className="min-h-screen bg-stone-50 pb-24">
+        <Header />
+        <PageHero compact title="Stage 1: Memory Match" subtitle="Match the career pairs to advance" images={HERO_CAROUSELS.games} imageAlt="Memory match game" overlay="dark" />
+
+        <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+          {/* Back to Stages */}
+          <button onClick={() => setCurrentScreen('stages')}
+            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
+            <ChevronRight className="w-4 h-4 rotate-180" /> Back to Stages
+          </button>
+
+          {/* Game Stats */}
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'Time', value: formatTime(timer), icon: Clock, color: 'from-cyan-500 to-blue-600' },
+              { label: 'Moves', value: moves.toString(), icon: Zap, color: 'from-violet-500 to-purple-600' },
+              { label: 'Matched', value: `${matchedCount}/${CARD_PAIRS.length}`, icon: CheckCircle, color: 'from-emerald-500 to-green-600' },
+              { label: 'Best', value: bestScore < 999 ? `${bestScore}` : '—', icon: Trophy, color: 'from-amber-500 to-orange-600' },
+            ].map(s => (
+              <div key={s.label} className={`bg-gradient-to-br ${s.color} rounded-xl p-3 text-center`}>
+                <s.icon className="w-4 h-4 mx-auto mb-1 text-white/80" />
+                <p className="text-lg font-bold text-white">{s.value}</p>
+                <p className="text-[10px] text-white/70">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Game Board */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            {showResult && gameComplete && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl text-center">
+                <div className="text-3xl mb-1">🎉</div>
+                <h3 className="text-lg font-bold text-gray-900">Stage 1 Complete!</h3>
+                <p className="text-sm text-amber-700">
+                  Solved in {formatTime(timer)} · {moves} moves · +10 pts
+                </p>
+                <button onClick={completeMemoryStage}
+                  className="mt-3 px-6 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all">
+                  Continue to Stage 2
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-4 gap-2 sm:gap-3">
+              {cards.map(card => (
+                <button key={card.id} onClick={() => handleCardClick(card.id)}
+                  disabled={card.flipped || card.matched || gameComplete}
+                  className={`aspect-square rounded-xl text-2xl sm:text-3xl flex items-center justify-center transition-all duration-300 cursor-pointer ${
+                    card.matched
+                      ? 'bg-emerald-50 border border-emerald-300 scale-95 opacity-70'
+                      : card.flipped
+                        ? 'bg-white border-2 border-blue-400 shadow-md scale-100'
+                        : 'bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 hover:shadow-md text-gray-400'
+                  }`}
+                >
+                  {(card.flipped || card.matched) ? card.emoji : '?'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={resetMemoryGame}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all">
+            <RotateCcw className="w-4 h-4" /> Restart
+          </button>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  // ─── Render: Quiz Game ────────────────────────────────────────
+  if (currentScreen === 'quiz') {
+    const question = quizQuestions[quizIndex];
+    const passThreshold = Math.ceil(quizQuestions.length * 0.6);
+    const progress = ((quizIndex) / quizQuestions.length) * 100;
+
+    return (
+      <div className="min-h-screen bg-stone-50 pb-24">
+        <Header />
+        <PageHero compact title={`Stage ${currentStage}: ${STAGES[currentStage - 1].name}`}
+          subtitle="Answer the questions correctly to pass" images={HERO_CAROUSELS.games} imageAlt="Quiz game" overlay="dark" />
+
+        <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+          <button onClick={() => setCurrentScreen('stages')}
+            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
+            <ChevronRight className="w-4 h-4 rotate-180" /> Back to Stages
+          </button>
+
+          {!quizFinished ? (
+            <>
+              {/* Progress */}
+              <div className="bg-white rounded-xl p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Question {quizIndex + 1} of {quizQuestions.length}</span>
+                  <span className="text-sm text-gray-500">Score: {score}</span>
+                </div>
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+                </div>
+              </div>
+
+              {/* Question */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <h3 className="text-lg font-bold text-gray-900 mb-6">{question.question}</h3>
+                <div className="space-y-3">
+                  {question.options.map((opt, i) => {
+                    let btnClass = 'border-gray-200 hover:bg-gray-50 text-gray-900';
+                    if (showAnswer) {
+                      if (i === question.correct) btnClass = 'border-emerald-400 bg-emerald-50 text-emerald-800';
+                      else if (i === selectedAnswer) btnClass = 'border-red-400 bg-red-50 text-red-800';
+                      else btnClass = 'border-gray-200 opacity-60';
+                    } else if (selectedAnswer === i) {
+                      btnClass = 'border-blue-400 bg-blue-50';
+                    }
+                    return (
+                      <button key={i} onClick={() => handleAnswer(i)}
+                        disabled={showAnswer}
+                        className={`w-full text-left p-4 rounded-xl border transition ${btnClass}`}>
+                        <span className="text-sm font-medium">{opt}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {showAnswer && (
+                  <button onClick={nextQuizQuestion}
+                    className="w-full mt-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition">
+                    {quizIndex < quizQuestions.length - 1 ? 'Next Question' : 'See Results'}
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            /* Quiz Results */
+            <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
+              <div className="text-5xl mb-4">{quizPassed ? '🎉' : '😅'}</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                {quizPassed ? 'Stage Passed!' : 'Not Quite'}
+              </h3>
+              <p className="text-gray-600 mb-2">
+                You scored {score}/{quizQuestions.length}
+                {quizPassed ? ' — well done!' : ` — need ${passThreshold} to pass.`}
+              </p>
+              <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden mb-6">
+                <div className={`h-full rounded-full transition-all duration-500 ${
+                  quizPassed ? 'bg-emerald-500' : 'bg-red-400'
+                }`} style={{ width: `${(score / quizQuestions.length) * 100}%` }} />
+              </div>
+              <div className="flex gap-3">
+                {!quizPassed && (
+                  <button onClick={() => startQuizStage(currentStage)}
+                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition">
+                    Try Again
+                  </button>
+                )}
+                <button onClick={() => setCurrentScreen('stages')}
+                  className={`flex-1 py-3 rounded-xl font-semibold transition ${
+                    quizPassed
+                      ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}>
+                  {quizPassed ? 'Next Stage' : 'Back to Stages'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  return null;
 }
