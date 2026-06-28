@@ -3,7 +3,7 @@ import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS } from '../lib/media';
-import { Flame, RotateCcw, Star, Zap, Trophy, Brain, Clock, CheckCircle, Medal, Sparkles, X, Music, VolumeX, ChevronRight, Lock, Unlock } from 'lucide-react';
+import { Flame, RotateCcw, Star, Zap, Trophy, Brain, Clock, CheckCircle, Medal, Sparkles, X, Music, VolumeX, ChevronRight, Lock, Unlock, Settings } from 'lucide-react';
 
 interface StreakData {
   current: number;
@@ -38,6 +38,24 @@ interface GameStage {
 
 const DEFAULT_STREAK: StreakData = { current: 0, best: 0, lastDate: '', points: 0, gamesPlayed: 0 };
 
+// ─── Audio Settings (module-level for Web Audio access) ────────
+let musicVolume = 0.06;
+let sfxVolume = 0.15;
+let sfxEnabled = true;
+
+function loadAudioSettings() {
+  try {
+    const raw = localStorage.getItem('jobbridge_audio_settings');
+    if (raw) { const s = JSON.parse(raw); if (s.musicVolume !== undefined) musicVolume = s.musicVolume; if (s.sfxVolume !== undefined) sfxVolume = s.sfxVolume; if (s.sfxEnabled !== undefined) sfxEnabled = s.sfxEnabled; }
+  } catch {}
+}
+
+function saveAudioSettings(mv: number, sv: number, se: boolean) {
+  try { localStorage.setItem('jobbridge_audio_settings', JSON.stringify({ musicVolume: mv, sfxVolume: sv, sfxEnabled: se })); } catch {}
+}
+
+loadAudioSettings();
+
 // ─── Jazz Background Music ──────────────────────────────────────
 let jazzCtx: AudioContext | null = null;
 let jazzGain: GainNode | null = null;
@@ -56,9 +74,9 @@ function startJazzMusic() {
   jazzPlaying = true;
   if (!jazzGain) {
     jazzGain = ctx.createGain();
-    jazzGain.gain.setValueAtTime(0.06, ctx.currentTime);
     jazzGain.connect(ctx.destination);
   }
+  jazzGain.gain.setValueAtTime(musicVolume, ctx.currentTime);
 
   const chords = [
     [261.63, 329.63, 392.00, 493.88],
@@ -129,14 +147,15 @@ function getAudioCtx(): AudioContext {
   return audioCtx;
 }
 
-function playTone(freq: number, duration: number, type: OscillatorType = 'sine', volume = 0.15) {
+function playTone(freq: number, duration: number, type: OscillatorType = 'sine', volume?: number) {
+  if (!sfxEnabled) return;
   try {
     const ctx = getAudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, ctx.currentTime);
-    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.setValueAtTime(volume ?? sfxVolume, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -309,6 +328,10 @@ function saveStageProgress(completed: number[]) {
 
 export default function Games() {
   const [musicOn, setMusicOn] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [sfxOn, setSfxOn] = useState(() => sfxEnabled);
+  const [musicVol, setMusicVol] = useState(() => Math.round(musicVolume * 100));
+  const [sfxVol, setSfxVol] = useState(() => Math.round(sfxVolume * 100));
   const [currentScreen, setCurrentScreen] = useState<'stages' | 'memory' | 'quiz'>('stages');
   const [currentStage, setCurrentStage] = useState(1);
   const [completedStages, setCompletedStages] = useState<number[]>(() => loadStageProgress());
@@ -344,6 +367,24 @@ export default function Games() {
     unlocked: completedStages.includes(s.id - 1) || s.id === 1,
     completed: completedStages.includes(s.id),
   }));
+
+  // Audio settings handlers
+  const updateMusicVol = (v: number) => {
+    setMusicVol(v);
+    musicVolume = v / 100;
+    if (jazzGain) { try { jazzGain.gain.setValueAtTime(musicVolume, getJazzCtx().currentTime); } catch {} }
+    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled);
+  };
+  const updateSfxVol = (v: number) => {
+    setSfxVol(v);
+    sfxVolume = v / 100;
+    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled);
+  };
+  const toggleSfx = () => {
+    sfxEnabled = !sfxEnabled;
+    setSfxOn(sfxEnabled);
+    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled);
+  };
 
   // Toggle music
   useEffect(() => {
@@ -522,13 +563,20 @@ export default function Games() {
               <Brain className="w-4 h-4" />
               <span>{completedStages.length}/10 stages</span>
             </div>
-            <button onClick={() => setMusicOn(!musicOn)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
-                musicOn ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-              }`}>
-              {musicOn ? <Music className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              {musicOn ? 'Music On' : 'Music Off'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowSettings(true)}
+                className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                title="Audio settings">
+                <Settings className="w-5 h-5" />
+              </button>
+              <button onClick={() => setMusicOn(!musicOn)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
+                  musicOn ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                }`}>
+                {musicOn ? <Music className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                {musicOn ? 'Music On' : 'Music Off'}
+              </button>
+            </div>
           </div>
 
           {/* Stage List */}
@@ -580,6 +628,58 @@ export default function Games() {
             ))}
           </div>
         </div>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setShowSettings(false)} />
+            <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6 shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900">Audio Settings</h3>
+                <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+              </div>
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Music className={`w-5 h-5 ${musicOn ? 'text-blue-600' : 'text-gray-400'}`} />
+                    <span className="text-sm font-medium text-gray-700">Background Music</span>
+                  </div>
+                  <button onClick={() => setMusicOn(!musicOn)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${musicOn ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                    <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${musicOn ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+                {musicOn && (
+                  <div>
+                    <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Music Volume <span>{musicVol}%</span></label>
+                    <input type="range" min="0" max="100" value={musicVol} onChange={e => updateMusicVol(+e.target.value)}
+                      className="w-full accent-blue-700" />
+                  </div>
+                )}
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Zap className={`w-5 h-5 ${sfxOn ? 'text-amber-500' : 'text-gray-400'}`} />
+                      <span className="text-sm font-medium text-gray-700">Sound Effects</span>
+                    </div>
+                    <button onClick={toggleSfx}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${sfxOn ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${sfxOn ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                  {sfxOn && (
+                    <div>
+                      <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">SFX Volume <span>{sfxVol}%</span></label>
+                      <input type="range" min="0" max="100" value={sfxVol} onChange={e => updateSfxVol(+e.target.value)}
+                        className="w-full accent-blue-700" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <BottomNav />
       </div>
     );
