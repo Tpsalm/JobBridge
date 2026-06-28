@@ -210,7 +210,7 @@ const Blog: React.FC = () => {
           <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow grid md:grid-cols-2">
               <div>
-                <img src={featuredPost.img || 'https://images.pexels.com/photos/7176027/pexels-photo-7176027.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&dpr=2'} alt={featuredPost.title} className="w-full h-full object-contain bg-gray-100 min-h-[250px]" />
+                <img src={featuredPost.img || 'https://images.pexels.com/photos/7176027/pexels-photo-7176027.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&dpr=2'} alt={featuredPost.title} className="w-full h-full object-cover min-h-[250px]" />
               </div>
               <div className="p-8">
                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-4 ${getCategoryColor(featuredPost.category)}`}>
@@ -276,7 +276,7 @@ const Blog: React.FC = () => {
                 className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow flex flex-col"
                 strength={6}
               >
-                <img src={post.img || 'https://images.pexels.com/photos/7176027/pexels-photo-7176027.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&dpr=2'} alt={post.title} className="w-full h-44 object-contain bg-gray-50" />
+                <img src={post.img || 'https://images.pexels.com/photos/7176027/pexels-photo-7176027.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&dpr=2'} alt={post.title} className="w-full h-44 object-cover" />
                 <div className="p-6 flex flex-col flex-1">
                   <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mb-3 w-fit ${getCategoryColor(post.category)}`}>
                     {post.category}

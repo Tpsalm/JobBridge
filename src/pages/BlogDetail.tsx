@@ -155,7 +155,7 @@ const BlogDetail: React.FC = () => {
         {/* Hero Image */}
         {post.img && (
           <div className="w-full h-64 sm:h-80 md:h-96 overflow-hidden">
-            <img src={post.img} alt={post.title} className="w-full h-full object-contain bg-gray-100" />
+            <img src={post.img} alt={post.title} className="w-full h-full object-cover" />
           </div>
         )}
 
