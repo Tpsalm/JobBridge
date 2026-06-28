@@ -197,6 +197,17 @@ const CARD_PAIRS = [
   { emoji: '⭐', label: 'Excellence' },
 ];
 
+const CARD_PAIRS_2 = [
+  { emoji: '🌍', label: 'Global' },
+  { emoji: '🔧', label: 'Skills' },
+  { emoji: '🎓', label: 'Learn' },
+  { emoji: '💪', label: 'Strength' },
+  { emoji: '🌈', label: 'Diverse' },
+  { emoji: '🚦', label: 'Progress' },
+  { emoji: '🎨', label: 'Create' },
+  { emoji: '🔗', label: 'Connect' },
+];
+
 // ─── Quiz Questions Pool ────────────────────────────────────────
 const QUIZ_POOL: QuizQuestion[] = [
   { question: 'What does the STAR method stand for in interviews?', options: ['Situation, Task, Action, Result', 'Start, Think, Answer, Respond', 'State, Track, Analyze, Review', 'Structure, Time, Action, Rating'], correct: 0 },
@@ -252,6 +263,7 @@ const STAGES: GameStage[] = [
   { id: 8, name: 'Networking Pro', description: 'Build meaningful connections', type: 'quiz', unlocked: false, completed: false },
   { id: 9, name: 'Leadership Edge', description: 'Show leadership potential', type: 'quiz', unlocked: false, completed: false },
   { id: 10, name: 'Final Challenge', description: 'The ultimate interview test', type: 'quiz', unlocked: false, completed: false },
+  { id: 11, name: 'Tile Match Pro', description: 'Match the global career tiles', type: 'memory', unlocked: false, completed: false },
 ];
 
 function shuffle<T>(arr: T[]): T[] {
@@ -360,6 +372,7 @@ export default function Games() {
   const [bestScore, setBestScore] = useState<number>(() => {
     try { return parseInt(localStorage.getItem('jobbridge_best_moves') || '999'); } catch { return 999; }
   });
+  const memoryCardSet = useRef(CARD_PAIRS);
 
   // Stage progress
   const stages = STAGES.map(s => ({
@@ -421,7 +434,7 @@ export default function Games() {
         playMatchSound();
         const newMatched = matchedCount + 1;
         setMatchedCount(newMatched);
-        if (newMatched === CARD_PAIRS.length) {
+        if (newMatched === memoryCardSet.current.length) {
           setGameComplete(true);
           playWinSound();
           const newStreak = updateStreak();
@@ -463,13 +476,24 @@ export default function Games() {
     setShowResult(false);
   };
 
-  const startMemoryStage = () => {
-    resetMemoryGame();
+  const startMemoryStage = (stageId: number) => {
+    const pairs = stageId === 11 ? CARD_PAIRS_2 : CARD_PAIRS;
+    memoryCardSet.current = pairs;
+    setCards(shuffle([...pairs, ...pairs].map((pair, i) => ({
+      id: i, emoji: pair.emoji, label: pair.label, flipped: false, matched: false,
+    }))));
+    setFlippedIds([]);
+    setMoves(0);
+    setMatchedCount(0);
+    setGameComplete(false);
+    setTimer(0);
+    setShowResult(false);
+    setCurrentStage(stageId);
     setCurrentScreen('memory');
   };
 
   const completeMemoryStage = () => {
-    const newCompleted = [...new Set([...completedStages, 1])];
+    const newCompleted = [...new Set([...completedStages, currentStage])];
     setCompletedStages(newCompleted);
     saveStageProgress(newCompleted);
     setCurrentScreen('stages');
@@ -592,7 +616,7 @@ export default function Games() {
                 }`}
                 onClick={() => {
                   if (!stage.unlocked || stage.completed) return;
-                  if (stage.type === 'memory') startMemoryStage();
+                  if (stage.type === 'memory') startMemoryStage(stage.id);
                   else startQuizStage(stage.id);
                 }}
               >
@@ -690,7 +714,7 @@ export default function Games() {
     return (
       <div className="min-h-screen bg-stone-50 pb-24">
         <Header />
-        <PageHero compact title="Stage 1: Memory Match" subtitle="Match the career pairs to advance" images={HERO_CAROUSELS.games} imageAlt="Memory match game" overlay="dark" />
+        <PageHero compact title={`Stage ${currentStage}: ${STAGES[currentStage - 1]?.name || 'Memory Match'}`} subtitle="Match the pairs to advance" images={HERO_CAROUSELS.games} imageAlt="Memory match game" overlay="dark" />
 
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
           {/* Back to Stages */}
@@ -704,7 +728,7 @@ export default function Games() {
             {[
               { label: 'Time', value: formatTime(timer), icon: Clock, color: 'from-cyan-500 to-blue-600' },
               { label: 'Moves', value: moves.toString(), icon: Zap, color: 'from-violet-500 to-purple-600' },
-              { label: 'Matched', value: `${matchedCount}/${CARD_PAIRS.length}`, icon: CheckCircle, color: 'from-emerald-500 to-green-600' },
+              { label: 'Matched', value: `${matchedCount}/${memoryCardSet.current.length}`, icon: CheckCircle, color: 'from-emerald-500 to-green-600' },
               { label: 'Best', value: bestScore < 999 ? `${bestScore}` : '—', icon: Trophy, color: 'from-amber-500 to-orange-600' },
             ].map(s => (
               <div key={s.label} className={`bg-gradient-to-br ${s.color} rounded-xl p-3 text-center`}>
@@ -726,7 +750,7 @@ export default function Games() {
                 </p>
                 <button onClick={completeMemoryStage}
                   className="mt-3 px-6 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all">
-                  Continue to Stage 2
+                  Continue to Stage {currentStage + 1}
                 </button>
               </div>
             )}
