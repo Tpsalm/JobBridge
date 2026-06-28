@@ -255,6 +255,9 @@ export default function Profile() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-24">
         {/* Cover Photo */}
+        {profileLoading ? (
+          <div className="rounded-2xl mb-6 h-80 sm:h-96 bg-gray-100 animate-pulse" />
+        ) : (
         <div className="relative rounded-2xl overflow-hidden mb-6 h-80 sm:h-96 group">
           <img src={localCover || form.cover_url || IMG.profile.cover} alt=""
             className="w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
@@ -272,6 +275,7 @@ export default function Profile() {
           <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
         </div>
+        )}
 
         {/* Completeness Meter */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
