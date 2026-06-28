@@ -4,7 +4,7 @@ import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { updateProfile, fetchProfile } from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
-import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle, Upload, Loader, Eye, EyeOff } from 'lucide-react';
+import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle, Upload, Loader, Eye, EyeOff, Trash2, Sliders, RefreshCw } from 'lucide-react';
 import { IMG } from '../lib/media';
 
 type ProfileField = keyof typeof PROFILE_FIELDS;
@@ -44,6 +44,8 @@ export default function Profile() {
   const [localCover, setLocalCover] = useState<string | null>(null);
   const [coverPos, setCoverPos] = useState({ x: 50, y: 25 });
   const dragRef = useRef<{ startX: number; startY: number; startPos: { x: number; y: number } } | null>(null);
+  const [showCoverEditor, setShowCoverEditor] = useState(false);
+  const [coverFilters, setCoverFilters] = useState({ brightness: 100, contrast: 100, saturation: 100, blur: 0 });
 
   function startDrag(e: React.MouseEvent | React.TouchEvent) {
     const ce = 'touches' in e ? e.touches[0] : e;
@@ -168,6 +170,13 @@ export default function Profile() {
     setUploading(false);
   }
 
+  const handleDeleteCover = async () => {
+    updateField('cover_url', '');
+    setLocalCover(null);
+    try { localStorage.removeItem('jobbridge_cover_url'); } catch {}
+    try { const cache = await caches.open('jobbridge-images'); await cache.delete('cover'); } catch {}
+  };
+
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
@@ -261,20 +270,74 @@ export default function Profile() {
         <div className="relative rounded-2xl overflow-hidden mb-6 h-80 sm:h-96 group">
           <img src={localCover || form.cover_url || IMG.profile.cover} alt=""
             className="w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
-            style={{ objectPosition: `${coverPos.x}% ${coverPos.y}%` }}
+            style={{ objectPosition: `${coverPos.x}% ${coverPos.y}%`, filter: `brightness(${coverFilters.brightness}%) contrast(${coverFilters.contrast}%) saturate(${coverFilters.saturation}%) blur(${coverFilters.blur}px)` }}
             onMouseDown={e => startDrag(e, 'cover')}
             onTouchStart={e => startDrag(e, 'cover')}
             draggable={false} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
-          <div className="absolute top-3 right-3">
+          <div className="absolute top-3 right-3 flex gap-2">
             <button onClick={() => coverInputRef.current?.click()} disabled={!!uploading}
-              className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60">
-              {uploading ? <Loader className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60"
+              title="Replace image">
+              {uploading ? <Loader className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            </button>
+            <button onClick={() => setShowCoverEditor(true)}
+              className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60"
+              title="Edit image">
+              <Sliders className="w-4 h-4" />
+            </button>
+            <button onClick={handleDeleteCover}
+              className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+              title="Delete image">
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
           <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
         </div>
+        )}
+
+        {/* Cover Editor Modal */}
+        {showCoverEditor && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowCoverEditor(false)} />
+            <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-6 shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900">Edit Cover Image</h3>
+                <button onClick={() => setShowCoverEditor(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+              </div>
+              <div className="space-y-5">
+                <div>
+                  <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Brightness <span>{coverFilters.brightness}%</span></label>
+                  <input type="range" min="0" max="200" value={coverFilters.brightness}
+                    onChange={e => setCoverFilters(f => ({ ...f, brightness: +e.target.value }))}
+                    className="w-full accent-blue-700" />
+                </div>
+                <div>
+                  <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Contrast <span>{coverFilters.contrast}%</span></label>
+                  <input type="range" min="0" max="200" value={coverFilters.contrast}
+                    onChange={e => setCoverFilters(f => ({ ...f, contrast: +e.target.value }))}
+                    className="w-full accent-blue-700" />
+                </div>
+                <div>
+                  <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Saturation <span>{coverFilters.saturation}%</span></label>
+                  <input type="range" min="0" max="200" value={coverFilters.saturation}
+                    onChange={e => setCoverFilters(f => ({ ...f, saturation: +e.target.value }))}
+                    className="w-full accent-blue-700" />
+                </div>
+                <div>
+                  <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Blur <span>{coverFilters.blur}px</span></label>
+                  <input type="range" min="0" max="10" step="0.5" value={coverFilters.blur}
+                    onChange={e => setCoverFilters(f => ({ ...f, blur: +e.target.value }))}
+                    className="w-full accent-blue-700" />
+                </div>
+              </div>
+              <button onClick={() => setCoverFilters({ brightness: 100, contrast: 100, saturation: 100, blur: 0 })}
+                className="w-full mt-6 py-2.5 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                Reset to Default
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Completeness Meter */}
