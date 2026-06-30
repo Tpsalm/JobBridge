@@ -56,6 +56,9 @@ export default function Profile() {
   function onDrag(e: MouseEvent | TouchEvent) {
     if (!dragRef.current) return;
     const ce = 'touches' in e ? e.touches[0] : e;
+    const distX = Math.abs(ce.clientX - dragRef.current.startX);
+    const distY = Math.abs(ce.clientY - dragRef.current.startY);
+    if (distX < 5 && distY < 5) return;
     const dx = ((ce.clientX - dragRef.current.startX) / 200) * 100;
     const dy = ((ce.clientY - dragRef.current.startY) / 200) * 100;
     setCoverPos({
@@ -65,6 +68,11 @@ export default function Profile() {
   }
 
   function endDrag() { dragRef.current = null; }
+
+  const handleTouchStartOnCover = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) return;
+    startDrag(e);
+  };
 
   useEffect(() => {
     window.addEventListener('mousemove', onDrag);
@@ -273,8 +281,8 @@ export default function Profile() {
           <img src={localCover || form.cover_url || IMG.profile.cover} alt=""
             className="w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
             style={{ objectPosition: `${coverPos.x}% ${coverPos.y}%`, filter: `brightness(${coverFilters.brightness}%) contrast(${coverFilters.contrast}%) saturate(${coverFilters.saturation}%) blur(${coverFilters.blur}px)` }}
-            onMouseDown={e => startDrag(e, 'cover')}
-            onTouchStart={e => startDrag(e, 'cover')}
+            onMouseDown={startDrag}
+            onTouchStart={handleTouchStartOnCover}
             draggable={false} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
           <div className="absolute top-3 right-3 flex gap-2">
