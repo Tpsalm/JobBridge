@@ -354,6 +354,8 @@ export default function Games() {
   const [quizPassed, setQuizPassed] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(15);
+  const [timedOut, setTimedOut] = useState(false);
 
   // Memory game state
   const [cards, setCards] = useState<MemoryCard[]>(() =>
@@ -499,6 +501,10 @@ export default function Games() {
     setCurrentScreen('stages');
   };
 
+  const getTimeLimit = (stageId: number) => stageId <= 2 ? 15 : stageId <= 3 ? 12 : stageId <= 4 ? 10 : 8;
+  const getPassThreshold = (stageId: number, total: number) => stageId <= 2 ? Math.ceil(total * 0.6) : stageId <= 3 ? Math.ceil(total * 0.7) : Math.ceil(total * 0.75);
+  const hasPenalty = (stageId: number) => stageId >= 4;
+
   const startQuizStage = (stageId: number) => {
     const pool = shuffle([...QUIZ_POOL]);
     const count = stageId <= 3 ? 5 : stageId <= 6 ? 6 : 8;
@@ -509,9 +515,32 @@ export default function Games() {
     setQuizPassed(false);
     setSelectedAnswer(null);
     setShowAnswer(false);
+    setTimeLeft(getTimeLimit(stageId));
+    setTimedOut(false);
     setCurrentStage(stageId);
     setCurrentScreen('quiz');
   };
+
+  useEffect(() => {
+    if (currentScreen !== 'quiz' || quizFinished || showAnswer) return;
+    const t = getTimeLimit(currentStage);
+    setTimeLeft(t);
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setTimedOut(true);
+          setShowAnswer(true);
+          setSelectedAnswer(-1);
+          if (hasPenalty(currentStage)) setScore(s => Math.max(0, s - 1));
+          playWrongSound();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [currentScreen, quizIndex, quizFinished, showAnswer, currentStage]);
 
   const handleAnswer = (optionIndex: number) => {
     if (showAnswer) return;
@@ -521,6 +550,7 @@ export default function Games() {
       setScore(s => s + 1);
       playCorrectSound();
     } else {
+      if (hasPenalty(currentStage)) setScore(s => Math.max(0, s - 1));
       playWrongSound();
     }
   };
@@ -530,9 +560,11 @@ export default function Games() {
       setQuizIndex(i => i + 1);
       setSelectedAnswer(null);
       setShowAnswer(false);
+      setTimedOut(false);
+      setTimeLeft(getTimeLimit(currentStage));
     } else {
-      const passThreshold = Math.ceil(quizQuestions.length * 0.6);
-      const passed = score >= passThreshold || score > quizQuestions.length / 2;
+      const passThreshold = getPassThreshold(currentStage, quizQuestions.length);
+      const passed = score >= passThreshold;
       setQuizFinished(true);
       setQuizPassed(passed);
       if (passed) {
@@ -803,20 +835,37 @@ export default function Games() {
 
           {!quizFinished ? (
             <>
-              {/* Progress */}
-              <div className="bg-white rounded-xl p-4 border border-gray-200">
-                <div className="flex items-center justify-between mb-2">
+              {/* Progress & Timer */}
+              <div className="bg-white rounded-xl p-4 border border-gray-200 space-y-2">
+                <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">Question {quizIndex + 1} of {quizQuestions.length}</span>
                   <span className="text-sm text-gray-500">Score: {score}</span>
                 </div>
                 <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
                 </div>
+                {/* Timer Bar */}
+                <div className="flex items-center gap-2">
+                  <Clock className={`w-4 h-4 ${timeLeft <= 3 ? 'text-red-500' : 'text-gray-400'}`} />
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-1000 ${
+                      timeLeft <= 3 ? 'bg-red-500' : timeLeft <= 6 ? 'bg-amber-500' : 'bg-blue-500'
+                    }`} style={{ width: `${(timeLeft / getTimeLimit(currentStage)) * 100}%` }} />
+                  </div>
+                  <span className={`text-xs font-bold ${timeLeft <= 3 ? 'text-red-500' : 'text-gray-500'}`}>
+                    {timeLeft}s
+                  </span>
+                </div>
               </div>
 
               {/* Question */}
               <div className="bg-white rounded-xl p-6 border border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900 mb-6">{question.question}</h3>
+                {timedOut && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-center">
+                    <span className="text-sm font-semibold text-red-700">Time's up! {hasPenalty(currentStage) ? '-1 point' : 'No points'}</span>
+                  </div>
+                )}
                 <div className="space-y-3">
                   {question.options.map((opt, i) => {
                     let btnClass = 'border-gray-200 hover:bg-gray-50 text-gray-900';
@@ -854,8 +903,9 @@ export default function Games() {
               </h3>
               <p className="text-gray-600 mb-2">
                 You scored {score}/{quizQuestions.length}
-                {quizPassed ? ' — well done!' : ` — need ${passThreshold} to pass.`}
+                {quizPassed ? ' — well done!' : ` — need ${passThreshold}/${quizQuestions.length} to pass.`}
               </p>
+              {hasPenalty(currentStage) && <p className="text-xs text-red-500 mb-2">Wrong answers lose points</p>}
               <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden mb-6">
                 <div className={`h-full rounded-full transition-all duration-500 ${
                   quizPassed ? 'bg-emerald-500' : 'bg-red-400'
