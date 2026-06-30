@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MapPin, Clock, Bookmark, Share2, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send, Loader2 } from 'lucide-react';
+import { Search, MapPin, Clock, Bookmark, Share2, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send, FileText, Edit3 } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
@@ -54,28 +54,17 @@ const Jobs = () => {
       return;
     }
     setShowApplication(true);
-    markApplied(job.id);
-    setAppliedLocal(prev => prev.includes(job.id) ? prev : [...prev, job.id]);
+    setApplyMethod(null);
   };
 
   // Application form state
   const [showApplication, setShowApplication] = useState(false);
+  const [applyMethod, setApplyMethod] = useState<'upload' | 'manual' | null>(null);
   const [appForm, setAppForm] = useState({
-    date_of_birth: '',
-    gender: '',
-    is_disabled: 'no',
-    is_displaced: 'no',
     professional_headline: '',
     years_of_experience: '',
-    function: '',
-    work_type: '',
-    highest_qualification: '',
-    location: '',
-    availability: '',
-    salary_expectation: '',
     cover_letter: '',
   });
-  const [appStep, setAppStep] = useState(1);
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [cvName, setCvName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -95,7 +84,8 @@ const Jobs = () => {
   };
 
   const handleSubmitApplication = async (jobId: string) => {
-    if (!appForm.professional_headline || !appForm.years_of_experience) { setAppError('Professional headline and years of experience are required'); return; }
+    if (applyMethod === 'upload' && !cvFile) { setAppError('Please upload your CV'); return; }
+    if (applyMethod === 'manual' && (!appForm.professional_headline || !appForm.years_of_experience)) { setAppError('Professional headline and years of experience are required'); return; }
     setSubmitting(true); setAppError('');
     try {
       let resume_url = '';
@@ -110,6 +100,8 @@ const Jobs = () => {
       }
       await createApplication({ job_id: jobId, applicant_id: user?.id || '', cover_letter: appForm.cover_letter, resume_url });
       window.dispatchEvent(new CustomEvent('applications:updated'));
+      markApplied(jobId);
+      setAppliedLocal(prev => prev.includes(jobId) ? prev : [...prev, jobId]);
       setApplied(true);
     } catch (err: any) { setAppError(err.message || 'Failed to submit application'); }
     finally { setSubmitting(false); }
@@ -160,7 +152,7 @@ const Jobs = () => {
     setShowBenefits(true);
     setMobileDetail(true);
     setShowApplication(false);
-    setAppStep(1);
+    setApplyMethod(null);
     setApplied(false);
     setAppError('');
     // Increment view count
@@ -492,55 +484,84 @@ const Jobs = () => {
                       <h3 className="text-lg font-bold text-gray-900 mb-1">Application Submitted!</h3>
                       <p className="text-sm text-gray-500">Good luck! You'll hear from the recruiter if you're shortlisted.</p>
                     </div>
-                  ) : (
+                  ) : !applyMethod ? (
                     <div className="px-6 py-5 space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="font-bold text-gray-900 flex items-center gap-2">
                           <Briefcase className="w-4 h-4 text-blue-700" /> Apply for {selectedJob.title}
                         </h3>
-                        <button onClick={() => setShowApplication(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                        <button onClick={() => { setShowApplication(false); setApplyMethod(null); }} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
                       </div>
-                      <p className="text-sm text-gray-600">Let's get started, please take the time to fill out this form.</p>
+                      <p className="text-sm text-gray-600">Choose how you'd like to apply:</p>
+                      <button onClick={() => setApplyMethod('upload')}
+                        className="w-full border-2 border-dashed border-blue-300 hover:border-blue-500 bg-blue-50 hover:bg-blue-100 rounded-xl p-6 text-center transition-colors">
+                        <FileText className="w-10 h-10 mx-auto text-blue-500 mb-2" />
+                        <p className="font-semibold text-blue-700">Upload my CV</p>
+                        <p className="text-xs text-blue-500 mt-1">pdf, doc, docx & rtf — max 10MB</p>
+                      </button>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-gray-200" />
+                        <span className="text-xs text-gray-400 font-medium">OR</span>
+                        <div className="flex-1 h-px bg-gray-200" />
+                      </div>
+                      <button onClick={() => setApplyMethod('manual')}
+                        className="w-full border-2 border-gray-200 hover:border-gray-400 bg-white hover:bg-gray-50 rounded-xl p-6 text-center transition-colors">
+                        <Edit3 className="w-10 h-10 mx-auto text-gray-400 mb-2" />
+                        <p className="font-semibold text-gray-700">Fill in details manually</p>
+                        <p className="text-xs text-gray-500 mt-1">Professional headline, experience & cover letter</p>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="px-6 py-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                          <Briefcase className="w-4 h-4 text-blue-700" /> Apply for {selectedJob.title}
+                          <span className="text-xs font-normal text-gray-400 ml-1">— {applyMethod === 'upload' ? 'Upload CV' : 'Manual'}</span>
+                        </h3>
+                        <button onClick={() => setApplyMethod(null)} className="text-xs text-gray-500 hover:text-gray-700">Back</button>
+                      </div>
 
                       {appError && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{appError}</div>}
 
-                      {appStep === 1 && (
+                      {applyMethod === 'upload' && (
                         <div className="space-y-4">
                           <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Date of birth *</label>
-                            <input type="date" value={appForm.date_of_birth} onChange={e => updateAppForm('date_of_birth', e.target.value)}
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Upload your CV *</label>
+                            <label className="border-2 border-dashed border-blue-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-500 transition-colors block bg-blue-50/50">
+                              <input type="file" accept=".pdf,.doc,.docx,.rtf" onChange={handleCvChange} className="hidden" />
+                              {cvName ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <CheckCircle className="w-6 h-6 text-green-600" />
+                                  <span className="text-sm font-medium text-gray-700">{cvName}</span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <Upload className="w-10 h-10 mx-auto text-blue-400" />
+                                  <p className="mt-2 text-sm font-semibold text-blue-700">Tap to upload your CV</p>
+                                  <p className="text-xs text-gray-500 mt-1">pdf, doc, docx & rtf files no bigger than 10MB</p>
+                                </div>
+                              )}
+                            </label>
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Gender *</label>
-                            <div className="flex gap-4">
-                              {['Male', 'Female'].map(g => (
-                                <button key={g} type="button" onClick={() => updateAppForm('gender', g.toLowerCase())}
-                                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${appForm.gender === g.toLowerCase() ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-500'}`}>{g}</button>
-                              ))}
-                            </div>
+                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Cover letter (optional)</label>
+                            <textarea value={appForm.cover_letter} onChange={e => updateAppForm('cover_letter', e.target.value)} rows={3}
+                              placeholder="Tell the employer why you're a great fit..."
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
                           </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Disabled *</label>
-                            <div className="flex gap-4">
-                              {['Yes', 'No'].map(v => (
-                                <button key={v} type="button" onClick={() => updateAppForm('is_disabled', v.toLowerCase())}
-                                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${appForm.is_disabled === v.toLowerCase() ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-500'}`}>{v}</button>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Internally displaced person *</label>
-                            <div className="flex gap-4">
-                              {['Yes', 'No'].map(v => (
-                                <button key={v} type="button" onClick={() => updateAppForm('is_displaced', v.toLowerCase())}
-                                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${appForm.is_displaced === v.toLowerCase() ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-500'}`}>{v}</button>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                            <p className="text-xs text-blue-700 leading-relaxed"><span className="font-semibold">Note:</span> Inclusion is our culture. We champion all talent: women, men, displaced, and PWDs.</p>
-                          </div>
+                          <button onClick={() => handleSubmitApplication(selectedJob.id)} disabled={submitting}
+                            className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm flex items-center justify-center gap-2">
+                            {submitting ? (
+                              <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Submitting...</>
+                            ) : (
+                              <><Send className="w-4 h-4" /> Submit Application</>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      {applyMethod === 'manual' && (
+                        <div className="space-y-4">
                           <div>
                             <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Professional headline / title *</label>
                             <input type="text" value={appForm.professional_headline} onChange={e => updateAppForm('professional_headline', e.target.value)} placeholder="e.g. Senior Accountant"
@@ -555,102 +576,19 @@ const Jobs = () => {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Function *</label>
-                            <select value={appForm.function} onChange={e => updateAppForm('function', e.target.value)}
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                              <option value="">Select...</option>
-                              {['Accounting', 'Administration', 'Banking & Finance', 'Customer Service', 'Education', 'Engineering', 'Healthcare', 'Hospitality', 'Human Resources', 'IT & Software', 'Legal', 'Logistics', 'Marketing', 'Operations', 'Sales', 'Security', 'Other'].map(f => <option key={f} value={f}>{f}</option>)}
-                            </select>
-                          </div>
-                          <button onClick={() => setAppStep(2)} disabled={!appForm.professional_headline || !appForm.years_of_experience || !appForm.function}
-                            className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Continue</button>
-                        </div>
-                      )}
-
-                      {appStep === 2 && (
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Work Type *</label>
-                            <select value={appForm.work_type} onChange={e => updateAppForm('work_type', e.target.value)}
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                              <option value="">Select...</option>
-                              {['Full-time', 'Part-time', 'Contract', 'Remote', 'Hybrid', 'Freelance'].map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Highest Qualification *</label>
-                            <select value={appForm.highest_qualification} onChange={e => updateAppForm('highest_qualification', e.target.value)}
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                              <option value="">Select...</option>
-                              {['SSCE / O-Level', 'OND / Diploma', 'HND / Bachelors', "Master's", 'PhD', 'Professional Certification', 'Vocational Training'].map(q => <option key={q} value={q}>{q}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Location *</label>
-                            <input type="text" value={appForm.location} onChange={e => updateAppForm('location', e.target.value)} placeholder="City, State"
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Availability *</label>
-                            <select value={appForm.availability} onChange={e => updateAppForm('availability', e.target.value)}
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                              <option value="">Select...</option>
-                              {['Immediately', '2 weeks', '1 month', 'Notice period'].map(a => <option key={a} value={a}>{a}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Monthly Salary Expectation (Gross) *</label>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-500">NGN</span>
-                              <input type="number" value={appForm.salary_expectation} onChange={e => updateAppForm('salary_expectation', e.target.value)} placeholder="0"
-                                className="w-full border border-gray-300 rounded-lg pl-14 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                            </div>
-                          </div>
-                          <div className="flex gap-3">
-                            <button onClick={() => setAppStep(1)} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition-colors text-sm">Back</button>
-                            <button onClick={() => setAppStep(3)} disabled={!appForm.work_type || !appForm.highest_qualification || !appForm.location || !appForm.availability || !appForm.salary_expectation}
-                              className="flex-1 bg-blue-700 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm">Continue</button>
-                          </div>
-                        </div>
-                      )}
-
-                      {appStep === 3 && (
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Upload your CV</label>
-                            <p className="text-xs text-gray-500 mb-2">pdf, doc, docx & rtf files no bigger than 10MB.</p>
-                            <label className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-blue-500 transition-colors block">
-                              <input type="file" accept=".pdf,.doc,.docx,.rtf" onChange={handleCvChange} className="hidden" />
-                              {cvName ? (
-                                <div className="flex items-center justify-center gap-2">
-                                  <CheckCircle className="w-5 h-5 text-green-600" />
-                                  <span className="text-sm font-medium text-gray-700">{cvName}</span>
-                                </div>
-                              ) : (
-                                <div>
-                                  <Upload className="w-8 h-8 mx-auto text-gray-400" />
-                                  <p className="mt-1 text-sm font-semibold text-gray-700">Tap to upload your CV</p>
-                                </div>
-                              )}
-                            </label>
-                          </div>
-                          <div>
                             <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Cover letter (optional)</label>
-                            <textarea value={appForm.cover_letter} onChange={e => updateAppForm('cover_letter', e.target.value)} rows={4}
+                            <textarea value={appForm.cover_letter} onChange={e => updateAppForm('cover_letter', e.target.value)} rows={3}
                               placeholder="Tell the employer why you're a great fit..."
                               className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
                           </div>
-                          <div className="flex gap-3">
-                            <button onClick={() => setAppStep(2)} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition-colors text-sm">Back</button>
-                            <button onClick={() => handleSubmitApplication(selectedJob.id)} disabled={submitting}
-                              className="flex-1 bg-blue-700 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm flex items-center justify-center gap-2">
-                              {submitting ? (
-                                <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Submitting...</>
-                              ) : (
-                                <><Send className="w-4 h-4" /> Submit and apply</>
-                              )}
-                            </button>
-                          </div>
+                          <button onClick={() => handleSubmitApplication(selectedJob.id)} disabled={submitting}
+                            className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm flex items-center justify-center gap-2">
+                            {submitting ? (
+                              <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Submitting...</>
+                            ) : (
+                              <><Send className="w-4 h-4" /> Submit Application</>
+                            )}
+                          </button>
                         </div>
                       )}
                     </div>
