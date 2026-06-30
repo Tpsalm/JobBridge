@@ -140,43 +140,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Restore session from Supabase
-    supabase.auth.getSession().then(({ data: { session: sess } }) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
-      if (sess?.user) {
-        buildProfile(sess.user).then(p => {
-          setProfile(p);
-          setLoading(false);
-        });
-        // Validate applied jobs against actual Supabase data — clear stale localStorage entries
-        fetchUserApplications(sess.user.id).then(apps => {
-          const validIds = apps.map((a: any) => a.job_id).filter(Boolean);
-          setAppliedJobs(prev => {
-            const clean = prev.filter(id => validIds.includes(id));
-            localStorage.setItem('jobbridge_applied_jobs', JSON.stringify(clean));
-            return clean;
+    let cancelled = false;
+    let initialised = false;
+
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, sess) => {
+      if (cancelled) return;
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+        if (initialised && event === 'INITIAL_SESSION') return;
+        initialised = true;
+        setSession(sess);
+        setUser(sess?.user ?? null);
+        if (sess?.user) {
+          buildProfile(sess.user).then(p => {
+            if (!cancelled) { setProfile(p); setLoading(false); }
           });
-        }).catch(() => {});
-      } else {
-        setLoading(false);
-      }
-    }).catch(() => {
-      setLoading(false);
-    });
-
-    // Listen for auth state changes
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, sess) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
-      if (sess?.user) {
-        buildProfile(sess.user).then(p => setProfile(p));
-      } else {
+          fetchUserApplications(sess.user.id).then(apps => {
+            if (cancelled) return;
+            const validIds = apps.map((a: any) => a.job_id).filter(Boolean);
+            setAppliedJobs(prev => {
+              const clean = prev.filter(id => validIds.includes(id));
+              localStorage.setItem('jobbridge_applied_jobs', JSON.stringify(clean));
+              return clean;
+            });
+          }).catch(() => {});
+        } else {
+          if (!cancelled) setLoading(false);
+        }
+      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        setSession(null);
+        setUser(null);
         setProfile(null);
+        setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED') {
+        setSession(sess);
+        setUser(sess?.user ?? null);
+        if (sess?.user) {
+          buildProfile(sess.user).then(p => { if (!cancelled) setProfile(p); });
+        }
       }
     });
 
-    return () => authSub.unsubscribe();
+    return () => { cancelled = true; authSub.unsubscribe(); };
   }, [buildProfile]);
 
   // Inactivity auto-logout timer
@@ -266,9 +270,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setSession(null);
   };
 
   return (
