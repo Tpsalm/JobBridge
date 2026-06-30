@@ -23,12 +23,12 @@ const PROFILE_FIELDS = {
   availability: { label: 'Availability', section: 'professional', weight: 1 },
   salary_expectation: { label: 'Salary Expectation', section: 'professional', weight: 1 },
   bio: { label: 'Bio / About', section: 'professional', weight: 2 },
+  is_disabled: { label: 'Disability Status', section: 'inclusion', weight: 1 },
+  is_displaced: { label: 'Displaced Person Status', section: 'inclusion', weight: 1 },
   specialty: { label: 'Service Specialty (Providers)', section: 'provider', weight: 2 },
   hourly_rate: { label: 'Hourly Rate (NGN)', section: 'provider', weight: 1 },
   skills: { label: 'Skills (comma-separated)', section: 'provider', weight: 1 },
 };
-
-const TOTAL_WEIGHT = Object.values(PROFILE_FIELDS).reduce((s, f) => s + f.weight, 0);
 
 export default function Profile() {
   const { user, profile: userProfile } = useAuth();
@@ -46,6 +46,7 @@ export default function Profile() {
   const dragRef = useRef<{ startX: number; startY: number; startPos: { x: number; y: number } } | null>(null);
   const [showCoverEditor, setShowCoverEditor] = useState(false);
   const [coverFilters, setCoverFilters] = useState({ brightness: 100, contrast: 100, saturation: 100, blur: 0 });
+  const profRef = useRef<HTMLDivElement>(null);
 
   function startDrag(e: React.MouseEvent | React.TouchEvent) {
     const ce = 'touches' in e ? e.touches[0] : e;
@@ -114,37 +115,36 @@ export default function Profile() {
       if (!coverUrl) {
         try { coverUrl = localStorage.getItem('jobbridge_cover_url') || ''; } catch {}
       }
-      if (!coverUrl) {
-        try {
-          const cache = await caches.open('jobbridge-images');
-          const resp = await cache.match('cover');
-          if (resp) {
-            const blob = await resp.blob();
-            coverUrl = URL.createObjectURL(blob);
-          }
-        } catch {}
-      }
       if (coverUrl) setForm(f => ({ ...f, cover_url: coverUrl }));
       setProfileLoading(false);
     }
     loadProfile();
   }, [user]);
 
+  const activeFields = useMemo(() => {
+    return Object.entries(PROFILE_FIELDS).filter(([key]) => {
+      if (['specialty', 'hourly_rate', 'skills'].includes(key)) return userProfile?.role === 'provider';
+      return true;
+    });
+  }, [userProfile?.role]);
+
+  const totalWeight = useMemo(() => activeFields.reduce((s, [, f]) => s + f.weight, 0), [activeFields]);
+
   const completedWeight = useMemo(() => {
     let w = 0;
-    Object.entries(PROFILE_FIELDS).forEach(([key, field]) => {
+    activeFields.forEach(([key, field]) => {
       if (form[key]?.trim()) w += field.weight;
     });
     return w;
-  }, [form]);
+  }, [form, activeFields]);
 
-  const completionPct = Math.round((completedWeight / TOTAL_WEIGHT) * 100);
+  const completionPct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
 
   const incompleteFields = useMemo(() => {
-    return Object.entries(PROFILE_FIELDS)
+    return activeFields
       .filter(([key]) => !form[key]?.trim())
       .map(([, field]) => field.label);
-  }, [form]);
+  }, [form, activeFields]);
 
   const updateField = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -182,20 +182,22 @@ export default function Profile() {
     setSaving(true);
     try {
       const updates: Record<string, any> = { updated_at: new Date().toISOString() };
-      Object.keys(PROFILE_FIELDS).forEach(key => {
+      activeFields.forEach(([key]) => {
         if (key === 'skills') {
           updates[key] = (form[key] || '').split(',').map((s: string) => s.trim()).filter(Boolean);
         } else {
           updates[key] = form[key] || null;
         }
       });
-      delete updates.email;
-      if (form.avatar_url) updates.avatar_url = form.avatar_url;
-      if (form.cover_url) updates.cover_url = form.cover_url;
+      if ('avatar_url' in form && form.avatar_url) updates.avatar_url = form.avatar_url;
+      else if ('avatar_url' in form && !form.avatar_url) updates.avatar_url = null;
+      if ('cover_url' in form && form.cover_url && !form.cover_url.startsWith('blob:')) updates.cover_url = form.cover_url;
+      else if ('cover_url' in form && !form.cover_url) updates.cover_url = null;
       await updateProfile(user.id, updates as any);
-      try { if (form.cover_url) localStorage.setItem('jobbridge_cover_url', form.cover_url); } catch {}
+      try { if (updates.cover_url) localStorage.setItem('jobbridge_cover_url', updates.cover_url); else localStorage.removeItem('jobbridge_cover_url'); } catch {}
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
+      setTimeout(() => profRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
     } catch (err: any) {
       console.error('Save error:', err);
       alert(err.message?.includes('cover_url') || err.message?.includes('avatar_url')
@@ -243,12 +245,12 @@ export default function Profile() {
     </div>
   );
 
-  const renderInput = (field: string, label: string, type = 'text', placeholder?: string) => (
+  const renderInput = (field: string, label: string, type = 'text', placeholder?: string, readOnly?: boolean) => (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input type={type} value={form[field] || ''} onChange={e => updateField(field, e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
+        placeholder={placeholder} readOnly={readOnly}
+        className={`w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm ${readOnly ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`} />
     </div>
   );
 
@@ -377,8 +379,7 @@ export default function Profile() {
           <h2 className="text-lg font-bold text-gray-900 mb-5">Personal Information</h2>
           <div className="space-y-4">
             {renderInput('full_name', 'Full Name')}
-            {renderInput('email', 'Email', 'email')}
-            {form.email && <p className="text-xs text-gray-400 -mt-3">Email cannot be changed here</p>}
+            {renderInput('email', 'Email', 'email', undefined, true)}
             {renderInput('phone', 'Phone Number', 'tel')}
             {renderInput('date_of_birth', 'Date of Birth', 'date')}
             {renderSelect('gender', 'Gender', ['Male', 'Female'])}
@@ -387,7 +388,7 @@ export default function Profile() {
         </div>
 
         {/* Professional Information */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
+        <div ref={profRef} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
           <h2 className="text-lg font-bold text-gray-900 mb-5">Professional Information</h2>
           <div className="space-y-4">
             {renderInput('professional_headline', 'Professional Headline', 'text', 'e.g. Senior Accountant')}
