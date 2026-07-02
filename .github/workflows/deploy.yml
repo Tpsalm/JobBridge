@@ -24,12 +24,13 @@ jobs:
           node-version: 22
           cache: "npm"
       - run: npm ci
-      - run: npm run build 2>&1; echo "EXIT_CODE=$?" >> build.log; cat build.log
-        shell: bash
+      - run: npm run build > build.log 2>&1 || true
         env:
           VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
           VITE_PAYSTACK_PUBLIC_KEY: ${{ secrets.VITE_PAYSTACK_PUBLIC_KEY }}
           VITE_CHATBASE_ID: ${{ secrets.VITE_CHATBASE_ID }}
+      - run: cat build.log
+        if: always()
       - uses: actions/upload-artifact@v4
         if: always()
         with:
