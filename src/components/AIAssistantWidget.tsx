@@ -117,12 +117,18 @@ const defaultPrompts = ['What is JobBridge?', 'How to find a job?', 'Recruiter p
 let msgCounter = 0;
 function nextId() { return `msg-${++msgCounter}`; }
 
+function getTimeGreeting(): string {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  return greeting;
+}
+
 function AIAssistantWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: nextId(),
-      text: "Hello! I'm your JobBridge AI assistant. I can answer questions about finding jobs, posting vacancies, pricing, AI tools, and more. What would you like to know?",
+      text: `${getTimeGreeting()}! I'm your JobBridge AI assistant. I can answer questions about finding jobs, posting vacancies, pricing, AI tools, and more. What would you like to know?`,
       sender: 'bot',
     },
   ]);
@@ -216,7 +222,7 @@ function AIAssistantWidget() {
     setMessages([
       {
         id: nextId(),
-        text: "Conversation cleared. How can I help you?",
+        text: `Conversation cleared. ${getTimeGreeting()}! How can I help you today?`,
         sender: 'bot',
       },
     ]);

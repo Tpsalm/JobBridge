@@ -11,13 +11,19 @@ interface ChatMessage {
   content: string;
 }
 
+function getTimeGreeting(): string {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  return greeting;
+}
+
 export default function AIAssistant() {
   const { openModal } = useModal();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'bot',
       content:
-        "Hello! I'm your AI career assistant. I can help with resume writing, interview prep, job search strategies, and salary negotiation. What can I help you today?",
+        `${getTimeGreeting()}! I'm your AI career assistant. I can help with resume writing, interview prep, job search strategies, and salary negotiation. What can I help you today?`,
     },
     {
       role: 'user',
