@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Mail, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import JobBridgeLogo from '../components/JobBridgeLogo';
+import { checkRateLimit } from '../lib/security';
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -15,6 +16,10 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
+    if (!checkRateLimit('signin', 5, 60000)) {
+      window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Too many attempts. Try again later.', type: 'error' } }));
+      return;
+    }
     setLoading(true);
     const { error } = await signIn(email, password);
     setLoading(false);

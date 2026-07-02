@@ -1,13 +1,10 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
-import { useModal } from '../contexts/ModalContext';
-import { Eye, Zap, Users, ArrowRight, MapPin } from 'lucide-react';
+import { Eye, Zap, Users, ArrowRight } from 'lucide-react';
 import AnimatedSection from '../components/AnimatedSection';
 
 export default function About() {
-  const { openModal } = useModal();
 
   const milestones = [
     { year: 2021, event: 'Founded' },
@@ -22,7 +19,7 @@ export default function About() {
     { label: 'Founded', value: '2021' },
     { label: 'Users', value: '2M+' },
     { label: 'Countries', value: '50+' },
-    { label: 'Funding', value: '$12M' },
+    { label: 'Funding', value: '₦12M' },
   ];
 
   const pillars = [

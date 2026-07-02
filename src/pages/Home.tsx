@@ -19,10 +19,10 @@ const stats = [
 ];
 
 const featuredJobs = [
-  { title: 'Senior Frontend Engineer', company: 'TechCorp', location: 'Remote', salary: '$120k–$160k', match: '98%', badge: 'Hot' },
-  { title: 'Product Manager', company: 'InnovateCo', location: 'New York', salary: '$110k–$140k', match: '92%', badge: 'New' },
-  { title: 'Data Scientist', company: 'DataFlow', location: 'San Francisco', salary: '$130k–$170k', match: '89%', badge: '' },
-  { title: 'UX Designer', company: 'DesignHub', location: 'Hybrid', salary: '$90k–$120k', match: '95%', badge: 'Featured' },
+  { title: 'Senior Frontend Engineer', company: 'TechCorp', location: 'Remote', salary: '₦120k–₦160k', match: '98%', badge: 'Hot' },
+  { title: 'Product Manager', company: 'InnovateCo', location: 'New York', salary: '₦110k–₦140k', match: '92%', badge: 'New' },
+  { title: 'Data Scientist', company: 'DataFlow', location: 'San Francisco', salary: '₦130k–₦170k', match: '89%', badge: '' },
+  { title: 'UX Designer', company: 'DesignHub', location: 'Hybrid', salary: '₦90k–₦120k', match: '95%', badge: 'Featured' },
 ];
 
 const testimonials = [

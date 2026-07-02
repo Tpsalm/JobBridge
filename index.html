@@ -18,13 +18,23 @@
       media-src 'self' https://cdn.pixabay.com;
       font-src 'self' https://fonts.gstatic.com;
       frame-src https://checkout.paystack.com;
+      frame-ancestors 'none';
       base-uri 'self';
       form-action 'self';
       upgrade-insecure-requests">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), interest-cohort=()">
     <script>
       // Frame-busting: prevent clickjacking (fallback for CSP frame-ancestors)
       if (top !== self) { top.location.href = self.location.href; }
     </script>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='24' cy='8' r='6' fill='%232563EB'/%3E%3Crect x='18' y='16' width='12' height='36' rx='2' fill='%231D4ED8'/%3E%3Cpath d='M30 52 C30 58 24 62 18 58 C14 55 14 50 18 48' stroke='%231D4ED8' stroke-width='10' stroke-linecap='round' fill='none'/%3E%3Cpath d='M30 28 Q40 14 52 28' stroke='%231D4ED8' stroke-width='4' stroke-linecap='round' fill='none'/%3E%3Cline x1='28' y1='28' x2='54' y2='28' stroke='%231D4ED8' stroke-width='3.5' stroke-linecap='round'/%3E%3Cline x1='34' y1='19' x2='34' y2='28' stroke='%231D4ED8' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='41' y1='15.5' x2='41' y2='28' stroke='%231D4ED8' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='48' y1='19' x2='48' y2='28' stroke='%231D4ED8' stroke-width='2.5' stroke-linecap='round'/%3E%3Crect x='50' y='28' width='6' height='24' rx='2' fill='%231D4ED8'/%3E%3C/svg%3E" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="JobBridge" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -72,61 +82,48 @@
         stroke-dashoffset: 40;
         stroke-linecap: round;
       }
-      #app-loader .text {
-        margin-top: 24px;
+      #app-loader .title {
+        margin-top: 12px;
         font-family: 'Inter', system-ui, sans-serif;
-        font-size: 14px;
-        color: #6b7280;
-        letter-spacing: 0.3px;
+        font-size: 18px;
+        font-weight: 700;
+        color: #1e40af;
         transition: opacity 0.4s ease;
       }
-      #app-loader.loaded .text.loading-text { opacity: 0; }
-      #app-loader .text.loaded-text { display: none; }
-      #app-loader.loaded .text.loaded-text {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-direction: column;
+      #app-loader .sub {
+        margin-top: 4px;
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 12px;
+        color: #9ca3af;
+        transition: opacity 0.4s ease;
       }
-      #app-loader.loaded .text.loaded-text a {
+      #app-loader .loaded-info { display: none; }
+      #app-loader.loaded .loaded-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      #app-loader.loaded .loaded-info a {
         color: #1e40af;
         text-decoration: none;
         font-weight: 600;
-        font-size: 16px;
+        font-size: 15px;
       }
-      #app-loader.loaded .text.loaded-text a:hover {
-        text-decoration: underline;
-      }
-      #app-loader.loaded .text.loaded-text .url {
-        font-size: 12px;
+      #app-loader.loaded .loaded-info .url {
+        font-size: 11px;
         color: #9ca3af;
       }
+      #app-loader.loaded .title,
+      #app-loader.loaded .sub { opacity: 0; }
       #app-loader.loaded .ring svg.spinner {
         animation: none;
         opacity: 0;
-        transition: opacity 0.4s ease;
-      }
-      #app-loader.loaded .ring svg.spinner circle {
-        stroke: #d1d5db;
       }
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
 
-      /* Anti-copy: prevent text selection on non-input content */
-      body {
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        user-select: none;
-        -webkit-touch-callout: none;
-      }
-      input, textarea, [contenteditable] {
-        -webkit-user-select: auto;
-        -moz-user-select: auto;
-        -ms-user-select: auto;
-        user-select: auto;
-      }
     </style>
   </head>
   <body>
@@ -147,10 +144,11 @@
           <rect x="50" y="28" width="6" height="24" rx="2" fill="#1D4ED8" />
         </svg>
       </div>
-      <div class="text loading-text">Connecting to JobBridge...</div>
-      <div class="text loaded-text">
-        <a href="https://tpsalm.github.io/JobBridge/" target="_blank">JobBridge</a>
-        <span class="url">https://tpsalm.github.io/JobBridge/</span>
+      <div class="title">JobBridge</div>
+      <div class="sub">Connecting...</div>
+      <div class="loaded-info">
+        <a href="https://jobbridge.com.ng">JobBridge</a>
+        <span class="url">jobbridge.com.ng</span>
       </div>
     </div>
 
@@ -169,27 +167,6 @@
         document.addEventListener('app-mounted', hideLoader);
       })();
     </script>
-    <script>
-      (function() {
-        function isInput(el) {
-          return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
-        }
-        document.addEventListener('contextmenu', function(e) {
-          if (!isInput(e.target)) e.preventDefault();
-        });
-        document.addEventListener('copy', function(e) {
-          if (!isInput(e.target)) e.preventDefault();
-        });
-        document.addEventListener('cut', function(e) {
-          if (!isInput(e.target)) e.preventDefault();
-        });
-        document.addEventListener('dragstart', function(e) {
-          if (!isInput(e.target)) e.preventDefault();
-        });
-        document.addEventListener('selectstart', function(e) {
-          if (!isInput(e.target)) e.preventDefault();
-        });
-      })();
-    </script>
+
   </body>
 </html>

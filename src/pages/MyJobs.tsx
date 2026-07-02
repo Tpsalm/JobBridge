@@ -5,7 +5,7 @@ import AppLayout from '../components/AppLayout';
 import CompanyLogo from '../components/CompanyLogo';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, IMG } from '../lib/media';
-import { Bookmark, Briefcase, Calendar, Clock, MapPin, DollarSign, ChevronRight, Search, Archive, X, FileText } from 'lucide-react';
+import { Bookmark, Briefcase, Calendar, Clock, MapPin, ChevronRight, Search, Archive, X, FileText } from 'lucide-react';
 import { fetchJobs, fetchUserApplications } from '../lib/supabaseQueries';
 
 type Tab = 'saved' | 'applied' | 'interviews' | 'archived';
@@ -210,7 +210,7 @@ export default function MyJobs() {
                         <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{job.location}</span>
                         <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{job.type}</span>
                         {job.salary_range && (
-                          <span className="flex items-center gap-1 text-green-600 font-medium"><DollarSign className="w-3.5 h-3.5" />{job.salary_range}</span>
+                          <span className="flex items-center gap-1 text-green-600 font-medium"><span className="text-sm font-bold">₦</span>{job.salary_range}</span>
                         )}
                         {job.category && (
                           <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-600">{job.category}</span>

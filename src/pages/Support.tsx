@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
@@ -19,6 +19,7 @@ interface FAQCategory {
 export default function Support() {
   const { openModal } = useModal();
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   const faqCategories: FAQCategory[] = [
     {
@@ -110,6 +111,22 @@ export default function Support() {
     }));
   };
 
+  // Auto-open matching categories on search
+  useEffect(() => {
+    if (!searchQuery) return;
+    const matching = faqCategories.filter(c =>
+      c.faqs.some(f =>
+        f.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.answer.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    ).map(c => c.title);
+    setOpenCategories(prev => {
+      const next = { ...prev };
+      matching.forEach(t => next[t] = true);
+      return next;
+    });
+  }, [searchQuery]);
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <Header />
@@ -136,6 +153,8 @@ export default function Support() {
             <input
               type="text"
               placeholder="Search for help..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-700"
             />
           </div>
@@ -156,13 +175,21 @@ export default function Support() {
           <AnimatedSection direction="up" className="lg:col-span-2">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Frequently Asked Questions</h2>
             <div className="space-y-4">
-              {faqCategories.map((category) => (
+              {faqCategories.map((category) => {
+                const filteredFaqs = searchQuery
+                  ? category.faqs.filter(f =>
+                      f.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      f.answer.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                  : category.faqs;
+                if (searchQuery && filteredFaqs.length === 0) return null;
+                return (
                 <div key={category.title}>
                   <button
                     onClick={() => toggleCategory(category.title)}
                     className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition text-left"
                   >
-                    <h3 className="font-semibold text-gray-900">{category.title}</h3>
+                    <h3 className="font-semibold text-gray-900">{category.title} {searchQuery && `(${filteredFaqs.length})`}</h3>
                     <ChevronDown
                       className={`w-5 h-5 text-gray-600 transition ${
                         openCategories[category.title] ? 'rotate-180' : ''
@@ -171,7 +198,7 @@ export default function Support() {
                   </button>
                   {openCategories[category.title] && (
                     <div className="bg-white border border-gray-200 border-t-0 space-y-4 p-4 rounded-b-lg">
-                      {category.faqs.map((faq, idx) => (
+                      {filteredFaqs.map((faq, idx) => (
                         <div key={idx} className="pb-4 border-b last:pb-0 last:border-b-0">
                           <h4 className="font-medium text-gray-900 mb-2">{faq.question}</h4>
                           <p className="text-gray-700 text-sm">
@@ -186,7 +213,8 @@ export default function Support() {
                     </div>
                   )}
                 </div>
-              ))}
+              );
+              })}
             </div>
           </AnimatedSection>
 

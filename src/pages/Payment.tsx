@@ -16,6 +16,7 @@ import BottomNav from '../components/BottomNav';
 import { IMG } from '../lib/media';
 import { useAuth } from '../contexts/AuthContext';
 import { activatePremiumPlan, recordPayment } from '../lib/supabaseQueries';
+import { sendEmail } from '../lib/email';
 
 declare const PaystackPop: any;
 
@@ -90,6 +91,7 @@ export default function Payment() {
             } else {
               await fetchSubscription();
             }
+            sendEmail({ type: 'payment', email: user.email, name: user.full_name || 'there', plan: plan.name, amount: String(plan.price) });
             setPaid(true);
           } catch (err) {
             setError('Activation failed. Contact support with ref: ' + response.reference);

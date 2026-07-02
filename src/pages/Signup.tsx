@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, UserRole } from '../contexts/AuthContext';
 import { Wrench, ArrowRight, Check, Shield, Building, Eye, EyeOff, User, Lock } from 'lucide-react';
 import JobBridgeLogo from '../components/JobBridgeLogo';
+import { checkRateLimit } from '../lib/security';
 
 export default function Signup() {
   const { signUp } = useAuth();
@@ -28,6 +29,10 @@ export default function Signup() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRole) return;
+    if (!checkRateLimit('signup', 5, 60000)) {
+      setError('Too many attempts. Try again later.');
+      return;
+    }
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters');
       return;

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { supabase, Profile, SubscriptionInfo, AiSubscriptionInfo } from '../lib/supabase';
 import { fetchUserApplications } from '../lib/supabaseQueries';
+import { sendEmail } from '../lib/email';
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -234,15 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const authUser = data?.user;
       if (authUser) {
         await createProfileRecord(authUser, fullName, role || 'job_seeker', company);
-        // Fire welcome email (fire-and-forget)
-        fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
-            body: JSON.stringify({ email, name: fullName }),
-          },
-        ).catch(() => {});
+        sendEmail({ type: 'welcome', email, name: fullName });
       }
 
       // If not auto-signed-in (email confirmation on), sign in manually

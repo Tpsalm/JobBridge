@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, ChevronDown, MapPin, Briefcase, DollarSign, MessageSquare } from 'lucide-react';
+import { Search, ChevronDown, MapPin, Briefcase, MessageSquare } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
@@ -30,6 +30,9 @@ const TalentSearch: React.FC = () => {
   const [availability, setAvailability] = useState('All');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [sortBy, setSortBy] = useState('Best Match');
+  const [searchSkills, setSearchSkills] = useState('');
+  const [minSalary, setMinSalary] = useState('');
+  const [preferredCompanies, setPreferredCompanies] = useState('');
 
   const candidates: Candidate[] = [
     {
@@ -170,12 +173,26 @@ const TalentSearch: React.FC = () => {
     return 'text-gray-600';
   };
 
+  const [searchTriggered, setSearchTriggered] = useState(0);
+
+  const handleSearch = () => setSearchTriggered(t => t + 1);
+
   const filteredCandidates = candidates.filter(candidate => {
     if (searchName && !candidate.name.toLowerCase().includes(searchName.toLowerCase())) return false;
     if (searchLocation && !candidate.location.toLowerCase().includes(searchLocation.toLowerCase())) return false;
     if (experienceLevel !== 'All' && candidate.experienceLevel !== experienceLevel) return false;
     if (availability !== 'All' && candidate.availability !== availability) return false;
+    if (searchSkills) {
+      const skills = searchSkills.split(',').map(s => s.trim().toLowerCase());
+      if (!skills.every(s => candidate.skills.some(cs => cs.toLowerCase().includes(s)))) return false;
+    }
+    if (minSalary && candidate.salary < parseInt(minSalary)) return false;
+    if (preferredCompanies && !preferredCompanies.split(',').some(c => candidate.company.toLowerCase().includes(c.trim().toLowerCase()))) return false;
     return true;
+  }).sort((a, b) => {
+    if (sortBy === 'Salary') return b.salary - a.salary;
+    if (sortBy === 'Experience') return b.matchScore - a.matchScore;
+    return b.matchScore - a.matchScore;
   });
 
   return (
@@ -258,7 +275,7 @@ const TalentSearch: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-              <button className="w-full sm:w-auto bg-blue-700 hover:bg-blue-800 text-white px-6 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2">
+              <button onClick={handleSearch} className="w-full sm:w-auto bg-blue-700 hover:bg-blue-800 text-white px-6 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2">
                 <Search size={18} />
                 Search
               </button>
@@ -281,16 +298,20 @@ const TalentSearch: React.FC = () => {
                   <input
                     type="text"
                     placeholder="React, TypeScript, AWS"
+                    value={searchSkills}
+                    onChange={e => setSearchSkills(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Min Salary ($)
+                    Min Salary (₦)
                   </label>
                   <input
                     type="number"
                     placeholder="100000"
+                    value={minSalary}
+                    onChange={e => setMinSalary(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700"
                   />
                 </div>
@@ -301,6 +322,8 @@ const TalentSearch: React.FC = () => {
                   <input
                     type="text"
                     placeholder="Stripe, Google"
+                    value={preferredCompanies}
+                    onChange={e => setPreferredCompanies(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700"
                   />
                 </div>
@@ -382,8 +405,8 @@ const TalentSearch: React.FC = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <DollarSign size={16} className="text-blue-700" />
-                        <span>${(candidate.salary / 1000).toFixed(0)}k</span>
+                        <span className="text-blue-700 font-bold text-sm">₦</span>
+                        <span>{(candidate.salary / 1000).toFixed(0)}k</span>
                       </div>
                     </div>
 

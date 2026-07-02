@@ -42,65 +42,189 @@ const DEFAULT_STREAK: StreakData = { current: 0, best: 0, lastDate: '', points: 
 let musicVolume = 0.06;
 let sfxVolume = 0.15;
 let sfxEnabled = true;
+let selectedGenre = 'jazz';
 
 function loadAudioSettings() {
   try {
     const raw = localStorage.getItem('jobbridge_audio_settings');
-    if (raw) { const s = JSON.parse(raw); if (s.musicVolume !== undefined) musicVolume = s.musicVolume; if (s.sfxVolume !== undefined) sfxVolume = s.sfxVolume; if (s.sfxEnabled !== undefined) sfxEnabled = s.sfxEnabled; }
+    if (raw) { const s = JSON.parse(raw); if (s.musicVolume !== undefined) musicVolume = s.musicVolume; if (s.sfxVolume !== undefined) sfxVolume = s.sfxVolume; if (s.sfxEnabled !== undefined) sfxEnabled = s.sfxEnabled; if (s.genre !== undefined) selectedGenre = s.genre; }
   } catch {}
 }
 
-function saveAudioSettings(mv: number, sv: number, se: boolean) {
-  try { localStorage.setItem('jobbridge_audio_settings', JSON.stringify({ musicVolume: mv, sfxVolume: sv, sfxEnabled: se })); } catch {}
+function saveAudioSettings(mv: number, sv: number, se: boolean, genre?: string) {
+  try { localStorage.setItem('jobbridge_audio_settings', JSON.stringify({ musicVolume: mv, sfxVolume: sv, sfxEnabled: se, genre: genre || selectedGenre })); } catch {}
 }
 
 loadAudioSettings();
 
-// ─── Jazz Background Music ──────────────────────────────────────
-let jazzCtx: AudioContext | null = null;
-let jazzGain: GainNode | null = null;
-let jazzPlaying = false;
-let jazzTimeout: ReturnType<typeof setTimeout> | null = null;
-
-function getJazzCtx(): AudioContext {
-  if (!jazzCtx) jazzCtx = new AudioContext();
-  return jazzCtx;
+// ─── Music Genre Definitions ─────────────────────────────────────
+interface GenreDef {
+  id: string;
+  label: string;
+  icon: string;
+  oscType: OscillatorType;
+  chords: number[][];
+  bassNotes: number[];
+  bpm: number;
+  volume: number;
+  style: 'chord' | 'arpeggio' | 'broken';
 }
 
-function startJazzMusic() {
-  if (jazzPlaying) return;
-  const ctx = getJazzCtx();
+const GENRES: GenreDef[] = [
+  {
+    id: 'jazz', label: 'Jazz', icon: '🎷', oscType: 'triangle',
+    chords: [
+      [261.63, 329.63, 392.00, 493.88],
+      [220.00, 329.63, 392.00, 440.00],
+      [293.66, 349.23, 440.00, 523.25],
+      [196.00, 293.66, 392.00, 466.16],
+    ],
+    bassNotes: [130.81, 110.00, 146.83, 98.00],
+    bpm: 60, volume: 0.025, style: 'chord',
+  },
+  {
+    id: 'lofi', label: 'Lo-fi', icon: '☕', oscType: 'sine',
+    chords: [
+      [261.63, 329.63, 392.00],
+      [293.66, 369.99, 440.00],
+      [329.63, 392.00, 493.88],
+      [220.00, 329.63, 392.00],
+    ],
+    bassNotes: [130.81, 146.83, 164.81, 110.00],
+    bpm: 55, volume: 0.03, style: 'chord',
+  },
+  {
+    id: 'rnb', label: 'R&B', icon: '🎤', oscType: 'sine',
+    chords: [
+      [261.63, 329.63, 392.00, 440.00],
+      [246.94, 311.13, 369.99, 415.30],
+      [220.00, 261.63, 329.63, 392.00],
+      [196.00, 261.63, 329.63, 369.99],
+    ],
+    bassNotes: [130.81, 123.47, 110.00, 98.00],
+    bpm: 75, volume: 0.025, style: 'chord',
+  },
+  {
+    id: 'pop', label: 'Pop', icon: '🎵', oscType: 'sawtooth',
+    chords: [
+      [261.63, 329.63, 392.00],
+      [293.66, 369.99, 440.00],
+      [329.63, 392.00, 493.88],
+      [261.63, 329.63, 392.00],
+    ],
+    bassNotes: [130.81, 146.83, 164.81, 130.81],
+    bpm: 100, volume: 0.02, style: 'chord',
+  },
+  {
+    id: 'electronic', label: 'Electronic', icon: '🎹', oscType: 'sawtooth',
+    chords: [
+      [261.63, 329.63, 392.00],
+      [233.08, 311.13, 369.99],
+      [220.00, 277.18, 329.63],
+      [196.00, 261.63, 311.13],
+    ],
+    bassNotes: [130.81, 116.54, 110.00, 98.00],
+    bpm: 120, volume: 0.015, style: 'arpeggio',
+  },
+  {
+    id: 'classical', label: 'Classical', icon: '🎻', oscType: 'triangle',
+    chords: [
+      [261.63, 329.63, 392.00, 523.25],
+      [293.66, 349.23, 440.00, 523.25],
+      [329.63, 392.00, 493.88, 587.33],
+      [261.63, 329.63, 392.00, 493.88],
+    ],
+    bassNotes: [130.81, 146.83, 164.81, 130.81],
+    bpm: 65, volume: 0.02, style: 'broken',
+  },
+];
+
+// ─── Background Music Engine ─────────────────────────────────────
+let musicCtx: AudioContext | null = null;
+let musicGain: GainNode | null = null;
+let musicPlaying = false;
+let musicTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function getMusicCtx(): AudioContext {
+  if (!musicCtx) musicCtx = new AudioContext();
+  return musicCtx;
+}
+
+function startBgMusic() {
+  if (musicPlaying) return;
+  const ctx = getMusicCtx();
   if (ctx.state === 'suspended') ctx.resume();
-  jazzPlaying = true;
-  if (!jazzGain) {
-    jazzGain = ctx.createGain();
-    jazzGain.connect(ctx.destination);
+  musicPlaying = true;
+  if (!musicGain) {
+    musicGain = ctx.createGain();
+    musicGain.connect(ctx.destination);
   }
-  jazzGain.gain.setValueAtTime(musicVolume, ctx.currentTime);
+  const genre = GENRES.find(g => g.id === selectedGenre) || GENRES[0];
+  musicGain.gain.setValueAtTime(musicVolume, ctx.currentTime);
 
-  const chords = [
-    [261.63, 329.63, 392.00, 493.88],
-    [220.00, 329.63, 392.00, 440.00],
-    [293.66, 349.23, 440.00, 523.25],
-    [196.00, 293.66, 392.00, 466.16],
-  ];
-
-  const bassNotes = [130.81, 110.00, 146.83, 98.00];
+  const chordDuration = 60 / genre.bpm;
+  let chordIndex = 0;
   let stopped = false;
 
-  function playChord(chord: number[], startTime: number, volume: number) {
-    chord.forEach(freq => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, startTime);
-      gain.gain.setValueAtTime(volume, startTime);
-      gain.gain.linearRampToValueAtTime(0, startTime + 3.8);
-      osc.connect(gain);
-      gain.connect(jazzGain!);
-      osc.start(startTime);
-      osc.stop(startTime + 3.8);
-    });
+  function playChord(chord: number[], startTime: number, vol: number) {
+    if (genre.style === 'arpeggio') {
+      chord.forEach((freq, i) => {
+        const t = startTime + i * (chordDuration / chord.length);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = genre.oscType;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(vol, t);
+        gain.gain.linearRampToValueAtTime(0, t + chordDuration * 0.8);
+        osc.connect(gain);
+        gain.connect(musicGain!);
+        osc.start(t);
+        osc.stop(t + chordDuration * 0.8);
+      });
+    } else if (genre.style === 'broken') {
+      // Staggered — split chord into two pairs
+      const half = Math.ceil(chord.length / 2);
+      const first = chord.slice(0, half);
+      const second = chord.slice(half);
+      first.forEach(freq => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = genre.oscType;
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(vol, startTime);
+        gain.gain.linearRampToValueAtTime(0, startTime + chordDuration * 0.8);
+        osc.connect(gain);
+        gain.connect(musicGain!);
+        osc.start(startTime);
+        osc.stop(startTime + chordDuration * 0.8);
+      });
+      second.forEach(freq => {
+        const t = startTime + chordDuration / 3;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = genre.oscType;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(vol, t);
+        gain.gain.linearRampToValueAtTime(0, t + chordDuration * 0.6);
+        osc.connect(gain);
+        gain.connect(musicGain!);
+        osc.start(t);
+        osc.stop(t + chordDuration * 0.6);
+      });
+    } else {
+      chord.forEach(freq => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = genre.oscType;
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(vol, startTime);
+        gain.gain.linearRampToValueAtTime(0, startTime + chordDuration * 0.8);
+        osc.connect(gain);
+        gain.connect(musicGain!);
+        osc.start(startTime);
+        osc.stop(startTime + chordDuration * 0.8);
+      });
+    }
   }
 
   function playBass(freq: number, startTime: number) {
@@ -109,34 +233,32 @@ function startJazzMusic() {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, startTime);
     gain.gain.setValueAtTime(0.08, startTime);
-    gain.gain.linearRampToValueAtTime(0, startTime + 3.8);
+    gain.gain.linearRampToValueAtTime(0, startTime + chordDuration * 0.9);
     osc.connect(gain);
-    gain.connect(jazzGain!);
+    gain.connect(musicGain!);
     osc.start(startTime);
-    osc.stop(startTime + 3.8);
+    osc.stop(startTime + chordDuration * 0.9);
   }
 
-  let chordIndex = 0;
-  const chordDuration = 4;
-
   function scheduleLoop() {
-    if (stopped || !jazzPlaying) return;
+    if (stopped || !musicPlaying) return;
     const now = ctx.currentTime;
+    const bar = chordDuration * 4;
     for (let i = 0; i < 4; i++) {
-      const idx = (chordIndex + i) % chords.length;
-      playChord(chords[idx], now + i * chordDuration, 0.025);
-      playBass(bassNotes[idx], now + i * chordDuration);
+      const idx = (chordIndex + i) % genre.chords.length;
+      playChord(genre.chords[idx], now + i * chordDuration, genre.volume);
+      playBass(genre.bassNotes[idx], now + i * chordDuration);
     }
-    chordIndex = (chordIndex + 4) % chords.length;
-    jazzTimeout = setTimeout(scheduleLoop, chordDuration * 4 * 1000 - 100);
+    chordIndex = (chordIndex + 4) % genre.chords.length;
+    musicTimeout = setTimeout(scheduleLoop, bar * 1000 - 100);
   }
 
   scheduleLoop();
 }
 
-function stopJazzMusic() {
-  jazzPlaying = false;
-  if (jazzTimeout) { clearTimeout(jazzTimeout); jazzTimeout = null; }
+function stopBgMusic() {
+  musicPlaying = false;
+  if (musicTimeout) { clearTimeout(musicTimeout); musicTimeout = null; }
 }
 
 // ─── Sound effects (Web Audio API) ──────────────────────────────
@@ -252,18 +374,28 @@ const QUIZ_POOL: QuizQuestion[] = [
   { question: 'What is the best way to answer "What are your salary expectations?"', options: ['Give a number immediately', 'Provide a range based on market research and your experience', 'Refuse to answer', 'Ask for the maximum'], correct: 1 },
 ];
 
+const TIERS = [
+  { label: 'Beginner', color: 'from-emerald-500 to-green-600', stages: [1, 2, 3] },
+  { label: 'Intermediate', color: 'from-blue-500 to-indigo-600', stages: [4, 5, 6] },
+  { label: 'Advanced', color: 'from-violet-500 to-purple-600', stages: [7, 8, 9] },
+  { label: 'Master', color: 'from-amber-500 to-orange-600', stages: [10] },
+];
+
 const STAGES: GameStage[] = [
+  // ── Beginner (1-3) ──
   { id: 1, name: 'Memory Match', description: 'Match the career pairs', type: 'memory', unlocked: true, completed: false },
   { id: 2, name: 'Interview Basics', description: 'Essential interview knowledge', type: 'quiz', unlocked: false, completed: false },
   { id: 3, name: 'Behavioral Mastery', description: 'Tackle behavioral questions', type: 'quiz', unlocked: false, completed: false },
-  { id: 4, name: 'Resume & Portfolio', description: 'Craft your professional story', type: 'quiz', unlocked: false, completed: false },
-  { id: 5, name: 'Salary & Negotiation', description: 'Know your worth', type: 'quiz', unlocked: false, completed: false },
-  { id: 6, name: 'Workplace Wisdom', description: 'Navigate workplace scenarios', type: 'quiz', unlocked: false, completed: false },
+  // ── Intermediate (4-6) ──
+  { id: 4, name: 'Memory Match Pro', description: 'Match the global career tiles', type: 'memory', unlocked: false, completed: false },
+  { id: 5, name: 'Resume & Portfolio', description: 'Craft your professional story', type: 'quiz', unlocked: false, completed: false },
+  { id: 6, name: 'Salary & Negotiation', description: 'Know your worth', type: 'quiz', unlocked: false, completed: false },
+  // ── Advanced (7-9) ──
   { id: 7, name: 'Career Strategy', description: 'Plan your career path', type: 'quiz', unlocked: false, completed: false },
   { id: 8, name: 'Networking Pro', description: 'Build meaningful connections', type: 'quiz', unlocked: false, completed: false },
   { id: 9, name: 'Leadership Edge', description: 'Show leadership potential', type: 'quiz', unlocked: false, completed: false },
+  // ── Master (10) ──
   { id: 10, name: 'Final Challenge', description: 'The ultimate interview test', type: 'quiz', unlocked: false, completed: false },
-  { id: 11, name: 'Tile Match Pro', description: 'Match the global career tiles', type: 'memory', unlocked: false, completed: false },
 ];
 
 function shuffle<T>(arr: T[]): T[] {
@@ -331,7 +463,7 @@ function loadStageProgress(): number[] {
     const raw = localStorage.getItem('jobbridge_stage_progress');
     if (raw) return JSON.parse(raw);
   } catch {}
-  return [1];
+  return [];
 }
 
 function saveStageProgress(completed: number[]) {
@@ -344,6 +476,7 @@ export default function Games() {
   const [sfxOn, setSfxOn] = useState(() => sfxEnabled);
   const [musicVol, setMusicVol] = useState(() => Math.round(musicVolume * 100));
   const [sfxVol, setSfxVol] = useState(() => Math.round(sfxVolume * 100));
+  const [genre, setGenre] = useState(() => selectedGenre);
   const [currentScreen, setCurrentScreen] = useState<'stages' | 'memory' | 'quiz'>('stages');
   const [currentStage, setCurrentStage] = useState(1);
   const [completedStages, setCompletedStages] = useState<number[]>(() => loadStageProgress());
@@ -356,6 +489,8 @@ export default function Games() {
   const [showAnswer, setShowAnswer] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15);
   const [timedOut, setTimedOut] = useState(false);
+  const [showCongrats, setShowCongrats] = useState(false);
+  const [pendingStageId, setPendingStageId] = useState<number | null>(null);
 
   // Memory game state
   const [cards, setCards] = useState<MemoryCard[]>(() =>
@@ -387,26 +522,41 @@ export default function Games() {
   const updateMusicVol = (v: number) => {
     setMusicVol(v);
     musicVolume = v / 100;
-    if (jazzGain) { try { jazzGain.gain.setValueAtTime(musicVolume, getJazzCtx().currentTime); } catch {} }
-    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled);
+    if (musicGain) { try { musicGain.gain.setValueAtTime(musicVolume, getMusicCtx().currentTime); } catch {} }
+    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled, genre);
   };
   const updateSfxVol = (v: number) => {
     setSfxVol(v);
     sfxVolume = v / 100;
-    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled);
+    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled, genre);
   };
   const toggleSfx = () => {
     sfxEnabled = !sfxEnabled;
     setSfxOn(sfxEnabled);
-    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled);
+    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled, genre);
+  };
+
+  const changeGenre = (g: string) => {
+    selectedGenre = g;
+    setGenre(g);
+    saveAudioSettings(musicVolume, sfxVolume, sfxEnabled, g);
+    // Restart music with new genre
+    if (musicOn) {
+      stopBgMusic();
+      setTimeout(() => startBgMusic(), 50);
+    }
   };
 
   // Toggle music
   useEffect(() => {
-    if (musicOn) startJazzMusic();
-    else stopJazzMusic();
-    return () => stopJazzMusic();
-  }, [musicOn]);
+    if (musicOn) startBgMusic();
+    else stopBgMusic();
+    return () => {
+      stopBgMusic();
+      if (musicCtx) { try { musicCtx.close(); musicCtx = null; } catch {} }
+      if (audioCtx) { try { audioCtx.close(); audioCtx = null; } catch {} }
+    };
+  }, [musicOn, genre]);
 
   // Memory game timer
   useEffect(() => {
@@ -445,14 +595,14 @@ export default function Games() {
           setTimeout(() => setShowStreakPopup(true), 800);
           if (moves + 1 < bestScore) {
             setBestScore(moves + 1);
-            localStorage.setItem('jobbridge_best_moves', String(moves + 1));
+            try { localStorage.setItem('jobbridge_best_moves', String(moves + 1)); } catch {}
           }
         }
       } else {
         playMismatchSound();
       }
     }, 600);
-  }, [flippedIds, cards, moves, matchedCount, bestScore]);
+  }, [flippedIds, cards, moves, matchedCount, bestScore, currentStage]);
 
   const handleCardClick = useCallback((cardId: number) => {
     if (gameComplete) return;
@@ -479,7 +629,7 @@ export default function Games() {
   };
 
   const startMemoryStage = (stageId: number) => {
-    const pairs = stageId === 11 ? CARD_PAIRS_2 : CARD_PAIRS;
+    const pairs = stageId === 4 ? CARD_PAIRS_2 : CARD_PAIRS;
     memoryCardSet.current = pairs;
     setCards(shuffle([...pairs, ...pairs].map((pair, i) => ({
       id: i, emoji: pair.emoji, label: pair.label, flipped: false, matched: false,
@@ -494,20 +644,29 @@ export default function Games() {
     setCurrentScreen('memory');
   };
 
-  const completeMemoryStage = () => {
-    const newCompleted = [...new Set([...completedStages, currentStage])];
-    setCompletedStages(newCompleted);
-    saveStageProgress(newCompleted);
+  const handleStagePassed = (stageId: number) => {
+    setPendingStageId(stageId);
+    setShowCongrats(true);
+  };
+
+  const confirmCongrats = () => {
+    if (pendingStageId !== null) {
+      const newCompleted = [...new Set([...completedStages, pendingStageId])];
+      setCompletedStages(newCompleted);
+      saveStageProgress(newCompleted);
+    }
+    setShowCongrats(false);
+    setPendingStageId(null);
     setCurrentScreen('stages');
   };
 
-  const getTimeLimit = (stageId: number) => stageId <= 2 ? 15 : stageId <= 3 ? 12 : stageId <= 4 ? 10 : 8;
-  const getPassThreshold = (stageId: number, total: number) => stageId <= 2 ? Math.ceil(total * 0.6) : stageId <= 3 ? Math.ceil(total * 0.7) : Math.ceil(total * 0.75);
-  const hasPenalty = (stageId: number) => stageId >= 4;
+  const getTimeLimit = (stageId: number) => stageId <= 3 ? 15 : stageId <= 6 ? 12 : stageId <= 9 ? 10 : 8;
+  const getPassThreshold = (stageId: number, total: number) => stageId <= 3 ? Math.ceil(total * 0.6) : stageId <= 6 ? Math.ceil(total * 0.7) : stageId <= 9 ? Math.ceil(total * 0.75) : Math.ceil(total * 0.8);
+  const hasPenalty = (stageId: number) => stageId >= 7;
 
   const startQuizStage = (stageId: number) => {
     const pool = shuffle([...QUIZ_POOL]);
-    const count = stageId <= 3 ? 5 : stageId <= 6 ? 6 : 8;
+    const count = stageId <= 3 ? 5 : stageId <= 6 ? 6 : stageId <= 9 ? 8 : 10;
     setQuizQuestions(pool.slice(0, count));
     setQuizIndex(0);
     setScore(0);
@@ -567,12 +726,7 @@ export default function Games() {
       const passed = score >= passThreshold;
       setQuizFinished(true);
       setQuizPassed(passed);
-      if (passed) {
-        playStageCompleteSound();
-        const newCompleted = [...new Set([...completedStages, currentStage])];
-        setCompletedStages(newCompleted);
-        saveStageProgress(newCompleted);
-      }
+      if (passed) playStageCompleteSound();
     }
   };
 
@@ -635,53 +789,66 @@ export default function Games() {
             </div>
           </div>
 
-          {/* Stage List */}
-          <div className="space-y-3">
-            {stages.map(stage => (
-              <div key={stage.id}
-                className={`rounded-xl border p-4 transition ${
-                  stage.completed
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : stage.unlocked
-                      ? 'bg-white border-gray-200 cursor-pointer hover:shadow-md'
-                      : 'bg-gray-50 border-gray-200 opacity-60'
-                }`}
-                onClick={() => {
-                  if (!stage.unlocked || stage.completed) return;
-                  if (stage.type === 'memory') startMemoryStage(stage.id);
-                  else startQuizStage(stage.id);
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
-                      stage.completed
-                        ? 'bg-emerald-100 text-emerald-600'
-                        : stage.unlocked
-                          ? 'bg-blue-100 text-blue-600'
-                          : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      {stage.completed ? '✅' : stage.unlocked ? stage.id.toString() : '🔒'}
-                    </div>
-                    <div>
-                      <p className={`font-semibold ${stage.completed ? 'text-emerald-800' : 'text-gray-900'}`}>
-                        Stage {stage.id}: {stage.name}
-                      </p>
-                      <p className="text-xs text-gray-500">{stage.description}</p>
-                    </div>
+          {/* Stage List with Tier Labels */}
+          <div className="space-y-4">
+            {TIERS.map(tier => {
+              const tierStages = stages.filter(s => tier.stages.includes(s.id));
+              if (tierStages.length === 0) return null;
+              return (
+                <div key={tier.label}>
+                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${tier.color} mb-2`}>
+                    {tier.label}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {stage.completed ? (
-                      <CheckCircle className="w-5 h-5 text-emerald-500" />
-                    ) : stage.unlocked ? (
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <Lock className="w-5 h-5 text-gray-300" />
-                    )}
+                  <div className="space-y-2">
+                    {tierStages.map(stage => (
+                      <div key={stage.id}
+                        className={`rounded-xl border p-4 transition ${
+                          stage.completed
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : stage.unlocked
+                              ? 'bg-white border-gray-200 cursor-pointer hover:shadow-md'
+                              : 'bg-gray-50 border-gray-200 opacity-60'
+                        }`}
+                        onClick={() => {
+                          if (!stage.unlocked || stage.completed) return;
+                          if (stage.type === 'memory') startMemoryStage(stage.id);
+                          else startQuizStage(stage.id);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
+                              stage.completed
+                                ? 'bg-emerald-100 text-emerald-600'
+                                : stage.unlocked
+                                  ? 'bg-blue-100 text-blue-600'
+                                  : 'bg-gray-100 text-gray-400'
+                            }`}>
+                              {stage.completed ? '✅' : stage.unlocked ? stage.id.toString() : '🔒'}
+                            </div>
+                            <div>
+                              <p className={`font-semibold ${stage.completed ? 'text-emerald-800' : 'text-gray-900'}`}>
+                                Stage {stage.id}: {stage.name}
+                              </p>
+                              <p className="text-xs text-gray-500">{stage.description}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {stage.completed ? (
+                              <CheckCircle className="w-5 h-5 text-emerald-500" />
+                            ) : stage.unlocked ? (
+                              <ChevronRight className="w-5 h-5 text-gray-400" />
+                            ) : (
+                              <Lock className="w-5 h-5 text-gray-300" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -706,11 +873,29 @@ export default function Games() {
                   </button>
                 </div>
                 {musicOn && (
-                  <div>
-                    <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Music Volume <span>{musicVol}%</span></label>
-                    <input type="range" min="0" max="100" value={musicVol} onChange={e => updateMusicVol(+e.target.value)}
-                      className="w-full accent-blue-700" />
-                  </div>
+                  <>
+                    <div>
+                      <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Music Volume <span>{musicVol}%</span></label>
+                      <input type="range" min="0" max="100" value={musicVol} onChange={e => updateMusicVol(+e.target.value)}
+                        className="w-full accent-blue-700" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Genre</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {GENRES.map(g => (
+                          <button key={g.id} onClick={() => changeGenre(g.id)}
+                            className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl text-xs font-medium transition ${
+                              genre === g.id
+                                ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-400'
+                                : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                            }`}>
+                            <span className="text-lg">{g.icon}</span>
+                            {g.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
                 <div className="border-t border-gray-100 pt-4">
                   <div className="flex items-center justify-between mb-4">
@@ -736,6 +921,21 @@ export default function Games() {
           </div>
         )}
 
+        {/* Congratulations Popup */}
+        {showCongrats && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={confirmCongrats} />
+            <div className="relative bg-white rounded-2xl w-full max-w-sm mx-4 p-8 shadow-2xl text-center">
+              <div className="text-6xl mb-4">🎉</div>
+              <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Congratulations!!!!</h2>
+              <p className="text-lg text-gray-700 mb-6">You're doing well! Keep it up!</p>
+              <button onClick={confirmCongrats}
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold rounded-xl text-lg hover:from-emerald-600 hover:to-green-700 transition-all shadow-lg">
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
         <BottomNav />
       </div>
     );
@@ -776,13 +976,13 @@ export default function Games() {
             {showResult && gameComplete && (
               <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl text-center">
                 <div className="text-3xl mb-1">🎉</div>
-                <h3 className="text-lg font-bold text-gray-900">Stage 1 Complete!</h3>
+                <h3 className="text-lg font-bold text-gray-900">Stage {currentStage} Complete!</h3>
                 <p className="text-sm text-amber-700">
                   Solved in {formatTime(timer)} · {moves} moves · +10 pts
                 </p>
-                <button onClick={completeMemoryStage}
+                <button onClick={() => handleStagePassed(currentStage)}
                   className="mt-3 px-6 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all">
-                  Continue to Stage {currentStage + 1}
+                  Continue
                 </button>
               </div>
             )}
@@ -805,11 +1005,34 @@ export default function Games() {
             </div>
           </div>
 
-          <button onClick={resetMemoryGame}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all">
-            <RotateCcw className="w-4 h-4" /> Restart
-          </button>
+          <div className="flex gap-3">
+            <button onClick={resetMemoryGame}
+              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all">
+              <RotateCcw className="w-4 h-4" /> Restart
+            </button>
+            {gameComplete && (
+              <button onClick={() => handleStagePassed(currentStage)}
+                className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all">
+                Continue
+              </button>
+            )}
+          </div>
         </div>
+        {/* Congratulations Popup */}
+        {showCongrats && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={confirmCongrats} />
+            <div className="relative bg-white rounded-2xl w-full max-w-sm mx-4 p-8 shadow-2xl text-center">
+              <div className="text-6xl mb-4">🎉</div>
+              <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Congratulations!!!!</h2>
+              <p className="text-lg text-gray-700 mb-6">You're doing well! Keep it up!</p>
+              <button onClick={confirmCongrats}
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold rounded-xl text-lg hover:from-emerald-600 hover:to-green-700 transition-all shadow-lg">
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
         <BottomNav />
       </div>
     );
@@ -918,7 +1141,7 @@ export default function Games() {
                     Try Again
                   </button>
                 )}
-                <button onClick={() => setCurrentScreen('stages')}
+                <button onClick={() => quizPassed ? handleStagePassed(currentStage) : setCurrentScreen('stages')}
                   className={`flex-1 py-3 rounded-xl font-semibold transition ${
                     quizPassed
                       ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700'
@@ -930,6 +1153,21 @@ export default function Games() {
             </div>
           )}
         </div>
+        {/* Congratulations Popup */}
+        {showCongrats && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={confirmCongrats} />
+            <div className="relative bg-white rounded-2xl w-full max-w-sm mx-4 p-8 shadow-2xl text-center">
+              <div className="text-6xl mb-4">🎉</div>
+              <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Congratulations!!!!</h2>
+              <p className="text-lg text-gray-700 mb-6">You're doing well! Keep it up!</p>
+              <button onClick={confirmCongrats}
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold rounded-xl text-lg hover:from-emerald-600 hover:to-green-700 transition-all shadow-lg">
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
         <BottomNav />
       </div>
     );

@@ -1,14 +1,22 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const FROM_EMAIL = 'JobBridge <onboarding@resend.dev>';
 
 serve(async (req) => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
+  // Handle OPTIONS preflight
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
   try {
     const { email, name } = await req.json();
 
     if (!email) {
-      return new Response(JSON.stringify({ error: 'Email is required' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Email is required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const displayName = name || 'there';
@@ -125,7 +133,7 @@ serve(async (req) => {
               </table>
 
               <p style="font-size:15px;color:#374151;line-height:1.7;margin:0 0 8px;">
-                Need help? Our AI assistant is available on every page, or reach out at <a href="mailto:jobbridgeesupport@gmail.com" style="color:#1d4ed8;text-decoration:underline;">jobbridgeesupport@gmail.com</a>.
+                Need help? Our AI assistant is available on every page, or reach out at <a href="mailto:jobbridgesupport@gmail.com" style="color:#1d4ed8;text-decoration:underline;">jobbridgesupport@gmail.com</a>.
               </p>
             </td>
           </tr>
@@ -166,14 +174,14 @@ serve(async (req) => {
     if (!res.ok) {
       const err = await res.text();
       console.error('Resend error:', err);
-      return new Response(JSON.stringify({ error: 'Failed to send email' }), { status: 500 });
+      return new Response(JSON.stringify({ error: 'Failed to send email' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const data = await res.json();
     console.log('Welcome email sent:', data.id);
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
+    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (err) {
     console.error('Function error:', err);
-    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });

@@ -3,15 +3,11 @@ import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
 import {
   TrendingUp,
-  DollarSign,
   Percent,
   Users,
   Zap,
   Globe,
   FileText,
-  BarChart3,
-  MessageSquare,
-  MessageCircle,
 } from 'lucide-react';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS } from '../lib/media';
@@ -22,14 +18,14 @@ export default function Revenue() {
   const kpis = [
     {
       label: 'MRR',
-      value: '$284K',
+      value: '₦284K',
       change: '+18%',
-      icon: DollarSign,
+      icon: TrendingUp,
       color: 'bg-blue-50 text-blue-700',
     },
     {
       label: 'ARR',
-      value: '$3.4M',
+      value: '₦3.4M',
       change: '+22%',
       icon: TrendingUp,
       color: 'bg-emerald-50 text-emerald-700',
@@ -43,7 +39,7 @@ export default function Revenue() {
     },
     {
       label: 'LTV',
-      value: '$847',
+      value: '₦847',
       change: '+12%',
       icon: Users,
       color: 'bg-rose-50 text-rose-700',
@@ -51,26 +47,26 @@ export default function Revenue() {
   ];
 
   const projections = [
-    { month: 'Jan', expectedMrr: '$280K', users: '2.05M', conversionRate: '6.2%' },
-    { month: 'Feb', expectedMrr: '$298K', users: '2.15M', conversionRate: '6.5%' },
-    { month: 'Mar', expectedMrr: '$315K', users: '2.25M', conversionRate: '6.8%' },
-    { month: 'Apr', expectedMrr: '$332K', users: '2.35M', conversionRate: '7.1%' },
-    { month: 'May', expectedMrr: '$351K', users: '2.45M', conversionRate: '7.4%' },
-    { month: 'Jun', expectedMrr: '$368K', users: '2.55M', conversionRate: '7.7%' },
+    { month: 'Jan', expectedMrr: '₦280K', users: '2.05M', conversionRate: '6.2%' },
+    { month: 'Feb', expectedMrr: '₦298K', users: '2.15M', conversionRate: '6.5%' },
+    { month: 'Mar', expectedMrr: '₦315K', users: '2.25M', conversionRate: '6.8%' },
+    { month: 'Apr', expectedMrr: '₦332K', users: '2.35M', conversionRate: '7.1%' },
+    { month: 'May', expectedMrr: '₦351K', users: '2.45M', conversionRate: '7.4%' },
+    { month: 'Jun', expectedMrr: '₦368K', users: '2.55M', conversionRate: '7.7%' },
   ];
 
   const plans = [
     {
       name: 'Free',
-      price: '$0',
+      price: '₦0',
       period: '/mo',
       features: ['5 job applications/mo', 'Basic matching', 'Community support'],
-      button: 'Current Plan',
+      button: 'Starter',
       buttonVariant: 'secondary',
     },
     {
       name: 'Professional',
-      price: '$29',
+      price: '₦29',
       period: '/mo',
       features: ['Unlimited applications', 'AI matching', 'Priority support', 'Advanced analytics'],
       button: 'Upgrade',
@@ -79,7 +75,7 @@ export default function Revenue() {
     },
     {
       name: 'Enterprise',
-      price: '$99',
+      price: '₦99',
       period: '/mo per seat',
       features: ['Everything included', 'API access', 'White-label', 'Dedicated CSM', 'SSO'],
       button: 'Contact Sales',
@@ -89,49 +85,49 @@ export default function Revenue() {
   // Icons
   const Crown = TrendingUp;
   const Building = Users;
-  const Briefcase = DollarSign;
+  const Briefcase = TrendingUp;
 
   const revenueStreams = [
     {
       name: 'Premium Subscriptions',
-      revenue: '$190K',
+      revenue: '₦190K',
       growth: '+24%',
       icon: Crown,
     },
     {
       name: 'Enterprise Licenses',
-      revenue: '$65K',
+      revenue: '₦65K',
       growth: '+18%',
       icon: Building,
     },
     {
       name: 'Service Marketplace',
-      revenue: '$18K',
+      revenue: '₦18K',
       growth: '+12%',
       icon: Briefcase,
     },
     {
       name: 'AI Resume Tools',
-      revenue: '$8K',
+      revenue: '₦8K',
       growth: '+8%',
       icon: FileText,
     },
     {
       name: 'Job Posting Fees',
-      revenue: '$2K',
+      revenue: '₦2K',
       growth: '+5%',
       icon: Zap,
     },
     {
       name: 'Data Insights API',
-      revenue: '$1K',
+      revenue: '₦1K',
       growth: '+2%',
       icon: Globe,
     },
   ];
 
   const investorMetrics = [
-    { label: 'CAC', value: '$23', description: 'Customer Acquisition Cost' },
+    { label: 'CAC', value: '₦23', description: 'Customer Acquisition Cost' },
     { label: 'NPS Score', value: '72', description: 'Net Promoter Score' },
     { label: 'Gross Margin', value: '84%', description: 'Gross Profit Margin' },
   ];

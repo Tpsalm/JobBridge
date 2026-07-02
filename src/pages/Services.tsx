@@ -11,7 +11,7 @@ const Services = () => {
   const { openModal } = useModal();
   const [activeCategory, setActiveCategory] = useState('All');
 
-  const categories = ['All', 'Development', 'Design', 'Marketing', 'Writing', 'Finance', 'Legal', 'Consulting'];
+  const categories = ['All', 'Development', 'Design', 'Marketing', 'Writing', 'Finance', 'Legal', 'Consulting', 'Other'];
 
   const providers = [
     {
@@ -104,7 +104,21 @@ const Services = () => {
     },
   ];
 
-  const filteredProviders = providers;
+  const categoryMap: Record<string, string[]> = {
+    'Development': ['Full-Stack Developer', 'React Developer', 'Backend Engineer'],
+    'Design': ['Brand Designer', 'UX Researcher'],
+    'Marketing': ['SEO Specialist', 'Marketing Lead', 'Content Writer'],
+    'Writing': ['Content Writer'],
+    'Finance': ['Financial Advisor'],
+    'Legal': ['Legal Consultant'],
+    'Consulting': ['Financial Advisor', 'Legal Consultant'],
+  };
+  const allMapped = Object.values(categoryMap).flat();
+  const filteredProviders = activeCategory === 'All' ? providers : providers.filter(p => {
+    if (activeCategory === 'Other') return !allMapped.includes(p.title);
+    const matching = categoryMap[activeCategory] || [];
+    return matching.includes(p.title);
+  });
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">

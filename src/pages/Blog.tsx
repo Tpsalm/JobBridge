@@ -7,6 +7,7 @@ import { useModal } from '../contexts/ModalContext';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS } from '../lib/media';
 import { subscribeToBlog } from '../lib/supabaseQueries';
+import { sendEmail } from '../lib/email';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 
@@ -39,6 +40,7 @@ const Blog: React.FC = () => {
     }
     try {
       await subscribeToBlog(subscribeEmail);
+      sendEmail({ type: 'subscription', email: subscribeEmail });
       setSubscribeMsg({ type: 'success', text: 'Subscribed! Check your inbox.' });
       setSubscribeEmail('');
     } catch {

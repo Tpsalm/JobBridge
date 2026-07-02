@@ -138,7 +138,7 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
             <p className="text-sm text-on-surface-variant font-semibold uppercase tracking-wider">Step 2: Compensation & Description</p>
             <div>
               <label className="block text-xs font-semibold text-on-surface-variant uppercase mb-1">Salary Range</label>
-              <input value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })} placeholder="e.g. $80k - $120k" className="w-full border border-outline rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors" />
+              <input value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })} placeholder="e.g. ₦80k - ₦120k" className="w-full border border-outline rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-on-surface-variant uppercase mb-1">Job Description</label>

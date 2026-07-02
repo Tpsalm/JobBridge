@@ -57,11 +57,11 @@ export default function Analytics() {
   ];
 
   const salaryData = [
-    { role: 'React Developer', avg: '$95,000', min: '$75,000', max: '$120,000', yoy: '+8%' },
-    { role: 'Data Scientist', avg: '$110,000', min: '$85,000', max: '$145,000', yoy: '+12%' },
-    { role: 'Product Manager', avg: '$105,000', min: '$80,000', max: '$135,000', yoy: '+6%' },
-    { role: 'DevOps Engineer', avg: '$98,000', min: '$78,000', max: '$125,000', yoy: '+9%' },
-    { role: 'UX Designer', avg: '$88,000', min: '$68,000', max: '$115,000', yoy: '+5%' },
+    { role: 'React Developer', avg: '₦95,000', min: '₦75,000', max: '₦120,000', yoy: '+8%' },
+    { role: 'Data Scientist', avg: '₦110,000', min: '₦85,000', max: '₦145,000', yoy: '+12%' },
+    { role: 'Product Manager', avg: '₦105,000', min: '₦80,000', max: '₦135,000', yoy: '+6%' },
+    { role: 'DevOps Engineer', avg: '₦98,000', min: '₦78,000', max: '₦125,000', yoy: '+9%' },
+    { role: 'UX Designer', avg: '₦88,000', min: '₦68,000', max: '₦115,000', yoy: '+5%' },
   ];
 
   const cities = [

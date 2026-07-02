@@ -332,30 +332,75 @@ export async function streamAnswer(
 
     if (noApiKey) {
       const q = questionClean.toLowerCase();
-      const ranked = [...KB].map(s => ({
+      // Score all sections using the same logic as retrieveRelevant but more granular
+      const scored = KB.map(s => ({
         section: s,
-        kw: s.keywords.filter(k => q.includes(k.toLowerCase())).length,
-        tag: s.tags.filter(t => q.includes(t)).length,
-        word: q.split(/\s+/).filter(w => w.length > 2 && (s.title + ' ' + s.content).toLowerCase().includes(w)).length,
+        score: scoreSection(s, questionClean, pagePath),
       }));
-      ranked.sort((a, b) => (b.kw * 3 + b.tag * 2 + b.word * 0.5) - (a.kw * 3 + a.tag * 2 + a.word * 0.5));
-      const best = ranked[0].section;
-      const showSources = [{ id: best.id, title: best.title }];
+      scored.sort((a, b) => b.score - a.score);
+      const topSections = scored.filter(s => s.score > 0).slice(0, TOP_K);
 
-      const sentences = best.content.match(/[^.!?]+[.!?]+/g) || [best.content];
-      const paragraphs: string[] = [];
-      for (let i = 0; i < sentences.length; i += 2) {
-        paragraphs.push(sentences.slice(i, i + 2).join(' ').trim());
+      if (topSections.length === 0) {
+        onError("I couldn't find relevant information. Try rephrasing your question or contact jobbridgesupport@gmail.com for help.");
+        return;
       }
 
-      const pageLinks = best.pages
-        .filter(p => p !== pagePath)
-        .map(p => `https://tpsalm.github.io/JobBridge${p}`)
-        .slice(0, 2);
-      const link = pageLinks.length
-        ? `\nLearn more: ${pageLinks.join(' or ')}`
-        : `\nFor more info: email jobbridgesupport@gmail.com`;
-      const fullText = paragraphs.join('\n\n') + '\n\n' + link;
+      // Build answer: intro + best section key points + related info + next steps
+      const best = topSections[0];
+      const showSources = topSections.map(s => ({ id: s.section.id, title: s.section.title }));
+
+      // Detect question type
+      const isAbout = /^(tell me about|what is|what are|explain|describe|about)/i.test(questionClean);
+      const isHow = /^(how (to|do|can|does)|how do (i|you)|steps? to|guide)/i.test(questionClean);
+      const isYesNo = /^(can|is|are|does|do|will|should|has)/i.test(questionClean);
+      const isList = /^(list|what are the|name|types? of|categories? of)/i.test(questionClean);
+
+      // Build structured answer
+      const parts: string[] = [];
+
+      // Introduction based on question type
+      if (isAbout) {
+        parts.push(`**${best.section.title}**`);
+      } else if (isHow) {
+        parts.push(`Here's how to do that on JobBridge:`);
+      } else if (isYesNo) {
+        parts.push(`Here's what I found:`);
+      } else if (isList) {
+        parts.push(`Here are the details:`);
+      } else {
+        parts.push(`**${best.section.title}**`);
+      }
+
+      // Extract key sentences from the best section
+      const sentences = best.section.content.match(/[^.!?]+[.!?]+/g) || [best.section.content];
+      // Take the first 3-4 most relevant sentences (avoid listing chunks)
+      const relevantSentences = sentences.filter(s => {
+        const sl = s.toLowerCase();
+        return q.split(/\s+/).some(w => w.length > 3 && sl.includes(w)) || sl.includes(best.section.keywords[0]);
+      });
+      const contentToUse = relevantSentences.length >= 2 ? relevantSentences.slice(0, 4) : sentences.slice(0, 4);
+      parts.push(contentToUse.join(' '));
+
+      // Add related info from other top sections (brief)
+      if (topSections.length > 1) {
+        const related = topSections.slice(1, 3).map(s => {
+          const firstSent = (s.section.content.match(/[^.!?]+[.!?]+/) || [s.section.content])[0].trim();
+          return `• **${s.section.title}**: ${firstSent}`;
+        }).join('\n');
+        parts.push(`\n**Related:**\n${related}`);
+      }
+
+      // Add relevant page links
+      const allPages = [...new Set(topSections.flatMap(s => s.section.pages))].filter(p => p !== pagePath).slice(0, 3);
+      if (allPages.length > 0) {
+        parts.push(`\nFind this on JobBridge: ${allPages.map(p => `${p}`).join(', ')}`);
+      }
+
+      // Closing
+      parts.push(`\nFor more help, email jobbridgesupport@gmail.com`);
+
+      const fullText = parts.join('\n\n');
+
       const updatedHistory: HistoryMsg[] = [
         ...history,
         { role: 'user', content: questionClean },

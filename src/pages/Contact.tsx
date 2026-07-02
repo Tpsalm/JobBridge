@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
-import { useModal } from '../contexts/ModalContext';
+import { supabase } from '../lib/supabase';
 import { Phone, Mail, Twitter, Instagram, Facebook, MapPin } from 'lucide-react';
+import { sanitize, isValidEmail, checkRateLimit } from '../lib/security';
 
 type SubjectType = 'general' | 'technical' | 'partnership' | 'media' | 'other';
 
 export default function Contact() {
-  const { openModal } = useModal();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -34,8 +34,19 @@ export default function Contact() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!checkRateLimit('contact_form', 3, 30000)) return;
+    if (!formData.name.trim() || !formData.message.trim()) return;
+    if (!isValidEmail(formData.email)) return;
+    try {
+      await supabase.from('contact_messages').insert({
+        name: sanitize(formData.name),
+        email: sanitize(formData.email),
+        subject: formData.subject,
+        message: sanitize(formData.message),
+      });
+    } catch {}
     setSubmitted(true);
     setFormData({ name: '', email: '', subject: 'general', message: '' });
     setTimeout(() => setSubmitted(false), 3000);

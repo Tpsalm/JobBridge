@@ -6,6 +6,7 @@ import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchJobs, incrementJobViews, createApplication } from '../lib/supabaseQueries';
+import { sendEmail } from '../lib/email';
 import PageHero from '../components/PageHero';
 import CompanyLogo from '../components/CompanyLogo';
 import { HERO_CAROUSELS } from '../lib/media';
@@ -103,6 +104,18 @@ const Jobs = () => {
       markApplied(jobId);
       setAppliedLocal(prev => prev.includes(jobId) ? prev : [...prev, jobId]);
       setApplied(true);
+      // Send confirmation email to applicant
+      if (user?.email) {
+        sendEmail({ type: 'application', email: user.email, name: profile?.full_name || 'there', jobTitle: selectedJob?.title, company: selectedJob?.company });
+      }
+      // Notify recruiter
+      if (selectedJob?.recruiter_id && selectedJob?.recruiter_id !== user?.id) {
+        supabase.from('profiles').select('email, full_name').eq('id', selectedJob.recruiter_id).maybeSingle().then(({ data: recruiter }) => {
+          if (recruiter?.email) {
+            sendEmail({ type: 'recruiter_notification', email: recruiter.email, jobTitle: selectedJob.title, applicantName: profile?.full_name || user?.email || 'a candidate' });
+          }
+        });
+      }
     } catch (err: any) { setAppError(err.message || 'Failed to submit application'); }
     finally { setSubmitting(false); }
   };
@@ -121,7 +134,16 @@ const Jobs = () => {
 
   useEffect(() => {
     setLoadingJobs(true);
-    fetchJobs().then(data => { setJobs(data); setLoadingJobs(false); }).catch(() => setLoadingJobs(false));
+    fetchJobs().then(data => {
+      setJobs(data);
+      setLoadingJobs(false);
+      const params = new URLSearchParams(window.location.search);
+      const jobId = params.get('id');
+      if (jobId) {
+        const match = data.find((j: any) => j.id === jobId);
+        if (match) selectJob(match);
+      }
+    }).catch(() => setLoadingJobs(false));
     const handler = () => fetchJobs().then(data => setJobs(data)).catch(() => {});
     window.addEventListener('jobs:updated', handler);
     return () => window.removeEventListener('jobs:updated', handler);
@@ -332,7 +354,7 @@ const Jobs = () => {
               <>
                 {/* Mobile back button */}
                 <button
-                  onClick={() => { setMobileDetail(false); setSelectedJob(null); setShowApplication(false); setAppStep(1); }}
+                  onClick={() => { setMobileDetail(false); setSelectedJob(null); setShowApplication(false); }}
                   className="lg:hidden flex items-center gap-1 text-sm text-blue-700 font-medium px-4 py-3 border-b border-gray-100 hover:bg-gray-50"
                 >
                   <ArrowLeft className="w-4 h-4" /> Back to jobs
@@ -381,8 +403,15 @@ const Jobs = () => {
                       <Bookmark className="w-5 h-5" fill={savedJobs.includes(selectedJob.id) ? 'currentColor' : 'none'} />
                     </button>
                     <button onClick={() => {
-                      const text = `*${selectedJob.title}* at ${selectedJob.company}\n\n${window.location.origin}/job/${selectedJob.id}`;
-                      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                      try {
+                        const url = `${window.location.origin}/jobs?id=${selectedJob.id}`;
+                        const text = `${selectedJob.title} at ${selectedJob.company}`;
+                        if (navigator.share) {
+                          navigator.share({ title: text, text, url }).catch(() => {});
+                        } else {
+                          window.open(`https://wa.me/?text=${encodeURIComponent(text+'\n\n'+url)}`, '_blank');
+                        }
+                      } catch(e) {}
                     }} className="p-3 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 transition">
                       <Share2 className="w-5 h-5" />
                     </button>
