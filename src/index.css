@@ -81,7 +81,7 @@ body { min-height: 100dvh; background-color: #faf9f6; }
 .dark .bg-gradient-to-br.from-blue-50 { background: linear-gradient(90deg, rgba(29,78,216,0.06), rgba(29,78,216,0.1)) !important; }
 .dark .bg-blue-50 { background-color: rgba(29,78,216,0.06) !important; }
 .dark .bg-blue-100 { background-color: rgba(29,78,216,0.08) !important; }
-.dark .bg-white/50 { background-color: rgba(7,16,36,0.5) !important; }
+.dark .bg-white-50 { background-color: rgba(7,16,36,0.5) !important; }
 
 /* Ensure cards and panels contrast in dark */
 .dark .rounded-2xl { background-clip: padding-box; }

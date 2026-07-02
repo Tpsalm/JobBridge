@@ -24,18 +24,11 @@ jobs:
           node-version: 22
           cache: "npm"
       - run: npm ci
-      - run: npm run build > build.log 2>&1 || true
+      - run: npm run build
         env:
           VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
           VITE_PAYSTACK_PUBLIC_KEY: ${{ secrets.VITE_PAYSTACK_PUBLIC_KEY }}
           VITE_CHATBASE_ID: ${{ secrets.VITE_CHATBASE_ID }}
-      - run: cat build.log
-        if: always()
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: build-log
-          path: build.log
       - name: Fix SPA routing
         run: cp dist/index.html dist/404.html
       - uses: actions/configure-pages@v4
