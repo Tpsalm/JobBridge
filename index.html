@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='24' cy='8' r='6' fill='%232563EB'/%3E%3Crect x='18' y='16' width='12' height='36' rx='2' fill='%231D4ED8'/%3E%3Cpath d='M30 52 C30 58 24 62 18 58 C14 55 14 50 18 48' stroke='%231D4ED8' stroke-width='10' stroke-linecap='round' fill='none'/%3E%3Cpath d='M30 28 Q40 14 52 28' stroke='%231D4ED8' stroke-width='4' stroke-linecap='round' fill='none'/%3E%3Cline x1='28' y1='28' x2='54' y2='28' stroke='%231D4ED8' stroke-width='3.5' stroke-linecap='round'/%3E%3Cline x1='34' y1='19' x2='34' y2='28' stroke='%231D4ED8' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='41' y1='15.5' x2='41' y2='28' stroke='%231D4ED8' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='48' y1='19' x2='48' y2='28' stroke='%231D4ED8' stroke-width='2.5' stroke-linecap='round'/%3E%3Crect x='50' y='28' width='6' height='24' rx='2' fill='%231D4ED8'/%3E%3C/svg%3E" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>JobBridge - Professional Network</title>
     <meta name="referrer" content="no-referrer-when-downgrade">
     <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -40,133 +40,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     <style>
-      #app-loader {
-        position: fixed;
-        inset: 0;
-        z-index: 99999;
-        background: #faf9f6;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        transition: opacity 0.5s ease, visibility 0.5s ease;
-      }
-      #app-loader.hidden {
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-      }
-      #app-loader .ring {
-        position: relative;
-        width: 80px;
-        height: 80px;
-      }
-      #app-loader .ring svg.spinner {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        animation: spin 1s linear infinite;
-      }
-      #app-loader .ring svg.logo {
-        position: absolute;
-        inset: 14px;
-        width: 52px;
-        height: 52px;
-      }
-      #app-loader .ring svg.spinner circle {
-        fill: none;
-        stroke: #1e40af;
-        stroke-width: 3;
-        stroke-dasharray: 170;
-        stroke-dashoffset: 40;
-        stroke-linecap: round;
-      }
-      #app-loader .title {
-        margin-top: 12px;
-        font-family: 'Inter', system-ui, sans-serif;
-        font-size: 18px;
-        font-weight: 700;
-        color: #1e40af;
-        transition: opacity 0.4s ease;
-      }
-      #app-loader .sub {
-        margin-top: 4px;
-        font-family: 'Inter', system-ui, sans-serif;
-        font-size: 12px;
-        color: #9ca3af;
-        transition: opacity 0.4s ease;
-      }
-      #app-loader .loaded-info { display: none; }
-      #app-loader.loaded .loaded-info {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 2px;
-      }
-      #app-loader.loaded .loaded-info a {
-        color: #1e40af;
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 15px;
-      }
-      #app-loader.loaded .loaded-info .url {
-        font-size: 11px;
-        color: #9ca3af;
-      }
-      #app-loader.loaded .title,
-      #app-loader.loaded .sub { opacity: 0; }
-      #app-loader.loaded .ring svg.spinner {
-        animation: none;
-        opacity: 0;
-      }
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-
+      body { background: #faf9f6; }
     </style>
   </head>
   <body>
-    <div id="app-loader">
-      <div class="ring">
-        <svg class="spinner" viewBox="0 0 80 80">
-          <circle cx="40" cy="40" r="26" />
-        </svg>
-        <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-          <circle cx="24" cy="8" r="6" fill="#2563EB" />
-          <rect x="18" y="16" width="12" height="36" rx="2" fill="#1D4ED8" />
-          <path d="M30 52 C30 58 24 62 18 58 C14 55 14 50 18 48" stroke="#1D4ED8" stroke-width="10" stroke-linecap="round" fill="none" />
-          <path d="M30 28 Q40 14 52 28" stroke="#1D4ED8" stroke-width="4" stroke-linecap="round" fill="none" />
-          <line x1="28" y1="28" x2="54" y2="28" stroke="#1D4ED8" stroke-width="3.5" stroke-linecap="round" />
-          <line x1="34" y1="19" x2="34" y2="28" stroke="#1D4ED8" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="41" y1="15.5" x2="41" y2="28" stroke="#1D4ED8" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="48" y1="19" x2="48" y2="28" stroke="#1D4ED8" stroke-width="2.5" stroke-linecap="round" />
-          <rect x="50" y="28" width="6" height="24" rx="2" fill="#1D4ED8" />
-        </svg>
-      </div>
-      <div class="title">JobBridge</div>
-      <div class="sub">Connecting...</div>
-      <div class="loaded-info">
-        <a href="https://jobbridge.com.ng">JobBridge</a>
-        <span class="url">jobbridge.com.ng</span>
-      </div>
-    </div>
-
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      (function() {
-        var loader = document.getElementById('app-loader');
-        function hideLoader() {
-          loader.classList.add('loaded');
-          setTimeout(function() { loader.classList.add('hidden'); }, 600);
-        }
-        // If React hasn't mounted after 2s, show loaded state anyway
-        setTimeout(hideLoader, 2000);
-        // Listen for React mount signal
-        document.addEventListener('app-mounted', hideLoader);
-      })();
-    </script>
 
   </body>
 </html>

@@ -91,7 +91,7 @@ export default function Messages() {
 
   return (
     <AppLayout>
-      <div className="flex h-[calc(100vh-64px)]">
+      <div className="flex h-[calc(100dvh-64px)]">
         {/* Conversation List */}
         <div className={`w-full sm:w-80 lg:w-96 border-r border-gray-100 flex flex-col bg-white ${selectedId ? 'hidden sm:flex' : 'flex'}`}>
           {/* Header */}

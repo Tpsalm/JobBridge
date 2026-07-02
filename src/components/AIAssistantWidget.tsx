@@ -20,6 +20,26 @@ const PHASE_LABELS: Record<Phase, string> = {
   generating: 'Generating response',
 };
 
+function renderInline(text: string): React.ReactNode {
+  const result: React.ReactNode[] = [];
+  const boldParts = text.split(/(\*\*[^*]+\*\*)/g);
+  for (const part of boldParts) {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      result.push(<strong key={result.length}>{part.slice(2, -2)}</strong>);
+    } else {
+      const italicParts = part.split(/(\*[^*]+\*)/g);
+      for (const ip of italicParts) {
+        if (ip.startsWith('*') && ip.endsWith('*') && ip.length > 2) {
+          result.push(<em key={result.length}>{ip.slice(1, -1)}</em>);
+        } else {
+          result.push(ip);
+        }
+      }
+    }
+  }
+  return result.length === 1 ? result[0] : result;
+}
+
 function formatMessage(text: string) {
   const parts = text.split(/(https?:\/\/[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g);
   return parts.map((part, i) => {
@@ -33,11 +53,49 @@ function formatMessage(text: string) {
       return <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">{part}</a>;
     }
     const lines = part.split('\n');
-    return lines.map((line, j) => {
+    const elements: React.ReactNode[] = [];
+    let li = 0;
+    while (li < lines.length) {
+      const line = lines[li];
       const trimmed = line.trim();
-      if (!trimmed) return <br key={`${i}-${j}`} />;
-      return <p key={`${i}-${j}`} className="mb-2 last:mb-0">{trimmed}</p>;
-    });
+      if (!trimmed) {
+        elements.push(<br key={`${i}-br-${li}`} />);
+        li++;
+        continue;
+      }
+      const headerMatch = trimmed.match(/^(#{1,3})\s+(.+)/);
+      if (headerMatch) {
+        const level = headerMatch[1].length;
+        const Tag = level === 3 ? 'h3' : level === 2 ? 'h2' : 'h3';
+        elements.push(<Tag key={`${i}-h-${li}`} className="font-bold mt-2 mb-1 text-sm">{renderInline(headerMatch[2])}</Tag>);
+        li++;
+        continue;
+      }
+      if (/^[-*•]\s/.test(trimmed)) {
+        const items: React.ReactNode[] = [];
+        while (li < lines.length && /^[-*•]\s/.test(lines[li].trim())) {
+          items.push(<li key={`${i}-uli-${li}`}>{renderInline(lines[li].trim().replace(/^[-*•]\s+/, ''))}</li>);
+          li++;
+        }
+        elements.push(<ul key={`${i}-ul`} className="list-disc list-inside mb-2 space-y-0.5">{items}</ul>);
+        continue;
+      }
+      const numberedMatch = trimmed.match(/^\d+[\)\.]\s(.+)/);
+      if (numberedMatch) {
+        const items: React.ReactNode[] = [];
+        while (li < lines.length) {
+          const m = lines[li].trim().match(/^\d+[\)\.]\s(.+)/);
+          if (!m) break;
+          items.push(<li key={`${i}-oli-${li}`}>{renderInline(m[1])}</li>);
+          li++;
+        }
+        elements.push(<ol key={`${i}-ol`} className="list-decimal list-inside mb-2 space-y-0.5">{items}</ol>);
+        continue;
+      }
+      elements.push(<p key={`${i}-p-${li}`} className="mb-2 last:mb-0">{renderInline(trimmed)}</p>);
+      li++;
+    }
+    return elements;
   });
 }
 
@@ -179,7 +237,8 @@ function AIAssistantWidget() {
       {/* Launcher button */}
       <button
         onClick={() => setShowIntro(true)}
-        className={`fixed bottom-20 right-4 md:bottom-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center ${isOpen ? 'scale-0' : 'scale-100'}`}
+        className={`fixed z-40 w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center ${isOpen ? 'scale-0' : 'scale-100'}`}
+        style={{ bottom: 'max(80px, env(safe-area-inset-bottom, 0px))', right: 'max(16px, env(safe-area-inset-right, 0px))' }}
       >
         <div className="relative">
           <Bot className="w-6 h-6" />
@@ -221,14 +280,14 @@ function AIAssistantWidget() {
           isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
         }`}
         style={{
-          bottom: '80px',
-          right: '16px',
+          bottom: 'max(80px, env(safe-area-inset-bottom, 0px))',
+          right: 'max(16px, env(safe-area-inset-right, 0px))',
           width: 'calc(100vw - 32px)',
           maxWidth: '400px',
-          maxHeight: 'calc(100vh - 120px)',
+          maxHeight: 'calc(100dvh - max(120px, env(safe-area-inset-bottom, 0px)))',
         }}
       >
-        <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+        <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200" style={{ maxHeight: 'calc(100dvh - max(120px, env(safe-area-inset-bottom, 0px)))' }}>
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">

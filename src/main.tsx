@@ -44,5 +44,3 @@ root.render(
   </StrictMode>
 );
 
-// Notify the pre-loader that React has mounted
-document.dispatchEvent(new Event('app-mounted'));
