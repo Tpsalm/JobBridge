@@ -1,0 +1,142 @@
+{
+  "items": [
+    {
+      "id": "about",
+      "title": "About JobBridge",
+      "keywords": ["about", "what is jobbridge", "tell me about jobbridge", "who is jobbridge", "company", "mission"],
+      "answer": "JobBridge is a people-first career marketplace that combines AI, data and human expertise to connect talent with employers and service buyers. Founded in 2021 by Mr. Victor Eniola, JobBridge makes career opportunities easier to discover and more transparent, while providing recruiters and businesses with AI-powered tools to find qualified candidates quickly. Our core pillars are Transparency, Innovation, and Inclusion. We support job seekers, recruiters, and service providers with tailored experiences and AI-powered tools."
+    },
+    {
+      "id": "signup",
+      "title": "How to Sign Up",
+      "keywords": ["sign up", "signup", "create account", "register", "how to join", "new account"],
+      "answer": "To sign up on JobBridge:\n\n1) Go to the Signup page.\n2) Choose your role: Job Seeker, Recruiter, or Service Provider.\n3) Fill in your full name, email, and password. Recruiters/Providers also enter a company name.\n4) For Recruiter and Provider accounts, you'll receive an OTP code via email for verification.\n5) Enter the OTP on the Verify OTP page to activate your account.\n6) Complete your profile by adding skills, bio, location, and other details.\n\nJob Seeker accounts can sign up without OTP verification."
+    },
+    {
+      "id": "roles",
+      "title": "User Roles Explained",
+      "keywords": ["role", "roles", "job seeker", "recruiter", "service provider", "difference", "account type"],
+      "answer": "JobBridge has three user roles:\n\n• Job Seeker: Browse and apply for jobs, use AI resume tools, save jobs, track applications.\n• Recruiter: Post job openings, review applications, use AI to rank candidates and write job descriptions. Requires subscription to post jobs.\n• Service Provider: List services on the marketplace, get discovered by clients, receive inquiries.\n\nYou can only have one role per account. Choose the one that best fits your needs."
+    },
+    {
+      "id": "job_seeker_features",
+      "title": "Job Seeker Features",
+      "keywords": ["job seeker features", "apply for jobs", "find jobs", "search jobs", "browse jobs", "job seeker tools"],
+      "answer": "As a Job Seeker on JobBridge you can:\n\n• Browse and search available jobs with filters by category, location, and type.\n• Apply to jobs by filling out a detailed application form including your CV and cover letter.\n• Save jobs to your Saved list for later.\n• Use AI Resume Studio to extract skills from your resume, tailor it to specific jobs, and generate cover letters.\n• Track your applications in the My Jobs page.\n• Use the AI Assistant for career advice, interview tips, and salary negotiation guidance.\n\nAI Resume tools require an active subscription. See the Pricing page for AI Career Tools plans."
+    },
+    {
+      "id": "recruiter_features",
+      "title": "Recruiter Features",
+      "keywords": ["recruiter", "recruiter features", "post job", "hire", "recruit", "find candidates"],
+      "answer": "As a Recruiter on JobBridge you can:\n\n• Post new job openings (requires an active subscription plan).\n• Use AI Write Description to automatically generate complete job descriptions.\n• Review applications submitted by job seekers, including their CV and cover letter.\n• Shortlist, review, or reject applications.\n• Use AI Rank to score and rank candidates against your job requirements.\n• Manage all your job postings from the Recruiter Dashboard.\n\nTo post jobs, you need to subscribe to a Job Posting Plan on the Pricing page. Plans start at ₦2,000 for 7 days."
+    },
+    {
+      "id": "service_provider",
+      "title": "Service Provider Features",
+      "keywords": ["service provider", "provider", "become provider", "list services", "offer services"],
+      "answer": "As a Service Provider on JobBridge you can:\n\n• Create a detailed provider profile with service categories and descriptions.\n• Set your rates and availability.\n• Get discovered by clients searching for services.\n• Receive inquiries directly through the platform.\n\nBasic listing is free at launch. Verified (₦3,000/mo) and Featured (₦5,000/mo) plans give you badges, priority placement, and social media promotion."
+    },
+    {
+      "id": "ai_tools",
+      "title": "AI Career Tools",
+      "keywords": ["ai tools", "ai career", "resume builder", "cv builder", "cover letter", "ai resume", "ai cv"],
+      "answer": "JobBridge offers AI-powered Career Tools to help you stand out:\n\n• AI CV Builder: Build a professional CV from scratch.\n• AI Resume Tailor: Optimize your resume for specific job descriptions.\n• AI Cover Letter Generator: Create job-specific cover letters in seconds.\n• AI Interview Preparation: Practice mock interviews tailored to your role.\n• AI Career Assistant: Get personalized career advice and guidance.\n\nThese tools are available with the AI Career Tools subscription: ₦1,500/month or ₦15,000/year. Subscribe on the Pricing page to unlock full access."
+    },
+    {
+      "id": "job_posting_plans",
+      "title": "Job Posting Plans",
+      "keywords": ["job posting", "posting plans", "post job", "job plan", "recruiter plan", "subscription"],
+      "answer": "Recruiters need a Job Posting Plan to post jobs. Three plans:\n\n• Basic (₦2,000): 7 days, 1 job post, basic visibility, up to 5 applicants, email notifications.\n• Standard (₦3,500): 14 days, 1 job post, medium visibility, up to 15 applicants, email + SMS, priority support. Most popular.\n• Premium (₦5,000): 30 days, 3 job posts, high visibility, unlimited applicants, priority support, featured placement option, social media promotion.\n\nChoose a plan on the Pricing page and pay via the Payment page. Plans are activated immediately after successful payment."
+    },
+    {
+      "id": "payment_methods",
+      "title": "Payment Methods",
+      "keywords": ["payment", "pay", "how to pay", "card", "transfer", "bank transfer", "moniepoint", "checkout"],
+      "answer": "JobBridge accepts these payment methods:\n\n• Card: Visa, Mastercard, and Verve cards accepted. Pay securely via Paystack checkout.\n• Bank Transfer: Transfer to Moniepoint MFB — Account name: JobBridge Connect Africa, Account number: 9136171354.\n\nAfter payment, your subscription is activated automatically within minutes. If you used bank transfer, click 'I have paid' after making the transfer to complete activation. All payments are encrypted and secure."
+    },
+    {
+      "id": "pricing_overview",
+      "title": "Pricing Overview",
+      "keywords": ["pricing", "prices", "cost", "plans", "how much", "fees"],
+      "answer": "JobBridge offers these plans:\n\nJob Posting Plans (for Recruiters):\n• Basic: ₦2,000 — 7 days, 1 job post\n• Standard: ₦3,500 — 14 days, 1 job post\n• Premium: ₦5,000 — 30 days, 3 job posts\n\nAI Career Tools (for Job Seekers):\n• Monthly: ₦1,500/month\n• Annual: ₦15,000/year (save 17%)\n\nService Provider Plans:\n• Basic: Free\n• Verified: ₦3,000/month\n• Featured: ₦5,000/month\n\nBusiness Ads: Weekly ₦2,000, Monthly ₦7,500, Featured ₦15,000.\n\nTraining & Certification: Courses from ₦5,000 to ₦15,000."
+    },
+    {
+      "id": "otp_verification",
+      "title": "OTP Verification",
+      "keywords": ["otp", "verification code", "verify", "verify otp", "verify account", "code"],
+      "answer": "When you sign up as a Recruiter or Service Provider, you'll receive an OTP (One-Time Password) via email. Enter this code on the Verify OTP page to activate your account. If the code doesn't arrive, check your spam folder or request a resend. The code expires after 10 minutes."
+    },
+    {
+      "id": "contact_support",
+      "title": "Contact Support",
+      "keywords": ["contact", "support", "help", "email support", "whatsapp", "call", "customer service"],
+      "answer": "You can reach JobBridge support through:\n\n• Live Chat: 09136171354 — Chat with our team for quick assistance.\n• Email: jobbridgesupport@gmail.com — Send us an email and we'll respond within 24 hours.\n• Call: 09136171354 — Call us during business hours.\n\nYou can also visit the Support page for more information."
+    },
+    {
+      "id": "blog",
+      "title": "Blog & Resources",
+      "keywords": ["blog", "articles", "resources", "career advice", "read articles"],
+      "answer": "JobBridge's Blog features articles on career development, hiring, AI in recruitment, remote work, salary negotiation, and more. Topics include:\n\n• Career Advice: Resume tips, interview prep, career pivots.\n• AI & Tech: AI in hiring, skills-based recruitment.\n• Hiring: Diversity hiring, job description writing.\n• Remote Work: Best practices, 4-day workweek.\n• Salary & Benefits: Negotiation strategies.\n• Leadership: Scaling teams, management.\n\nVisit the Blog page to read full articles."
+    },
+    {
+      "id": "my_jobs",
+      "title": "My Jobs Page",
+      "keywords": ["my jobs", "saved jobs", "applied jobs", "track applications", "application status"],
+      "answer": "The My Jobs page helps you track your job activity:\n\n• Saved: Jobs you've bookmarked for later.\n• Applied: Jobs you've applied to, with application status (Pending, Reviewed, Shortlisted, Rejected, Hired).\n• Interviews: Upcoming interview schedules.\n• Archived: Jobs you've archived.\n\nApplication statuses are updated by recruiters as they review candidates."
+    },
+    {
+      "id": "admin_features",
+      "title": "Admin Features",
+      "keywords": ["admin", "administrator", "admin dashboard", "approve jobs"],
+      "answer": "Admins have access to a dashboard where they can:\n\n• View all jobs posted on the platform.\n• Approve or reject pending jobs with a reason.\n• View all users and applications.\n• Manage platform settings.\n\nAdmin access is restricted and requires a special admin secret code during signup."
+    },
+    {
+      "id": "ai_assistant",
+      "title": "AI Assistant Features",
+      "keywords": ["ai assistant", "chatbot", "career assistant", "ask ai", "help me"],
+      "answer": "The JobBridge AI Assistant is your career companion. It can:\n\n• Review your resume and provide feedback.\n• Give interview tips and practice questions.\n• Help with salary negotiation strategies.\n• Offer career pivot advice.\n• Analyze skill gaps.\n• Recommend top companies hiring.\n• Answer questions about JobBridge features.\n\nJust type your question or select a suggested prompt to get started. The AI Assistant is free to use."
+    },
+    {
+      "id": "job_applications",
+      "title": "Job Applications",
+      "keywords": ["apply", "application", "apply for job", "submit application", "how to apply"],
+      "answer": "To apply for a job on JobBridge:\n\n1) Find a job on the Jobs page.\n2) Click 'Apply Now' to open the application form.\n3) Fill in your details: Date of birth, gender, disability status, professional headline, years of experience, function, work type, qualification, location, availability, and salary expectation.\n4) Upload your CV (pdf, doc, docx, or rtf, max 10MB).\n5) Optionally add a cover letter.\n6) Click 'Submit and apply'.\n\nYour application will be sent to the recruiter. You can track its status in My Jobs."
+    },
+    {
+      "id": "account_settings",
+      "title": "Account Settings",
+      "keywords": ["settings", "profile", "edit profile", "change password", "account"],
+      "answer": "You can manage your account settings from the Settings page. Options include updating your profile information, changing your password, and managing notifications. Your profile information is used by recruiters when you apply for jobs."
+    },
+    {
+      "id": "business_advertisements",
+      "title": "Business Advertisements",
+      "keywords": ["business ad", "advertisement", "advert", "promote business", "business adverts", "advertising"],
+      "answer": "JobBridge Business Advertisements let you promote your restaurant, hotel, fashion brand, phone repair shop, school, hospital, and more to thousands of users.\n\nAvailable packages:\n• Weekly (₦2,000): 7 days visibility, category placement, view analytics.\n• Monthly (₦7,500): 30 days visibility, category placement, view analytics.\n• Featured Business (₦15,000): 30 days, homepage spotlight, category prominence, social media boost, WhatsApp status promo, dedicated banner.\n\nTo create an advert, visit the Business page, fill in your business name, advert title, description, and category. You can optionally add featured placement for ₦1,000 extra."
+    },
+    {
+      "id": "premium_billing",
+      "title": "Premium & Billing",
+      "keywords": ["premium", "billing", "payment methods", "cancel subscription", "refund", "money back", "invoice"],
+      "answer": "Premium & Billing Information:\n\n• Payment Methods: JobBridge accepts Card (Visa, Mastercard, Verve via Paystack) and Bank Transfer (Moniepoint MFB — Account name: JobBridge Connect Africa, Account number: 9136171354).\n• Subscription Cancellation: You can cancel anytime from your billing settings. Your access continues until the end of your billing cycle.\n• Refunds: We offer a 30-day money-back guarantee if you're not satisfied with your subscription. Contact jobbridgesupport@gmail.com for refund requests.\n• Receipts: After successful payment, your receipt is sent to your registered email address.\n• Activation: Plans are activated immediately after successful payment verification.\n\nFor billing inquiries, please email jobbridgesupport@gmail.com or call 09136171354."
+    },
+    {
+      "id": "internship_opportunities",
+      "title": "Internship Opportunities",
+      "keywords": ["internship", "intern", "graduate trainee", "nyif", "industrial training", "siwes", "trainee"],
+      "answer": "JobBridge supports Internship opportunities for students, fresh graduates, and career changers.\n\n• Recruiters can now post Internship positions by selecting 'Internship' as the job type when creating a job post.\n• Job seekers can filter by 'Internship' on the Jobs page to find internship opportunities.\n• Internship experience level is also available in the recruiter filter options.\n\nWhether you're looking for SIWES/IT placement, graduate traineeship, or entry-level experience, use the Internship filter to find the right opportunity."
+    },
+    {
+      "id": "ai_training",
+      "title": "AI Career Assistant Training",
+      "keywords": ["ai training", "train ai", "ai knowledge", "ai learn", "assistant training", "knowledge base"],
+      "answer": "The JobBridge AI Assistant is continuously trained with platform knowledge to help you with:\n\n• Career advice, interview preparation, and salary negotiation.\n• Platform navigation — how to sign up, post jobs, apply, make payments.\n• Business advertising and service provider listings.\n• Internship opportunities and job search strategies.\n• Premium billing, subscriptions, and refund policies.\n• Contact information for support (Live Chat: 09136171354, Email: jobbridgesupport@gmail.com).\n\nThe assistant loads its knowledge from JobBridge's comprehensive FAQ database and site knowledge base. If you need more specific help, just ask!"
+    },
+    {
+      "id": "contact_info",
+      "title": "Contact & Support Information",
+      "keywords": ["contact", "support", "live chat", "phone", "call", "whatsapp", "address", "location"],
+      "answer": "You can reach JobBridge support through:\n\n• Live Chat (WhatsApp): 09136171354 — Chat with our team for quick assistance. Mon-Fri, 9am-10pm CAT.\n• Email: jobbridgesupport@gmail.com — Send us an email and we'll respond within 24 hours.\n• Call: 09136171354 — Call us during business hours.\n• Office Address: No 4, Phenol Crystal Street, Koomi Rd, Saki, Oyo State.\n\nSocial Media:\n• Instagram: https://www.instagram.com/jobbridge__\n• Facebook: https://www.facebook.com/share/1DhVVgkF6P/\n• X (Twitter): https://x.com/jobbridge_com"
+    }
+  ]
+}
