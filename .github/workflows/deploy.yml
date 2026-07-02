@@ -24,11 +24,16 @@ jobs:
           node-version: 22
           cache: "npm"
       - run: npm ci
-      - run: npm run build
+      - run: npm run build 2>&1 | tee build.log
         env:
           VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
           VITE_PAYSTACK_PUBLIC_KEY: ${{ secrets.VITE_PAYSTACK_PUBLIC_KEY }}
           VITE_CHATBASE_ID: ${{ secrets.VITE_CHATBASE_ID }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-log
+          path: build.log
       - name: Fix SPA routing
         run: cp dist/index.html dist/404.html
       - uses: actions/configure-pages@v4
