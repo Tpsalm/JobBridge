@@ -1,16 +1,16 @@
 import KB, { type KnowledgeSection } from './jobbridgeKnowledge';
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const LLM_MODEL = 'gpt-4o-mini';
-const TOP_K = 6;
-const MAX_HISTORY = 20;
-const MAX_INPUT_LENGTH = 500;
+const LLM_MODEL = 'gpt-4o-mini'; // Can be upgraded to 'gpt-4o' or 'gpt-4-turbo' if available
+const TOP_K = 8;
+const MAX_HISTORY = 25;
+const MAX_INPUT_LENGTH = 1000;
 const MIN_INTERVAL_MS = 1000;
 const MAX_CALLS_PER_WINDOW = 25;
 const WINDOW_MS = 60000;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY = 2000;
-const MAX_CONTEXT_LENGTH = 4000;
+const MAX_CONTEXT_LENGTH = 8000;
 const CACHE_CONV_KEY = 'jb_conv_';
 
 export interface SourceInfo {
@@ -142,46 +142,46 @@ function scoreSection(section: KnowledgeSection, query: string, pagePath: string
     const kl = kw.toLowerCase();
     return kl.length > 3 && lower.includes(kl);
   }).length;
-  score += phraseMatches * 6;
+  score += phraseMatches * 8;
 
   // 2) Single keyword word-match (one keyword word matches a query word exactly)
   const keywordWords = new Set(section.keywords.flatMap(k => k.toLowerCase().split(/\s+/)));
   const exactKeywordMatches = queryWords.filter(w => keywordWords.has(w)).length;
-  score += exactKeywordMatches * 3;
+  score += exactKeywordMatches * 4;
 
   // 3) Title word matching
   const titleWords = section.title.toLowerCase().split(/\s+/);
   const titleMatches = queryWords.filter(w => titleWords.includes(w)).length;
-  score += titleMatches * 4;
+  score += titleMatches * 5;
 
   // 4) Tag matching
   const tagMatches = section.tags.filter(t => lower.includes(t)).length;
-  score += tagMatches * 2;
+  score += tagMatches * 3;
 
   // 5) Page context boost (stronger if section explicitly lists this page)
   if (section.pages.includes(pagePath)) {
-    score += 5;
+    score += 8;
   } else if (section.pages.some(p => pagePath.startsWith(p) && p !== '/')) {
-    score += 3;
+    score += 5;
   }
 
   // 6) Content word overlap
   const contentWords = (section.content + ' ' + section.title).toLowerCase().split(/\s+/);
   const contentWordSet = new Set(contentWords);
   const contentMatches = queryWords.filter(w => w.length > 2 && contentWordSet.has(w)).length;
-  score += contentMatches * 0.5;
+  score += contentMatches * 1;
 
   // 7) Word prefix matching (for partial/plural matches)
   const prefixMatches = queryWords.filter(w => {
     if (w.length < 4) return false;
     return [...keywordWords].some(kw => kw.startsWith(w) || w.startsWith(kw));
   }).length;
-  score += prefixMatches * 1.5;
+  score += prefixMatches * 2;
 
   // 8) Question-type boost — if query is procedural, boost sections with step/click/go keywords
   const isProcedural = /^(how (to|do|can)|steps?|guide|walk|what are the steps)/i.test(lower);
   if (isProcedural && /click|step|go to|select|enter|choose|fill|upload|submit/i.test(section.content)) {
-    score += 3;
+    score += 4;
   }
 
   // 9) Category relevance — if query has clear category, penalize wrong-tag sections slightly
@@ -189,7 +189,7 @@ function scoreSection(section: KnowledgeSection, query: string, pagePath: string
   const queryCatTags = categoryTags.filter(t => lower.includes(t));
   if (queryCatTags.length > 0) {
     const hasMatchingTag = queryCatTags.some(t => section.tags.includes(t));
-    if (!hasMatchingTag) score -= 1;
+    if (!hasMatchingTag) score -= 2;
   }
 
   return Math.max(0, score);
@@ -222,11 +222,14 @@ function retrieveRelevant(question: string, pagePath: string): KnowledgeSection[
 function trimContext(sections: KnowledgeSection[]): string {
   let combined = '';
   for (const s of sections) {
-    const block = `${s.title}\n${s.content}\n\n---\n\n`;
+    const block = `## ${s.title}\n${s.content}\n\n---\n\n`;
     if ((combined + block).length > MAX_CONTEXT_LENGTH) break;
     combined += block;
   }
-  return combined || `${sections[0].title}\n${sections[0].content}`;
+  if (!combined && sections.length > 0) {
+    return `## ${sections[0].title}\n${sections[0].content}`;
+  }
+  return combined;
 }
 
 // ─── Streaming LLM call ─────────────────────────────────────────
@@ -241,8 +244,8 @@ async function streamLLM(
     body: JSON.stringify({
       model: LLM_MODEL,
       messages,
-      max_tokens: 800,
-      temperature: 0.3,
+      max_tokens: 2000,
+      temperature: 0.6, // Slightly more creative but still grounded
       stream: true,
     }),
   });
@@ -291,33 +294,38 @@ function buildSystemPrompt(
   pageContext: string,
   history: HistoryMsg[],
 ): string {
-  return `You are the JobBridge AI Assistant — a warm, thoughtful, and knowledgeable career companion for Nigeria's #1 professional network.
+  return `You are the JobBridge AI Assistant — Nigeria's most trusted career companion. Your role is to be knowledgeable, professional, and deeply supportive, like an experienced career coach who understands both the platform and the Nigerian job market.
 
-## Your Personality
-- Be warm, encouraging, and conversational — like a supportive career coach who genuinely cares
-- When the user greets you or makes small talk, respond warmly and naturally. Build rapport first before diving into answers.
-- Show enthusiasm about helping people with their career journey. Use phrases like "I'd love to help", "That's a great question", "Wonderful to hear"
-- Be concise but personable. A short warm sentence before the answer makes all the difference.
-- Use natural, conversational language. Write like a human, not a manual.
+## Your Personality & Communication Style
+- **Professional yet Warm**: Maintain a polished, business-appropriate tone while remaining approachable and encouraging. Think of yourself as a senior career advisor.
+- **Human-Like & Conversational**: Use natural, flowing language with contractions (don't, can't, it's) and avoid robotic phrasing. Structure your answers like you're speaking with someone in a professional setting.
+- **Encouraging & Empathetic**: Acknowledge the user's situation, validate their feelings, and offer constructive guidance. Phrases like "That's a great question", "I'm happy to help with that", or "Let's walk through this together" work well.
+- **Structured & Clear**: Organize information logically with clear headings, bullet points, and numbered lists when relevant. Make complex information easy to digest.
+- **Nigerian Context**: Remember that JobBridge is primarily for Nigeria and West Africa. Reference local context when appropriate.
+- **Proactive Helpful**: After answering, suggest 1-2 relevant follow-up actions or questions that could be useful.
 
-## Core Rules
-- Answer ONLY based on the knowledge context below. Do not make up information, features, or pricing.
-- If the context doesn't contain the answer, say: "I don't have that information. Please contact jobbridgesupport@gmail.com for help."
-- Be concise (2-5 sentences) but thorough when needed. Use bullet points for lists of 2+ items.
-- Do not mention "context", "internal notes", "knowledge base", or "retrieved" in your response.
-- Include relevant page paths like /signup, /pricing, /recruiter, /profile when helpful.
-- If the user asks about something outside JobBridge, politely redirect to platform topics.
-- When giving instructions, use clear step-by-step format (1. 2. 3.).
-- Do NOT use markdown formatting like **bold** or *italic* in your response.
+## Core Response Guidelines
+- **Answer Using Only the Knowledge Context**: Never invent or assume information not in the context below. If you don't have the answer, politely say so and direct them to support.
+- **Be Comprehensive but Concise**: Provide thorough, detailed answers without unnecessary fluff. A good response is usually 3-8 sentences plus any structured lists.
+- **Use Markdown for Clarity**: Employ **bold** for emphasis, *italic* for subtle highlights, bullet points (-), numbered lists (1. 2. 3.), and headings (##) when appropriate to improve readability.
+- **Include Relevant Page Links**: When referencing features, include the page path (like /jobs, /pricing, /ai-resume) so users know where to go next.
+- **Stay On-Topic**: If the user asks about something unrelated to JobBridge, politely acknowledge and redirect them to platform topics.
+- **Format Instructions Clearly**: Use numbered steps (1. 2. 3.) for actionable guides.
 
-## Current Page
+## When You Don't Know Something
+If the knowledge context doesn't contain the answer, respond with:
+"I don't have specific information about that at the moment. For personalized assistance, please reach out to our support team at jobbridgesupport@gmail.com — they'd be happy to help you!"
+
+## Current Page Context
 The user is currently on: ${pageContext}
 
-## Conversation History (last ${MAX_HISTORY} messages)
+## Conversation History
 ${history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n')}
 
-## Knowledge Context (use this to answer)
-${context}`;
+## Knowledge Base (Answer ONLY From This)
+${context}
+
+Now, respond to the user's last message in a professional, warm, and clear manner, following the guidelines above.`;
 }
 
 // ─── Conversational greeting detection ──────────────────────────
@@ -500,15 +508,15 @@ function buildFallbackAnswer(
   const isWhy = /^why/i.test(q);
   const isWhen = /^when/i.test(q);
 
-  // Build conversational opening
+  // Build professional, warm conversational opening
   const warmOpeners: Record<string, string> = {
-    how: "I'd be happy to walk you through that! Here's how to do it on JobBridge:",
-    what: "Great question! Let me share what I know about that.",
-    compare: "Let me break down the differences for you:",
+    how: "I'd be happy to walk you through this! Here's how to do it on JobBridge:",
+    what: "That's a great question! Let me share what I know about that.",
+    compare: "Let me break down the key differences for you clearly:",
     yesno: "",
     list: "",
-    price: "Here's what you need to know about pricing:",
-    default: "Here's what I found about that:",
+    price: "Here's what you need to know about pricing on JobBridge:",
+    default: "Let me help you with that. Here's the information I found:",
   };
 
   // Build the answer
@@ -517,7 +525,7 @@ function buildFallbackAnswer(
     const sents = extractSentences(best.section.content);
     const steps = sents.filter(s => /^\d+[\)\.]|click|go to|select|enter|choose|fill|upload|submit/i.test(s));
     if (steps.length >= 2) {
-      parts.push(steps.slice(0, 8).map(s => s.trim().replace(/^\d+[\)\.]\s*/, '')).join('\n'));
+      parts.push(steps.slice(0, 8).map((s, i) => `${i + 1}. ${s.trim().replace(/^\d+[\)\.]\s*/, '')}`).join('\n'));
       const extra = sents.filter(s => !/click|go to|select|enter|choose|fill|upload|submit/i.test(s)).slice(0, 2);
       if (extra.length) parts.push(extra.join('\n'));
     } else {
@@ -534,7 +542,7 @@ function buildFallbackAnswer(
     const positiveIndicators = /(yes|can|is |are|does|available|supported|free|welcome|allowed|enabled)/i;
     const contentStart = best.section.content.slice(0, 300);
     const isPositive = positiveIndicators.test(contentStart) && !/cannot|do not|does not|is not|are not|not available|not supported/i.test(contentStart);
-    parts.push(isPositive ? 'Yes, that is available on JobBridge.' : 'Here is what I found:');
+    parts.push(isPositive ? 'Yes, that is indeed available on JobBridge.' : 'Here is what I found on that topic:');
     parts.push(getStructuredAnswer(question, best.section, 4));
   } else if (isList) {
     const items = best.section.content.match(/[-*•]\s+[^\n]+/g);
@@ -580,17 +588,17 @@ function buildFallbackAnswer(
       return firstSent ? `- ${s.section.title}: ${firstSent.trim()}` : '';
     }).filter(Boolean).join('\n');
     if (extra) {
-      parts.push(`\nRelated information:\n${extra}`);
+      parts.push(`\n## Related Information\n${extra}`);
     }
   }
 
   // Add relevant page links
   const allPages = [...new Set(topSections.flatMap(s => s.section.pages))].filter(Boolean).slice(0, 3);
   if (allPages.length > 0) {
-    parts.push(`\nFor more details, visit: ${allPages.join(', ')}`);
+    parts.push(`\n## Next Steps\nFor more details, you can visit: ${allPages.join(', ')}`);
   }
 
-  parts.push(`\nFor more help, email jobbridgesupport@gmail.com`);
+  parts.push(`\nIf you need further assistance, please don't hesitate to reach out to our support team at jobbridgesupport@gmail.com. They'll be happy to help you personally!`);
 
   return parts.join('\n\n');
 }
