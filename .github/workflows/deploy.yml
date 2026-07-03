@@ -26,9 +26,9 @@ jobs:
       - run: npm ci
       - run: npm run build -- --verbose
         env:
-          VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
-          VITE_PAYSTACK_PUBLIC_KEY: ${{ secrets.VITE_PAYSTACK_PUBLIC_KEY }}
-          VITE_CHATBASE_ID: ${{ secrets.VITE_CHATBASE_ID }}
+          VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY || '' }}
+          VITE_PAYSTACK_PUBLIC_KEY: ${{ secrets.VITE_PAYSTACK_PUBLIC_KEY || '' }}
+          VITE_CHATBASE_ID: ${{ secrets.VITE_CHATBASE_ID || '' }}
       - name: Fix SPA routing
         run: cp dist/index.html dist/404.html
       - uses: actions/configure-pages@v4
