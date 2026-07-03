@@ -142,6 +142,10 @@ const PROFILE_FIELDS = {
   },
 };
 
+const DEFAULT_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><rect width="160" height="160" fill="#E3E2DF"/><circle cx="80" cy="62" r="28" fill="#C3C6D6"/><path d="M28 146c8-24 29-38 52-38s44 14 52 38" fill="#C3C6D6"/></svg>',
+)}`;
+
 const NAV_SECTIONS = [
   {
     title: "Job Seeking",
@@ -235,6 +239,7 @@ export default function Profile() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [hoveredNav, setHoveredNav] = useState<string | null>(null);
   const [avatarHover, setAvatarHover] = useState(false);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const profRef = useRef<HTMLDivElement>(null);
 
@@ -242,6 +247,25 @@ export default function Profile() {
     if (err instanceof Error && err.message) return err.message;
     return fallback;
   };
+
+  const normalizeAvatarUrl = (raw?: string) => {
+    const value = (raw || "").trim();
+    if (!value || value === "null" || value === "undefined") return "";
+    return value;
+  };
+
+  const openAvatarPicker = () => {
+    if (avatarUploading) return;
+    avatarInputRef.current?.click();
+  };
+
+  const avatarSrc = avatarLoadFailed
+    ? DEFAULT_AVATAR
+    : normalizeAvatarUrl(form.avatar_url) || DEFAULT_AVATAR;
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [form.avatar_url]);
 
   useEffect(() => {
     let cancelled = false;
@@ -617,6 +641,13 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="sr-only"
+        onChange={(e) => handleAvatarUpload(e.target.files?.[0])}
+      />
 
       {/* Cover Banner with Gradient */}
       <div className="relative h-44 sm:h-52 overflow-hidden">
@@ -651,17 +682,18 @@ export default function Profile() {
               {/* Mini gradient banner */}
               <div className="h-16 bg-gradient-to-r from-primary to-primary-container relative">
                 <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
-                  <div
+                  <button
+                    type="button"
+                    onClick={openAvatarPicker}
                     className="relative group cursor-pointer"
                     onMouseEnter={() => setAvatarHover(true)}
                     onMouseLeave={() => setAvatarHover(false)}
+                    aria-label="Upload profile photo"
                   >
                     <img
-                      src={
-                        form.avatar_url ||
-                        "https://api.dicebear.com/7.x/avataaars/svg?seed=Samuel"
-                      }
+                      src={avatarSrc}
                       alt="Profile"
+                      onError={() => setAvatarLoadFailed(true)}
                       className="w-16 h-16 rounded-full object-cover border-[3px] border-white shadow-md transition-transform duration-300 group-hover:scale-105"
                     />
                     <div
@@ -671,7 +703,7 @@ export default function Profile() {
                     </div>
                     {/* Online indicator */}
                     <div className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white" />
-                  </div>
+                  </button>
                 </div>
               </div>
 
@@ -914,40 +946,33 @@ export default function Profile() {
                 <div className="p-6">
                   {/* Avatar Section */}
                   <div className="flex items-center gap-5 mb-8 pb-6 border-b border-gray-100">
-                    <div
+                    <button
+                      type="button"
+                      onClick={openAvatarPicker}
                       className="relative group cursor-pointer"
                       onMouseEnter={() => setAvatarHover(true)}
                       onMouseLeave={() => setAvatarHover(false)}
+                      aria-label="Upload profile photo"
                     >
                       <img
-                        src={
-                          form.avatar_url ||
-                          "https://api.dicebear.com/7.x/avataaars/svg?seed=Samuel"
-                        }
+                        src={avatarSrc}
                         alt="Profile"
+                        onError={() => setAvatarLoadFailed(true)}
                         className="w-20 h-20 rounded-2xl object-cover border-2 border-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-lg group-hover:scale-105"
                       />
                       <div className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <Camera className="w-5 h-5 text-white" />
                       </div>
-                    </div>
+                    </button>
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-gray-900">
                         {form.full_name || "Your Name"}
                       </h3>
                       <p className="text-sm text-gray-500">{form.email}</p>
                       <div className="flex gap-2 mt-2">
-                        <input
-                          ref={avatarInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          className="hidden"
-                          onChange={(e) =>
-                            handleAvatarUpload(e.target.files?.[0])
-                          }
-                        />
                         <button
-                          onClick={() => avatarInputRef.current?.click()}
+                          type="button"
+                          onClick={openAvatarPicker}
                           disabled={avatarUploading}
                           className="px-3 py-1.5 bg-secondary-container text-primary rounded-lg text-xs font-semibold hover:bg-primary-fixed transition-colors flex items-center gap-1.5 disabled:opacity-60"
                         >
