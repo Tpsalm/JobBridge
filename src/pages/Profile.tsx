@@ -175,7 +175,7 @@ const NAV_SECTIONS = [
   {
     title: "Account",
     items: [
-      { label: "Account settings", icon: Settings, path: "/settings" },
+      { label: "Account settings", icon: Settings, path: "/profile" },
       { label: "Notifications", icon: Bell, path: "/notifications" },
     ],
   },

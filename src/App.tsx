@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ModalProvider } from "./contexts/ModalContext";
 import { ModalRenderer } from "./components/Modal";
@@ -14,7 +14,6 @@ import About from "./pages/About";
 import Analytics from "./pages/Analytics";
 import Games from "./pages/Games";
 import Providers from "./pages/Providers";
-import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Blog from "./pages/Blog";
 import BlogDetail from "./pages/BlogDetail";
@@ -70,7 +69,10 @@ export default function App() {
             <Route path="/following" element={<Following />} />
             <Route path="/reviews" element={<Reviews />} />
             <Route path="/revenue" element={<Pricing />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route
+              path="/settings"
+              element={<Navigate to="/profile" replace />}
+            />
             <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<Home />} />
           </Routes>

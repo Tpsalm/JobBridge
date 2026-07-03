@@ -1,21 +1,31 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth, UserRole } from '../contexts/AuthContext';
-import { Wrench, ArrowRight, Check, Shield, Building, Eye, EyeOff, User, Lock } from 'lucide-react';
-import JobBridgeLogo from '../components/JobBridgeLogo';
-import { checkRateLimit } from '../lib/security';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth, UserRole } from "../contexts/AuthContext";
+import {
+  Wrench,
+  ArrowRight,
+  Check,
+  Shield,
+  Building,
+  Eye,
+  EyeOff,
+  User,
+  Lock,
+} from "lucide-react";
+import JobBridgeLogo from "../components/JobBridgeLogo";
+import { checkRateLimit } from "../lib/security";
 
 export default function Signup() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
-  const [step, setStep] = useState<'role' | 'form'>('role');
+  const [step, setStep] = useState<"role" | "form">("role");
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    company: '',
-    serviceCategory: '',
+    name: "",
+    email: "",
+    password: "",
+    company: "",
+    serviceCategory: "",
     agreeToTerms: false,
   });
   const [loading, setLoading] = useState(false);
@@ -23,45 +33,63 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
-    setStep('form');
+    setStep("form");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRole) return;
-    if (!checkRateLimit('signup', 5, 60000)) {
-      setError('Too many attempts. Try again later.');
+    if (!checkRateLimit("signup", 5, 60000)) {
+      setError("Too many attempts. Try again later.");
       return;
     }
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError("Password must be at least 6 characters");
       return;
     }
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const { error } = await signUp(formData.email, formData.password, formData.name, selectedRole, formData.company);
+        const { error } = await signUp(
+          formData.email,
+          formData.password,
+          formData.name,
+          selectedRole,
+          formData.company,
+        );
         if (error) {
-          const msg = error?.message || String(error) || 'Failed to create account';
-          console.error('[Signup Error]', error);
+          const msg =
+            error?.message || String(error) || "Failed to create account";
+          console.error("[Signup Error]", error);
           setError(msg);
-          window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: msg, type: 'error' } }));
+          window.dispatchEvent(
+            new CustomEvent("jobbridge:toast", {
+              detail: { message: msg, type: "error" },
+            }),
+          );
           setLoading(false);
           return;
         }
-        navigate('/settings');
-        window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created! Complete your profile to get started.', type: 'success' } }));
+        navigate("/profile");
+        window.dispatchEvent(
+          new CustomEvent("jobbridge:toast", {
+            detail: {
+              message: "Account created! Complete your profile to get started.",
+              type: "success",
+            },
+          }),
+        );
       } catch (e: any) {
-        console.error('[Signup Exception]', e);
-        setError(e?.message || String(e) || 'An unexpected error occurred');
+        console.error("[Signup Exception]", e);
+        setError(e?.message || String(e) || "An unexpected error occurred");
         setLoading(false);
       }
     })();
   };
 
   const handleBack = () => {
-    setStep('role');
+    setStep("role");
     setSelectedRole(null);
   };
 
@@ -83,20 +111,28 @@ export default function Signup() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white mb-4 shadow-lg">
             <JobBridgeLogo variant="icon" iconSize={40} />
           </div>
-          <h1 className="text-3xl font-bold text-white">Welcome to JobBridge</h1>
-          <p className="text-blue-200 mt-2">Connect. Hire. Grow. Nigeria's #1 Professional Network</p>
+          <h1 className="text-3xl font-bold text-white">
+            Welcome to JobBridge
+          </h1>
+          <p className="text-blue-200 mt-2">
+            Connect. Hire. Grow. Nigeria's #1 Professional Network
+          </p>
         </div>
 
-        {step === 'role' ? (
+        {step === "role" ? (
           /* Role Selection */
           <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-10">
-            <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">Choose how you want to join</h2>
-            <p className="text-gray-500 text-center mb-8">Select your role to get started</p>
+            <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">
+              Choose how you want to join
+            </h2>
+            <p className="text-gray-500 text-center mb-8">
+              Select your role to get started
+            </p>
 
             <div className="flex flex-col gap-4">
               {/* Job Seeker — default recommendation */}
               <button
-                onClick={() => handleRoleSelect('job_seeker')}
+                onClick={() => handleRoleSelect("job_seeker")}
                 className="group relative p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-2xl hover:border-purple-500 hover:shadow-lg transition-all text-left"
               >
                 <div className="flex items-start gap-4">
@@ -104,15 +140,28 @@ export default function Signup() {
                     <User className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 text-lg">Sign-up as a Job Seeker</h3>
-                    <p className="text-sm text-gray-600 mt-1">Browse jobs, apply with AI-optimized resumes, and land your dream role</p>
+                    <h3 className="font-bold text-gray-900 text-lg">
+                      Sign-up as a Job Seeker
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Browse jobs, apply with AI-optimized resumes, and land
+                      your dream role
+                    </p>
                   </div>
                   <ArrowRight className="w-5 h-5 text-purple-600 group-hover:translate-x-1 transition-transform" />
                 </div>
                 <div className="mt-4 pt-4 border-t border-purple-200">
                   <ul className="space-y-2">
-                    {['Search thousands of jobs', 'AI resume builder', 'Cover letter generator', 'Track applications'].map((feature) => (
-                      <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
+                    {[
+                      "Search thousands of jobs",
+                      "AI resume builder",
+                      "Cover letter generator",
+                      "Track applications",
+                    ].map((feature) => (
+                      <li
+                        key={feature}
+                        className="flex items-center gap-2 text-sm text-gray-600"
+                      >
                         <Check className="w-4 h-4 text-purple-600" />
                         {feature}
                       </li>
@@ -124,7 +173,7 @@ export default function Signup() {
               <div className="grid sm:grid-cols-2 gap-4">
                 {/* Recruiter */}
                 <button
-                  onClick={() => handleRoleSelect('recruiter')}
+                  onClick={() => handleRoleSelect("recruiter")}
                   className="group relative p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all text-left"
                 >
                   <div className="flex items-start gap-4">
@@ -132,15 +181,27 @@ export default function Signup() {
                       <Building className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 text-lg">Sign up as Recruiter</h3>
-                      <p className="text-sm text-gray-600 mt-1">Post jobs, find talent, and hire top candidates</p>
+                      <h3 className="font-bold text-gray-900 text-lg">
+                        Sign up as Recruiter
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Post jobs, find talent, and hire top candidates
+                      </p>
                     </div>
                     <ArrowRight className="w-5 h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
                   </div>
                   <div className="mt-4 pt-4 border-t border-blue-200">
                     <ul className="space-y-2">
-                      {['Post unlimited jobs', 'Access talent database', 'AI-powered matching', 'Schedule interviews'].map((feature) => (
-                        <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
+                      {[
+                        "Post unlimited jobs",
+                        "Access talent database",
+                        "AI-powered matching",
+                        "Schedule interviews",
+                      ].map((feature) => (
+                        <li
+                          key={feature}
+                          className="flex items-center gap-2 text-sm text-gray-600"
+                        >
                           <Check className="w-4 h-4 text-blue-600" />
                           {feature}
                         </li>
@@ -151,7 +212,7 @@ export default function Signup() {
 
                 {/* Service Provider */}
                 <button
-                  onClick={() => handleRoleSelect('provider')}
+                  onClick={() => handleRoleSelect("provider")}
                   className="group relative p-6 bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-2xl hover:border-emerald-500 hover:shadow-lg transition-all text-left"
                 >
                   <div className="flex items-start gap-4">
@@ -159,15 +220,27 @@ export default function Signup() {
                       <Wrench className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 text-lg">Sign up as Service Provider</h3>
-                      <p className="text-sm text-gray-600 mt-1">Offer services, get clients, grow your business</p>
+                      <h3 className="font-bold text-gray-900 text-lg">
+                        Sign up as Service Provider
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Offer services, get clients, grow your business
+                      </p>
                     </div>
                     <ArrowRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform" />
                   </div>
                   <div className="mt-4 pt-4 border-t border-emerald-200">
                     <ul className="space-y-2">
-                      {['Create service profile', 'Receive inquiries', 'Chat with clients', 'Get featured visibility'].map((feature) => (
-                        <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
+                      {[
+                        "Create service profile",
+                        "Receive inquiries",
+                        "Chat with clients",
+                        "Get featured visibility",
+                      ].map((feature) => (
+                        <li
+                          key={feature}
+                          className="flex items-center gap-2 text-sm text-gray-600"
+                        >
                           <Check className="w-4 h-4 text-emerald-600" />
                           {feature}
                         </li>
@@ -180,13 +253,16 @@ export default function Signup() {
 
             <div className="mt-8 pt-6 border-t border-gray-100 text-center">
               <p className="text-sm text-gray-500">
-                Already have an account?{' '}
-                <button onClick={() => navigate('/login')} className="font-semibold text-blue-700 hover:text-blue-800">
+                Already have an account?{" "}
+                <button
+                  onClick={() => navigate("/login")}
+                  className="font-semibold text-blue-700 hover:text-blue-800"
+                >
                   Sign in
                 </button>
               </p>
               <button
-                onClick={() => handleRoleSelect('admin')}
+                onClick={() => handleRoleSelect("admin")}
                 className="mt-3 text-xs text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1 mx-auto"
               >
                 <Lock className="w-3 h-3" /> Admin access
@@ -196,68 +272,99 @@ export default function Signup() {
         ) : (
           /* Signup Form */
           <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-10">
-            <button onClick={handleBack} className="text-sm text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1">
+            <button
+              onClick={handleBack}
+              className="text-sm text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1"
+            >
               ← Back to role selection
             </button>
 
-              <div className="flex items-center gap-3 mb-6">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  selectedRole === 'recruiter' ? 'bg-blue-600' : selectedRole === 'provider' ? 'bg-emerald-600' : selectedRole === 'admin' ? 'bg-gray-900' : 'bg-purple-600'
-                }`}>
-                  {selectedRole === 'recruiter' ? (
-                    <Building className="w-5 h-5 text-white" />
-                  ) : selectedRole === 'provider' ? (
-                    <Wrench className="w-5 h-5 text-white" />
-                  ) : selectedRole === 'admin' ? (
-                    <Shield className="w-5 h-5 text-white" />
-                  ) : (
-                    <User className="w-5 h-5 text-white" />
-                  )}
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    {selectedRole === 'recruiter' ? 'Create Recruiter Account' : selectedRole === 'provider' ? 'Create Service Provider Account' : selectedRole === 'admin' ? 'Create Admin Account' : 'Create Job Seeker Account'}
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    {selectedRole === 'admin' ? 'JobBridge platform administrator' : 'Fill in your details to get started'}
-                  </p>
-                </div>
+            <div className="flex items-center gap-3 mb-6">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  selectedRole === "recruiter"
+                    ? "bg-blue-600"
+                    : selectedRole === "provider"
+                      ? "bg-emerald-600"
+                      : selectedRole === "admin"
+                        ? "bg-gray-900"
+                        : "bg-purple-600"
+                }`}
+              >
+                {selectedRole === "recruiter" ? (
+                  <Building className="w-5 h-5 text-white" />
+                ) : selectedRole === "provider" ? (
+                  <Wrench className="w-5 h-5 text-white" />
+                ) : selectedRole === "admin" ? (
+                  <Shield className="w-5 h-5 text-white" />
+                ) : (
+                  <User className="w-5 h-5 text-white" />
+                )}
               </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {selectedRole === "recruiter"
+                    ? "Create Recruiter Account"
+                    : selectedRole === "provider"
+                      ? "Create Service Provider Account"
+                      : selectedRole === "admin"
+                        ? "Create Admin Account"
+                        : "Create Job Seeker Account"}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {selectedRole === "admin"
+                    ? "JobBridge platform administrator"
+                    : "Fill in your details to get started"}
+                </p>
+              </div>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Full Name *
+                </label>
                 <input
                   type="text"
                   required
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   placeholder="Enter your full name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Email Address *
+                </label>
                 <input
                   type="email"
                   required
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   placeholder="you@example.com"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Password *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Password *
+                </label>
                 <div className="relative">
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     required
                     minLength={6}
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
                     className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                     placeholder="Minimum 6 characters"
                   />
@@ -266,34 +373,52 @@ export default function Signup() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
                   </button>
                 </div>
-                {formData.password.length > 0 && formData.password.length < 6 && (
-                  <p className="text-xs text-red-500 mt-1">Password must be at least 6 characters</p>
-                )}
+                {formData.password.length > 0 &&
+                  formData.password.length < 6 && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Password must be at least 6 characters
+                    </p>
+                  )}
               </div>
 
-              {selectedRole === 'recruiter' && (
+              {selectedRole === "recruiter" && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Name (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Company Name (Optional)
+                  </label>
                   <input
                     type="text"
                     value={formData.company}
-                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, company: e.target.value })
+                    }
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                     placeholder="Your company name"
                   />
                 </div>
               )}
 
-              {selectedRole === 'provider' && (
+              {selectedRole === "provider" && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Service Category *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Service Category *
+                  </label>
                   <select
                     required
                     value={formData.serviceCategory}
-                    onChange={(e) => setFormData({ ...formData, serviceCategory: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        serviceCategory: e.target.value,
+                      })
+                    }
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
                   >
                     <option value="">Select your service category</option>
@@ -318,16 +443,24 @@ export default function Signup() {
                   type="checkbox"
                   id="terms"
                   checked={formData.agreeToTerms}
-                  onChange={(e) => setFormData({ ...formData, agreeToTerms: e.target.checked })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, agreeToTerms: e.target.checked })
+                  }
                   className="w-5 h-5 mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <label htmlFor="terms" className="text-sm text-gray-600">
-                  I agree to the{' '}
-                  <button type="button" className="text-blue-700 hover:underline">
+                  I agree to the{" "}
+                  <button
+                    type="button"
+                    className="text-blue-700 hover:underline"
+                  >
                     Terms of Service
-                  </button>{' '}
-                  and{' '}
-                  <button type="button" className="text-blue-700 hover:underline">
+                  </button>{" "}
+                  and{" "}
+                  <button
+                    type="button"
+                    className="text-blue-700 hover:underline"
+                  >
                     Privacy Policy
                   </button>
                 </label>
@@ -335,32 +468,56 @@ export default function Signup() {
 
               {error !== null && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  {typeof error === 'string' ? error : 'Error signing up. Please try again.'}
+                  {typeof error === "string"
+                    ? error
+                    : "Error signing up. Please try again."}
                 </div>
               )}
 
               <button
                 type="submit"
-                disabled={!formData.agreeToTerms || loading || formData.password.length < 6}
+                disabled={
+                  !formData.agreeToTerms ||
+                  loading ||
+                  formData.password.length < 6
+                }
                 className={`w-full py-3.5 rounded-xl font-semibold text-white transition flex items-center justify-center gap-2 ${
                   formData.agreeToTerms && formData.password.length >= 6
-                    ? selectedRole === 'recruiter'
-                      ? 'bg-blue-700 hover:bg-blue-800'
-                      : selectedRole === 'provider'
-                      ? 'bg-emerald-700 hover:bg-emerald-800'
-                      : selectedRole === 'admin'
-                      ? 'bg-gray-900 hover:bg-gray-800'
-                      : 'bg-purple-700 hover:bg-purple-800'
-                    : 'bg-gray-300 cursor-not-allowed'
+                    ? selectedRole === "recruiter"
+                      ? "bg-blue-700 hover:bg-blue-800"
+                      : selectedRole === "provider"
+                        ? "bg-emerald-700 hover:bg-emerald-800"
+                        : selectedRole === "admin"
+                          ? "bg-gray-900 hover:bg-gray-800"
+                          : "bg-purple-700 hover:bg-purple-800"
+                    : "bg-gray-300 cursor-not-allowed"
                 }`}
               >
                 {loading ? (
                   <>
-                    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    <svg
+                      className="animate-spin w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
                     Creating Account...
                   </>
                 ) : (
-                  'Create Account'
+                  "Create Account"
                 )}
               </button>
 
@@ -371,8 +528,11 @@ export default function Signup() {
             </form>
 
             <p className="text-center text-sm text-gray-500 mt-6">
-              Already have an account?{' '}
-              <button onClick={() => navigate('/login')} className="font-semibold text-blue-700 hover:text-blue-800">
+              Already have an account?{" "}
+              <button
+                onClick={() => navigate("/login")}
+                className="font-semibold text-blue-700 hover:text-blue-800"
+              >
                 Sign in
               </button>
             </p>
@@ -380,7 +540,8 @@ export default function Signup() {
         )}
 
         <p className="text-center text-blue-300 text-xs mt-6">
-          By continuing, you agree to JobBridge's Terms of Service and acknowledge our Privacy Policy.
+          By continuing, you agree to JobBridge's Terms of Service and
+          acknowledge our Privacy Policy.
         </p>
       </div>
     </div>
