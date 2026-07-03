@@ -24,7 +24,7 @@ jobs:
           node-version: 22
           cache: "npm"
       - run: npm ci
-      - run: npm run build -- --verbose
+      - run: npm run build
         env:
           VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY || '' }}
           VITE_PAYSTACK_PUBLIC_KEY: ${{ secrets.VITE_PAYSTACK_PUBLIC_KEY || '' }}
