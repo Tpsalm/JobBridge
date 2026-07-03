@@ -336,8 +336,14 @@ function buildConversationalResponse(input: string, historyLength: number): stri
   }
 
   // Time-based greetings
-  if (/^(good morning|good afternoon|good evening)/i.test(lower)) {
-    return `${timeGreeting}! I hope you're having a wonderful day. How can I assist you with JobBridge today?`;
+  if (/^good morning/i.test(lower)) {
+    return `Good morning! I hope you're having a wonderful day. How can I assist you with JobBridge today?`;
+  }
+  if (/^good afternoon/i.test(lower)) {
+    return `Good afternoon! I hope you're having a wonderful day. How can I assist you with JobBridge today?`;
+  }
+  if (/^good evening/i.test(lower)) {
+    return `Good evening! I hope you're having a wonderful day. How can I assist you with JobBridge today?`;
   }
 
   // How are you / small talk
