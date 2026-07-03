@@ -321,15 +321,19 @@ function buildConversationalResponse(
   const timeGreeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
+  if (/^what is jobbridge\??$/i.test(lower)) {
+    return "JobBridge is Nigeria's professional network for job seekers, recruiters, and service providers. It helps people find jobs, hire talent, and grow careers in one platform.";
+  }
+
   if (
     /^(hello|hi|hey|greetings|hi there|hello there|hey there)([^a-z]|$)/i.test(
       lower,
     )
   ) {
     if (historyLength === 0) {
-      return `${timeGreeting}! I'm your JobBridge AI Career Agent. I can help you search for jobs, optimize your profile, post hiring ads, and navigate all sections of the platform. What can I do for you today?`;
+      return `${timeGreeting}. I am your JobBridge AI Assistant. How can I help you today?`;
     }
-    return `Hello again! How can I help you on JobBridge right now?`;
+    return "Hello again. How can I help you on JobBridge right now?";
   }
 
   if (
@@ -337,28 +341,33 @@ function buildConversationalResponse(
       lower,
     )
   ) {
-    return `I am the JobBridge AI Assistant — Nigeria's top career agent. I can guide you through every page, explain pricing, help write job descriptions, rank candidates, customize resumes, and even trigger direct actions like routing you to pricing or helping you auto-fill profile fields. Ask me anything!`;
+    return "I am the JobBridge AI Assistant. I help with platform guidance, pricing and payment questions, profile support, recruiter workflows, and job search actions.";
   }
 
   if (/^(thanks|thank you|appreciate it)/i.test(lower)) {
-    return `You're very welcome! Let me know if you need anything else.`;
+    return "You are welcome. Let me know if you need anything else.";
   }
 
   return null;
 }
 
-function extractSentences(text: string): string[] {
-  return text.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 10);
+function cleanAssistantText(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*/g, "")
+    .replace(/\*/g, "")
+    .replace(/^\s*Related topics\s*$/gim, "")
+    .replace(/^\s*Relevant pages:\s*.*$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function getStructuredAnswer(
   question: string,
   section: KnowledgeSection,
 ): string {
-  return section.content
-    .split(/\n{2,}/)
-    .slice(0, 4)
-    .join("\n\n");
+  const blocks = section.content.split(/\n{2,}/);
+  return cleanAssistantText(blocks.slice(0, 2).join("\n\n"));
 }
 
 function buildFallbackAnswer(
@@ -366,29 +375,8 @@ function buildFallbackAnswer(
   topSections: KnowledgeSection[],
 ): string {
   const best = topSections[0];
-  const parts = [
-    "Here is the most relevant information from JobBridge.",
-    getStructuredAnswer(question, best),
-  ];
-
-  if (topSections.length > 1) {
-    const related = topSections
-      .slice(1, 3)
-      .map((s) => `${s.title}: ${extractSentences(s.content)[0] || ""}`)
-      .join("\n");
-    if (related.trim()) {
-      parts.push(`Related topics\n${related}`);
-    }
-  }
-
-  const paths = [...new Set(topSections.flatMap((s) => s.pages))].filter(
-    Boolean,
-  );
-  if (paths.length > 0) {
-    parts.push(`Relevant pages: ${paths.join(", ")}`);
-  }
-
-  return parts.join("\n\n");
+  const text = getStructuredAnswer(question, best);
+  return cleanAssistantText(text);
 }
 
 // ─── Tool-calling LLM Loop (Agentic) ────────────────────────────────
@@ -721,7 +709,7 @@ Requirements:
       ];
       saveConversation(conversationId, savedMsgs);
 
-      onDone(finalContent, []);
+      onDone(cleanAssistantText(finalContent), []);
       return;
     }
   }
@@ -767,7 +755,7 @@ export async function streamAnswer(
         { role: "assistant", content: greetResponse },
       ];
       saveConversation(conversationId, updatedHistory);
-      onDone(greetResponse, []);
+      onDone(cleanAssistantText(greetResponse), []);
       return;
     }
 
@@ -791,7 +779,7 @@ export async function streamAnswer(
       ];
       saveConversation(conversationId, updatedHistory);
       onDone(
-        textResponse,
+        cleanAssistantText(textResponse),
         results.map((s) => ({ id: s.id, title: s.title })),
       );
       return;
