@@ -1,34 +1,37 @@
-
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { ModalProvider } from './contexts/ModalContext';
-import { ModalRenderer } from './components/Modal';
-import AIAssistantWidget from './components/AIAssistantWidget';
-import Signup from './pages/Signup';
-import Login from './pages/Login';
-import Home from './pages/Home';
-import Recruiter from './pages/Recruiter';
-import Jobs from './pages/Jobs';
-import Support from './pages/Support';
-import Contact from './pages/Contact';
-import About from './pages/About';
-import Analytics from './pages/Analytics';
-import Games from './pages/Games';
-import Providers from './pages/Providers';
-import Settings from './pages/Settings';
-import Profile from './pages/Profile';
-import Blog from './pages/Blog';
-import BlogDetail from './pages/BlogDetail';
-import CEO from './pages/CEO';
-import Privacy from './pages/Privacy';
-import Business from './pages/Business';
-import Pricing from './pages/Pricing';
-import Payment from './pages/Payment';
-import MyJobs from './pages/MyJobs';
-import Messages from './pages/Messages';
-import Notifications from './pages/Notifications';
-import AIResume from './pages/AIResume';
-import Career from './pages/Career';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ModalProvider } from "./contexts/ModalContext";
+import { ModalRenderer } from "./components/Modal";
+import AIAssistantWidget from "./components/AIAssistantWidget";
+import Signup from "./pages/Signup";
+import Login from "./pages/Login";
+import Home from "./pages/Home";
+import Recruiter from "./pages/Recruiter";
+import Jobs from "./pages/Jobs";
+import Support from "./pages/Support";
+import Contact from "./pages/Contact";
+import About from "./pages/About";
+import Analytics from "./pages/Analytics";
+import Games from "./pages/Games";
+import Providers from "./pages/Providers";
+import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
+import Blog from "./pages/Blog";
+import BlogDetail from "./pages/BlogDetail";
+import CEO from "./pages/CEO";
+import Privacy from "./pages/Privacy";
+import Business from "./pages/Business";
+import Pricing from "./pages/Pricing";
+import Payment from "./pages/Payment";
+import MyJobs from "./pages/MyJobs";
+import Messages from "./pages/Messages";
+import Notifications from "./pages/Notifications";
+import AIResume from "./pages/AIResume";
+import Career from "./pages/Career";
+import Following from "./pages/Following";
+import Reviews from "./pages/Reviews";
+import ProfileVisibility from "./pages/ProfileVisibility";
+import JobPreferences from "./pages/JobPreferences";
 
 export default function App() {
   return (
@@ -62,6 +65,10 @@ export default function App() {
             <Route path="/messages" element={<Messages />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/ai-resume" element={<AIResume />} />
+            <Route path="/profile-visibility" element={<ProfileVisibility />} />
+            <Route path="/job-preferences" element={<JobPreferences />} />
+            <Route path="/following" element={<Following />} />
+            <Route path="/reviews" element={<Reviews />} />
             <Route path="/revenue" element={<Pricing />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<Profile />} />

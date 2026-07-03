@@ -150,28 +150,33 @@ const NAV_SECTIONS = [
   {
     title: "Job Seeking",
     items: [
-      { label: "Hiring employers can find you", icon: EyeIcon, badge: "On" },
-      { label: "Resume & experience", icon: FileText },
-      { label: "Job preferences", icon: Target },
-      { label: "Job activity", icon: TrendingUp },
+      {
+        label: "Hiring employers can find you",
+        icon: EyeIcon,
+        badge: "On",
+        path: "/profile-visibility",
+      },
+      { label: "Resume & experience", icon: FileText, path: "/ai-resume" },
+      { label: "Job preferences", icon: Target, path: "/job-preferences" },
+      { label: "Job activity", icon: TrendingUp, path: "/my-jobs" },
     ],
   },
   {
     title: "Community",
     items: [
-      { label: "Following", icon: Users },
-      { label: "Messages", icon: MessageCircle },
+      { label: "Following", icon: Users, path: "/following" },
+      { label: "Messages", icon: MessageCircle, path: "/messages" },
     ],
   },
   {
     title: "Contributions",
-    items: [{ label: "Reviews & contributions", icon: Star }],
+    items: [{ label: "Reviews & contributions", icon: Star, path: "/reviews" }],
   },
   {
     title: "Account",
     items: [
-      { label: "Account settings", icon: Settings },
-      { label: "Notifications", icon: Bell },
+      { label: "Account settings", icon: Settings, path: "/settings" },
+      { label: "Notifications", icon: Bell, path: "/notifications" },
     ],
   },
 ];
@@ -496,6 +501,12 @@ export default function Profile() {
     return groups;
   }, [activeFields]);
 
+  const handleSidebarNav = (item: { path?: string }) => {
+    if (item.path) {
+      navigate(item.path);
+    }
+  };
+
   const sectionMeta: Record<
     string,
     {
@@ -775,6 +786,8 @@ export default function Profile() {
                       return (
                         <button
                           key={item.label}
+                          type="button"
+                          onClick={() => handleSidebarNav(item)}
                           onMouseEnter={() => setHoveredNav(item.label)}
                           onMouseLeave={() => setHoveredNav(null)}
                           className={`w-full text-left px-2.5 py-2 rounded-xl text-sm flex items-center gap-2.5 transition-all duration-200 ${
