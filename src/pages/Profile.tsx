@@ -4,7 +4,7 @@ import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { updateProfile, fetchProfile } from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
-import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle, Upload, Loader, Eye, EyeOff, Trash2, Sliders, RefreshCw } from 'lucide-react';
+import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle, Upload, Loader, Eye, EyeOff, Trash2, Sliders, RefreshCw, Pencil, Eye as EyeIcon, Users, Briefcase, Settings, LogOut, HelpCircle, ArrowRight, ExternalLink, MessageCircle, TrendingUp, Star } from 'lucide-react';
 import { IMG } from '../lib/media';
 
 type ProfileField = keyof typeof PROFILE_FIELDS;
@@ -30,6 +30,45 @@ const PROFILE_FIELDS = {
   skills: { label: 'Skills (comma-separated)', section: 'provider', weight: 1 },
 };
 
+// Mock recommendations data for the right sidebar
+const MOCK_RECOMMENDATIONS = [
+  {
+    id: 1,
+    title: 'Job Referrals!',
+    description: 'A community to share strategy and seek advice on networking and building professional connections',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge1',
+    members: '1M'
+  },
+  {
+    id: 2,
+    title: 'The Worklife Bowl',
+    description: 'A place for professionals from any industry to come together and discuss the day-to-day',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge2',
+    members: '12M'
+  },
+  {
+    id: 3,
+    title: 'New York City',
+    description: 'To help NYC residents as well as visitors discover what the city has to offer!',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge3',
+    members: '248K'
+  },
+  {
+    id: 4,
+    title: 'Career Advice for Students',
+    description: 'A place for students to ask questions and get advice from working professionals.',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge4',
+    members: '4M'
+  },
+  {
+    id: 5,
+    title: 'Personal Investment Chatter',
+    description: 'Offer questions and experiences related to personal finance and investments.',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge5',
+    members: '546K'
+  }
+];
+
 export default function Profile() {
   const { user, profile: userProfile } = useAuth();
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -38,63 +77,15 @@ export default function Profile() {
   const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
   const [showPasswords, setShowPasswords] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState('');
-  const [connectedApps] = useState({ google: true, linkedin: true });
-  const coverInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [localCover, setLocalCover] = useState<string | null>(null);
-  const [coverPos, setCoverPos] = useState({ x: 50, y: 25 });
-  const dragRef = useRef<{ startX: number; startY: number; startPos: { x: number; y: number } } | null>(null);
-  const [showCoverEditor, setShowCoverEditor] = useState(false);
-  const [coverFilters, setCoverFilters] = useState({ brightness: 100, contrast: 100, saturation: 100, blur: 0 });
-  const profRef = useRef<HTMLDivElement>(null);
-
-  function startDrag(e: React.MouseEvent | React.TouchEvent) {
-    const ce = 'touches' in e ? e.touches[0] : e;
-    dragRef.current = { startX: ce.clientX, startY: ce.clientY, startPos: { ...coverPos } };
-  }
-
-  function onDrag(e: MouseEvent | TouchEvent) {
-    if (!dragRef.current) return;
-    const ce = 'touches' in e ? e.touches[0] : e;
-    const distX = Math.abs(ce.clientX - dragRef.current.startX);
-    const distY = Math.abs(ce.clientY - dragRef.current.startY);
-    if (distX < 5 && distY < 5) return;
-    const dx = ((ce.clientX - dragRef.current.startX) / 200) * 100;
-    const dy = ((ce.clientY - dragRef.current.startY) / 200) * 100;
-    setCoverPos({
-      x: Math.max(0, Math.min(100, dragRef.current.startPos.x + dx)),
-      y: Math.max(0, Math.min(100, dragRef.current.startPos.y + dy)),
-    });
-  }
-
-  function endDrag() { dragRef.current = null; }
-
-  const handleTouchStartOnCover = (e: React.TouchEvent) => {
-    if (e.touches.length > 1) return;
-    startDrag(e);
-  };
-
-  useEffect(() => {
-    window.addEventListener('mousemove', onDrag);
-    window.addEventListener('mouseup', endDrag);
-    window.addEventListener('touchmove', onDrag, { passive: true });
-    window.addEventListener('touchend', endDrag);
-    return () => {
-      window.removeEventListener('mousemove', onDrag);
-      window.removeEventListener('mouseup', endDrag);
-      window.removeEventListener('touchmove', onDrag);
-      window.removeEventListener('touchend', endDrag);
-    };
-  }, []);
-
+  const [activeTab, setActiveTab] = useState('edit'); // 'view', 'edit', 'settings', etc.
   const [profileLoading, setProfileLoading] = useState(true);
+  const profRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function loadProfile() {
       if (!user) { setProfileLoading(false); return; }
       setProfileLoading(true);
       const fresh = await fetchProfile(user.id);
-      let coverUrl = '';
       if (fresh) {
         const fields: Record<string, string> = {};
         Object.keys(PROFILE_FIELDS).forEach(key => {
@@ -106,7 +97,6 @@ export default function Profile() {
           }
         });
         fields.avatar_url = (fresh as any).avatar_url || '';
-        coverUrl = (fresh as any).cover_url || '';
         fields.email = fresh.email || user?.email || '';
         setForm(fields);
       } else {
@@ -117,13 +107,9 @@ export default function Profile() {
           professional_headline: '', years_of_experience: '', function: '',
           work_type: '', highest_qualification: '', availability: '',
           salary_expectation: '', bio: '', specialty: '', hourly_rate: '', skills: '',
-          avatar_url: '', cover_url: '',
+          avatar_url: '',
         });
       }
-      if (!coverUrl) {
-        try { coverUrl = localStorage.getItem('jobbridge_cover_url') || ''; } catch {}
-      }
-      if (coverUrl) setForm(f => ({ ...f, cover_url: coverUrl }));
       setProfileLoading(false);
     }
     loadProfile();
@@ -136,54 +122,7 @@ export default function Profile() {
     });
   }, [userProfile?.role]);
 
-  const totalWeight = useMemo(() => activeFields.reduce((s, [, f]) => s + f.weight, 0), [activeFields]);
-
-  const completedWeight = useMemo(() => {
-    let w = 0;
-    activeFields.forEach(([key, field]) => {
-      if (form[key]?.trim()) w += field.weight;
-    });
-    return w;
-  }, [form, activeFields]);
-
-  const completionPct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
-
-  const incompleteFields = useMemo(() => {
-    return activeFields
-      .filter(([key]) => !form[key]?.trim())
-      .map(([, field]) => field.label);
-  }, [form, activeFields]);
-
   const updateField = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
-
-  async function handleUpload(file: File) {
-    if (!user) return;
-    setUploading(true);
-    const blobUrl = URL.createObjectURL(file);
-    setLocalCover(blobUrl);
-    try {
-      const cache = await caches.open('jobbridge-images');
-      await cache.put('cover', new Response(file, { headers: { 'content-type': file.type } }));
-    } catch {}
-    try {
-      const ext = file.name.split('.').pop();
-      const filePath = `${user.id}/cover_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('profile-images').upload(filePath, file, { upsert: true });
-      if (!uploadError) {
-        const { data: { publicUrl } } = supabase.storage.from('profile-images').getPublicUrl(filePath);
-        updateField('cover_url', publicUrl);
-        try { localStorage.setItem('jobbridge_cover_url', publicUrl); } catch {}
-      }
-    } catch {}
-    setUploading(false);
-  }
-
-  const handleDeleteCover = async () => {
-    updateField('cover_url', '');
-    setLocalCover(null);
-    try { localStorage.removeItem('jobbridge_cover_url'); } catch {}
-    try { const cache = await caches.open('jobbridge-images'); await cache.delete('cover'); } catch {}
-  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -199,18 +138,13 @@ export default function Profile() {
       });
       if ('avatar_url' in form && form.avatar_url) updates.avatar_url = form.avatar_url;
       else if ('avatar_url' in form && !form.avatar_url) updates.avatar_url = null;
-      if ('cover_url' in form && form.cover_url && !form.cover_url.startsWith('blob:')) updates.cover_url = form.cover_url;
-      else if ('cover_url' in form && !form.cover_url) updates.cover_url = null;
       await updateProfile(user.id, updates as any);
-      try { if (updates.cover_url) localStorage.setItem('jobbridge_cover_url', updates.cover_url); else localStorage.removeItem('jobbridge_cover_url'); } catch {}
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
       setTimeout(() => profRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
     } catch (err: any) {
       console.error('Save error:', err);
-      alert(err.message?.includes('cover_url') || err.message?.includes('avatar_url')
-        ? 'Missing database columns. Run the cover_migration.sql in Supabase SQL Editor.'
-        : err.message || 'Failed to save profile');
+      alert(err.message || 'Failed to save profile');
     } finally {
       setSaving(false);
     }
@@ -239,14 +173,11 @@ export default function Profile() {
     }
   };
 
-  const personalFields = Object.entries(PROFILE_FIELDS).filter(([, f]) => f.section === 'personal');
-  const professionalFields = Object.entries(PROFILE_FIELDS).filter(([, f]) => f.section === 'professional');
-
   const renderSelect = (field: string, label: string, options: string[]) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-gray-800 mb-1">{label}</label>
       <select value={form[field] || ''} onChange={e => updateField(field, e.target.value)}
-        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 bg-white text-sm">
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-500 bg-white text-sm">
         <option value="">Select...</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -254,301 +185,210 @@ export default function Profile() {
   );
 
   const renderInput = (field: string, label: string, type = 'text', placeholder?: string, readOnly?: boolean) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-gray-800 mb-1">{label}</label>
       <input type={type} value={form[field] || ''} onChange={e => updateField(field, e.target.value)}
         placeholder={placeholder} readOnly={readOnly}
-        className={`w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm ${readOnly ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`} />
-    </div>
-  );
-
-  const renderToggle = (checked: boolean) => (
-    <div className={`relative w-11 h-6 rounded-full transition-all ${checked ? 'bg-blue-700' : 'bg-gray-300'}`}>
-      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-500 text-sm ${readOnly ? 'bg-gray-50 text-gray-500' : ''}`} />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 pb-24">
-        {/* Cover Photo */}
-        {profileLoading ? (
-          <div className="rounded-2xl mb-6 h-80 sm:h-96 bg-gray-100 animate-pulse" />
-        ) : (
-        <div className="relative rounded-2xl overflow-hidden mb-6 h-80 sm:h-96 group">
-          <img src={localCover || form.cover_url || IMG.profile.cover} alt=""
-            className="w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
-            style={{ objectPosition: `${coverPos.x}% ${coverPos.y}%`, filter: `brightness(${coverFilters.brightness}%) contrast(${coverFilters.contrast}%) saturate(${coverFilters.saturation}%) blur(${coverFilters.blur}px)` }}
-            onMouseDown={startDrag}
-            onTouchStart={handleTouchStartOnCover}
-            draggable={false} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
-          <div className="absolute top-3 right-3 flex gap-2">
-            <button onClick={() => coverInputRef.current?.click()} disabled={!!uploading}
-              className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60"
-              title="Replace image">
-              {uploading ? <Loader className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            </button>
-            <button onClick={() => setShowCoverEditor(true)}
-              className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60"
-              title="Edit image">
-              <Sliders className="w-4 h-4" />
-            </button>
-            <button onClick={handleDeleteCover}
-              className="w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-              title="Delete image">
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-          <input ref={coverInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
-        </div>
-        )}
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Main 3-column layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          
+          {/* Left Sidebar: Profile & Navigation */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
+              {/* Profile Card */}
+              <div className="flex items-center gap-3 mb-6">
+                <div className="relative">
+                  <img 
+                    src={form.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Samuel'} 
+                    alt="Profile"
+                    className="w-14 h-14 rounded-full object-cover"
+                  />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-900">{form.full_name || 'Your Name'}</h3>
+                    <button className="text-gray-500 hover:text-gray-700">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600">{form.professional_headline || 'Senior Data Scientist'}</p>
+                  <p className="text-xs text-gray-500">{form.location || 'London'}</p>
+                </div>
+              </div>
 
-        {/* Cover Editor Modal */}
-        {showCoverEditor && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setShowCoverEditor(false)} />
-            <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-6 shadow-xl">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-gray-900">Edit Cover Image</h3>
-                <button onClick={() => setShowCoverEditor(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
-              </div>
-              <div className="space-y-5">
-                <div>
-                  <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Brightness <span>{coverFilters.brightness}%</span></label>
-                  <input type="range" min="0" max="200" value={coverFilters.brightness}
-                    onChange={e => setCoverFilters(f => ({ ...f, brightness: +e.target.value }))}
-                    className="w-full accent-blue-700" />
+              {/* Navigation Links */}
+              <nav className="space-y-1">
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 mb-2 px-2">Job seeking</p>
+                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
+                    <EyeIcon className="w-4 h-4" />
+                    Hiring employers can find you
+                    <ChevronRight className="w-4 h-4 ml-auto text-gray-400" />
+                  </button>
+                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
+                    Resume & experience
+                  </button>
+                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
+                    Job preferences
+                  </button>
+                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
+                    Job activity
+                  </button>
                 </div>
-                <div>
-                  <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Contrast <span>{coverFilters.contrast}%</span></label>
-                  <input type="range" min="0" max="200" value={coverFilters.contrast}
-                    onChange={e => setCoverFilters(f => ({ ...f, contrast: +e.target.value }))}
-                    className="w-full accent-blue-700" />
+
+                <div className="pt-4 mt-2 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 mb-2 px-2">Community & conversations</p>
+                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
+                    Following
+                  </button>
                 </div>
-                <div>
-                  <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Saturation <span>{coverFilters.saturation}%</span></label>
-                  <input type="range" min="0" max="200" value={coverFilters.saturation}
-                    onChange={e => setCoverFilters(f => ({ ...f, saturation: +e.target.value }))}
-                    className="w-full accent-blue-700" />
+
+                <div className="pt-4 mt-2 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 mb-2 px-2">Help other job seekers</p>
+                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
+                    Reviews & contributions
+                  </button>
                 </div>
-                <div>
-                  <label className="flex justify-between text-sm font-medium text-gray-700 mb-2">Blur <span>{coverFilters.blur}px</span></label>
-                  <input type="range" min="0" max="10" step="0.5" value={coverFilters.blur}
-                    onChange={e => setCoverFilters(f => ({ ...f, blur: +e.target.value }))}
-                    className="w-full accent-blue-700" />
+
+                <div className="pt-4 mt-2 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 mb-2 px-2">Manage account</p>
+                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
+                    Account settings
+                  </button>
+                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
+                    Notifications
+                  </button>
+                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
+                    <LogOut className="w-4 h-4" />
+                    Sign out
+                    <ExternalLink className="w-4 h-4 ml-auto text-gray-400" />
+                  </button>
                 </div>
-              </div>
-              <button onClick={() => setCoverFilters({ brightness: 100, contrast: 100, saturation: 100, blur: 0 })}
-                className="w-full mt-6 py-2.5 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
-                Reset to Default
-              </button>
+
+                <div className="pt-4 mt-2">
+                  <button className="w-full py-2 border border-black rounded-md text-sm font-semibold hover:bg-gray-50">
+                    Help Center
+                  </button>
+                </div>
+              </nav>
             </div>
           </div>
-        )}
 
-        {/* Completeness Meter */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-gray-900">Profile Completeness</h2>
-            <span className="text-2xl font-bold text-blue-700">{completionPct}%</span>
+          {/* Middle: Profile Edit Form */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              {/* Header with illustration */}
+              <div className="bg-gray-50 p-6 flex justify-center border-b border-gray-100">
+                <img 
+                  src="https://illustrations.popsy.co/gray/creative-writing.svg" 
+                  alt="Profile"
+                  className="h-32"
+                />
+              </div>
+
+              {/* Profile Avatar & Form */}
+              <div className="p-6">
+                <div className="flex flex-col items-center mb-8">
+                  <div className="relative mb-2">
+                    <img 
+                      src={form.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Samuel'} 
+                      alt="Profile"
+                      className="w-24 h-24 rounded-full object-cover"
+                    />
+                    <button className="absolute bottom-0 right-0 bg-white rounded-full p-1 shadow-sm border border-gray-100">
+                      <Check className="w-4 h-4 text-gray-700" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-w-md mx-auto space-y-4">
+                  {renderInput('full_name', 'First Name')}
+                  {/* Last name - we'll just use the same field for now */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-800 mb-1">Last Name</label>
+                    <input type="text" value={form.full_name?.split(' ')[1] || ''} onChange={e => updateField('full_name', `${form.full_name?.split(' ')[0] || ''} ${e.target.value}`)}
+                      placeholder="Last Name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-500 text-sm" />
+                  </div>
+                  {renderSelect('is_disabled' as any, 'Employment status', ['Not Employed', 'Employed', 'Looking for work'])}
+                  {renderInput('professional_headline', 'Most recent job title')}
+                  {renderInput('location', 'Location')}
+                  {renderSelect('function', 'Primary industry', [
+                    'Tech', 'Finance', 'Healthcare', 'Education', 'Marketing', 'Other'
+                  ])}
+                  {renderSelect('specialty' as any, 'Specialization', [
+                    'Data Science', 'Software Engineering', 'UX Design', 'Product Management', 'Other'
+                  ])}
+
+                  <div className="pt-4">
+                    <p className="text-xs text-gray-500 flex items-center justify-center gap-2 mb-4">
+                      <RefreshCw className="w-3 h-3" />
+                      This data syncs between JobBridge and Indeed
+                    </p>
+                    <button onClick={handleSave} disabled={saving}
+                      className={`w-full py-3 rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+                        Object.values(form).some(v => v?.trim()) 
+                          ? 'bg-black text-white hover:bg-gray-800' 
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      {saving ? (
+                        <><Loader className="w-4 h-4 animate-spin" /> Saving...</>
+                      ) : saveSuccess ? (
+                        <><Check className="w-4 h-4" /> Saved!</>
+                      ) : (
+                        'Save'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-            <div className="bg-blue-700 h-3 rounded-full transition-all duration-500" style={{ width: `${completionPct}%` }} />
-          </div>
-          {incompleteFields.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <p className="text-sm font-semibold text-amber-800 mb-2">Complete your profile — add:</p>
-              <ul className="space-y-1">
-                {incompleteFields.slice(0, 5).map(f => (
-                  <li key={f} className="text-sm text-amber-700 flex items-center gap-2">
-                    <ChevronRight className="w-3 h-3 text-amber-500" /> {f}
-                  </li>
+
+          {/* Right Sidebar: Recommendations */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h3 className="font-bold text-gray-800 mb-1">Bowls for you</h3>
+              <a href="#" className="text-sm text-green-600 font-semibold flex items-center gap-1 mb-4 hover:text-green-700">
+                Explore all Bowls <ArrowRight className="w-3 h-3" />
+              </a>
+
+              <div className="space-y-4">
+                {MOCK_RECOMMENDATIONS.map(bowl => (
+                  <div key={bowl.id} className="flex gap-3">
+                    <img 
+                      src={bowl.image} 
+                      alt={bowl.title}
+                      className="w-10 h-10 rounded-full flex-shrink-0"
+                    />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-gray-900">{bowl.title}</h4>
+                      <p className="text-xs text-gray-500 line-clamp-2 mb-2">{bowl.description}</p>
+                      <div className="flex items-center gap-2">
+                        <button className="px-3 py-1 border border-gray-300 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                          View
+                        </button>
+                        <button className="px-3 py-1 bg-white border border-gray-300 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                          Join
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-                {incompleteFields.length > 5 && (
-                  <li className="text-sm text-amber-600">+{incompleteFields.length - 5} more</li>
-                )}
-              </ul>
-            </div>
-          )}
-          {completionPct === 100 && (
-            <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 rounded-xl p-4">
-              <Check className="w-5 h-5" />
-              <span className="text-sm font-semibold">Your profile is complete!</span>
-            </div>
-          )}
-        </div>
-
-        {/* Personal Information */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-5">Personal Information</h2>
-          <div className="space-y-4">
-            {renderInput('full_name', 'Full Name')}
-            {renderInput('email', 'Email', 'email', undefined, true)}
-            {renderInput('phone', 'Phone Number', 'tel')}
-            {renderInput('date_of_birth', 'Date of Birth', 'date')}
-            {renderSelect('gender', 'Gender', ['Male', 'Female'])}
-            {renderInput('location', 'Location', 'text', 'City, State')}
-          </div>
-        </div>
-
-        {/* Professional Information */}
-        <div ref={profRef} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-5">Professional Information</h2>
-          <div className="space-y-4">
-            {renderInput('professional_headline', 'Professional Headline', 'text', 'e.g. Senior Accountant')}
-            {renderSelect('years_of_experience', 'Years of Experience', ['Entry (0-1)', '1-2', '3-5', '5-7', '7-10', '10+'])}
-            {renderSelect('function', 'Function / Industry', [
-              'Accounting', 'Administration', 'Banking & Finance', 'Customer Service',
-              'Education', 'Engineering', 'Healthcare', 'Hospitality', 'Human Resources',
-              'IT & Software', 'Legal', 'Logistics', 'Marketing', 'Operations', 'Sales', 'Security', 'Other'
-            ])}
-            {renderSelect('work_type', 'Preferred Work Type', ['Full-time', 'Part-time', 'Contract', 'Remote', 'Hybrid', 'Freelance'])}
-            {renderSelect('highest_qualification', 'Highest Qualification', [
-              'SSCE / O-Level', 'OND / Diploma', 'HND / Bachelors', "Master's", 'PhD',
-              'Professional Certification', 'Vocational Training'
-            ])}
-            {renderSelect('availability', 'Availability', ['Immediately', '2 weeks', '1 month', 'Notice period'])}
-            {renderInput('salary_expectation', 'Monthly Salary Expectation (NGN)', 'number')}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bio / About</label>
-              <textarea value={form.bio || ''} onChange={e => updateField('bio', e.target.value)} rows={4}
-                placeholder="Tell employers about yourself..."
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm resize-none" />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Provider Section */}
-        {userProfile?.role === 'provider' && (
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-5">Service Provider Profile</h2>
-            <div className="space-y-4">
-              {renderSelect('specialty', 'Service Specialty', [
-                'Graphic Designer', 'UI/UX Designer', 'Web Developer', 'Mobile Developer',
-                'Photographer', 'Content Writer', 'Digital Marketer', 'Financial Analyst',
-                'Legal Consultant', 'Business Consultant',
-              ])}
-              {renderInput('hourly_rate', 'Hourly Rate (NGN)', 'number')}
-              {renderInput('skills', 'Skills (comma-separated)', 'text', 'e.g. React, Node.js, UI Design')}
-            </div>
-          </div>
-        )}
-
-        {/* Inclusion Section */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-2">Inclusion & Diversity</h2>
-          <p className="text-sm text-gray-500 mb-5">This information helps us promote inclusive hiring. It will not affect your application.</p>
-          <div className="space-y-4">
-            {renderSelect('is_disabled', 'Do you have a disability?', ['No', 'Yes'])}
-            {renderSelect('is_displaced', 'Are you an internally displaced person?', ['No', 'Yes'])}
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-              <p className="text-sm text-blue-700"><span className="font-semibold">Note:</span> Inclusion is our culture. We champion all talent: women, men, displaced, and PWDs.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Save Button */}
-        <button onClick={handleSave} disabled={saving}
-          className="w-full bg-blue-700 text-white font-semibold py-3 rounded-xl hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base mb-6">
-          {saving ? (
-            <><span className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" /> Saving...</>
-          ) : saveSuccess ? (
-            <><Check className="w-5 h-5" /> Saved!</>
-          ) : (
-            'Save Profile'
-          )}
-        </button>
-
-        {/* Account Settings */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
-            <Lock className="w-5 h-5 text-gray-400" /> Account Security
-          </h2>
-
-          {/* Password Change */}
-          <div className="space-y-4 mb-6 pb-6 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-800">Change Password</h3>
-            <div className="relative">
-              <input type={showPasswords ? 'text' : 'password'} value={passwordForm.current} onChange={e => setPasswordForm({ ...passwordForm, current: e.target.value })}
-                placeholder="Current password" className="w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
-              <button type="button" onClick={() => setShowPasswords(!showPasswords)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <div className="relative">
-              <input type={showPasswords ? 'text' : 'password'} value={passwordForm.newPass} onChange={e => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
-                placeholder="New password" className="w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
-              <button type="button" onClick={() => setShowPasswords(!showPasswords)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <div className="relative">
-              <input type={showPasswords ? 'text' : 'password'} value={passwordForm.confirm} onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-                placeholder="Confirm new password" className="w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700 text-sm" />
-              <button type="button" onClick={() => setShowPasswords(!showPasswords)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            {passwordMsg && (
-              <p className={`text-sm font-medium ${passwordMsg.includes('success') ? 'text-emerald-600' : 'text-red-600'}`}>{passwordMsg}</p>
-            )}
-            <button onClick={handlePasswordChange}
-              className="w-full bg-blue-700 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-800 transition-colors text-sm">
-              Update Password
-            </button>
-          </div>
-
-          {/* 2FA */}
-          <div className="mb-6 pb-6 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-gray-400" /> Two-Factor Authentication (2FA)
-            </h3>
-            <p className="text-sm text-gray-500">2FA is managed by Supabase. Enable it in the Supabase dashboard under Authentication &gt; Providers &gt; MFA.</p>
-          </div>
-
-          {/* Connected Apps */}
-          <div>
-            <h3 className="font-semibold text-gray-800 mb-3">Connected Apps</h3>
-            <div className="space-y-3">
-              {connectedApps.google && (
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">Google</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{user?.email}</p>
-                  </div>
-                  <span className="px-3 py-1 text-red-600 text-sm font-medium">Connected</span>
-                </div>
-              )}
-              {connectedApps.linkedin && (
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">LinkedIn</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Connected</p>
-                  </div>
-                  <span className="px-3 py-1 text-red-600 text-sm font-medium">Connected</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Danger Zone */}
-        <div className="border-2 border-red-200 bg-red-50 rounded-2xl p-6">
-          <div className="flex items-start gap-3 mb-4">
-            <AlertTriangle className="w-6 h-6 text-red-600 mt-0.5 shrink-0" />
-            <div>
-              <h3 className="font-bold text-red-900">Delete Account</h3>
-              <p className="text-sm text-red-700 mt-1">Permanently delete your account and all associated data. This action cannot be undone.</p>
-            </div>
-          </div>
-          <p className="text-sm text-red-600">Contact <span className="font-semibold">jobbridgeesupport@gmail.com</span> to request account deletion.</p>
         </div>
       </div>
 
