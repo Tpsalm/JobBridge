@@ -18,6 +18,7 @@ import {
   streamAnswer,
   clearConversation,
   prewarmEmbeddings,
+  getModelInfo,
   type SourceInfo,
   type AgentThought,
 } from "../lib/ragEngine";
@@ -291,71 +292,83 @@ function FormattedMessage({ text }: { text: string }) {
 const pagePrompts: Record<string, string[]> = {
   "/": [
     "What is JobBridge?",
+    "Show me pricing plans",
     "How to find a job?",
-    "Recruiter plans",
     "AI Resume Builder",
   ],
   "/jobs": [
     "How to apply?",
     "Filter by remote jobs",
-    "What is the salary expectation field?",
     "Save a job",
+    "What job types are available?",
   ],
   "/my-jobs": [
-    "Track applications",
+    "Track my applications",
     "What does reviewed mean?",
-    "Interviews list",
-    "Archive a job",
+    "Saved jobs list",
+    "Application status",
   ],
   "/recruiter": [
     "Post a job",
-    "What is AI Candidate Ranking?",
-    "Write job description",
+    "How does AI Candidate Ranking work?",
     "Check my credits",
+    "Review applications",
   ],
   "/pricing": [
     "Compare recruiter plans",
     "AI tools pricing",
-    "Naira pricing details",
-    "Plan comparison",
+    "Service provider plans",
+    "Business ad packages",
   ],
   "/payment": [
     "How do payments work?",
     "Supported payment methods",
-    "Currency and billing",
+    "Bank transfer details",
     "Payment troubleshooting",
   ],
   "/ai-resume": [
     "Tailor my resume",
     "Generate cover letter",
-    "Resume interview prep",
+    "Interview prep",
     "Skills extraction",
   ],
   "/providers": [
+    "Find a service provider",
     "Become a provider",
-    "Hourly rates list",
     "Service categories",
-    "Verify provider listing",
+    "How do provider plans work?",
   ],
   "/business": [
-    "Weekly ad package",
+    "Create an advert",
+    "Ad packages",
     "Featured business spotlight",
-    "Create advert",
-    "Manage ads",
+    "Manage my ads",
   ],
   "/profile": [
-    "Help me fill in my profile",
-    "Disability status field",
+    "Help me complete my profile",
+    "Change my password",
     "Account deletion",
-    "Profile strength",
+    "Profile visibility",
   ],
+  "/about": ["Company story", "Who founded JobBridge?", "Core values", "Mission"],
+  "/ceo": ["CEO Victor Eniola", "Company roadmap", "Founder story", "Leave a message for the CEO"],
+  "/support": ["Common FAQs", "How to apply for a job", "Payment issues", "Contact support"],
+  "/blog": ["Latest articles", "Career advice", "AI in hiring", "Remote work tips"],
+  "/games": ["Play memory game", "How does the game work?", "Highest scores", "Job quiz"],
+  "/messages": ["How to send a message", "Unread conversations", "Chat with recruiters"],
+  "/notifications": ["View my notifications", "Notification types", "Turn off alerts"],
+  "/profile-visibility": ["Who can see my profile?", "Privacy settings", "Recruiter contact"],
+  "/job-preferences": ["Set work type", "Salary expectations", "Job alerts"],
+  "/following": ["Who am I following?", "Find people to follow", "Connections"],
+  "/reviews": ["Leave a review", "My ratings", "Provider reviews"],
+  "/talent-search": ["Find candidates", "Search talent", "Recruit professionals"],
 };
 
 const defaultPrompts = [
   "What is JobBridge?",
-  "How do payments work?",
-  "AI Resume Studio options",
-  "Contact support",
+  "Show me pricing plans",
+  "Take me to the Jobs page",
+  "Help me with AI Resume",
 ];
 
 let msgCounter = 0;
@@ -414,67 +427,110 @@ function AIAssistantWidget() {
   }, []);
 
   const currentPath = location.pathname.replace(/\/$/, "") || "/";
-  const suggestedPrompts = pagePrompts[currentPath] || defaultPrompts;
+  const modelInfo = getModelInfo();
 
-  // Extract focused page context to avoid irrelevant assistant output
+  // Generate dynamic suggested prompts based on current page, with smarter ones
+  const suggestedPrompts = pagePrompts[currentPath] || pagePrompts[currentPath.replace(/\/\d+.*$/, "")] || defaultPrompts;
+
+  // Extract rich page context to help AI understand what the user sees
   const getPageContextSummary = useCallback(() => {
     let summary = `Current URL Path: ${currentPath}\n`;
 
     const pageTopicMap: Record<string, string> = {
-      "/pricing": "Pricing and subscription plans",
-      "/payment": "Payments and checkout",
-      "/jobs": "Job search and applications",
-      "/my-jobs": "Saved and applied jobs",
-      "/recruiter": "Recruiter dashboard and hiring",
-      "/profile": "User profile and account details",
-      "/notifications": "Notification settings and alerts",
+      "/": "Home page with hero, stats, featured jobs, testimonial",
+      "/pricing": "Pricing and subscription plans for recruiters, AI tools, providers, ads",
+      "/payment": "Payments and checkout with Paystack, card & bank transfer",
+      "/jobs": "Job search and applications with split-panel layout, filters",
+      "/my-jobs": "Saved and applied jobs dashboard with tabs",
+      "/recruiter": "Recruiter dashboard for posting jobs and managing candidates",
+      "/profile": "User profile with edit form, completeness meter, account security",
+      "/notifications": "Notification center with all types of alerts",
+      "/messages": "Inbox with conversation threads and chat panel",
+      "/ai-resume": "AI Resume Studio with 4 tools: extraction, tailoring, cover letter, interview prep",
+      "/business": "Business advertisement creation and management",
+      "/providers": "Service provider marketplace to find or become a provider",
+      "/blog": "Career insights blog with categories",
+      "/about": "Company story, mission, team, values",
+      "/ceo": "CEO vision page with video message from Victor Eniola",
+      "/support": "FAQ accordion and help center",
+      "/contact": "Contact form and support information",
+      "/games": "Memory card matching game and job quiz",
+      "/privacy": "Privacy policy and data protection info",
+      "/career": "Career opportunities at JobBridge (coming soon)",
+      "/signup": "Registration page with role selection",
+      "/login": "Sign in page",
+      "/profile-visibility": "Profile visibility and privacy settings",
+      "/job-preferences": "Work type, location, salary preferences",
+      "/following": "Companies and users you follow",
+      "/reviews": "Reviews and ratings",
+      "/talent-search": "Talent search and candidate discovery",
     };
 
-    summary += `Primary Page Topic: ${pageTopicMap[currentPath] || "General platform information"}\n`;
+    summary += `Primary Page Topic: ${pageTopicMap[currentPath] || "JobBridge platform"}\n`;
 
     if (isAuthenticated && profile) {
-      summary += `User Logged In: Yes\nRole: ${profile.role || ""}\n`;
+      summary += `User Logged In: Yes\nRole: ${profile.role || "Not set"}\n`;
+      if (profile.full_name) summary += `User Name: ${profile.full_name}\n`;
     } else {
       summary += `User Logged In: No (Guest)\n`;
     }
 
-    const headings = Array.from(document.querySelectorAll("h1, h2, h3"))
+    // Extract ALL visible headings on the page for richer context
+    const headings = Array.from(document.querySelectorAll("h1, h2, h3, h4"))
       .map((el) => el.textContent?.trim())
-      .filter(Boolean)
-      .slice(0, 8);
+      .filter((t): t is string => !!t && t.length > 0)
+      .slice(0, 12);
     if (headings.length > 0) {
       summary += `Visible Headings: ${headings.join(" | ")}\n`;
     }
 
-    if (currentPath === "/profile" || currentPath === "/ai-resume") {
+    // Extract buttons and CTAs for action context
+    const buttons = Array.from(document.querySelectorAll("button, a[class*='btn'], a[class*='button']"))
+      .map((el) => el.textContent?.trim())
+      .filter((t): t is string => !!t && t.length > 0 && t.length < 50)
+      .slice(0, 8);
+    if (buttons.length > 0) {
+      summary += `Available Actions: ${buttons.join(", ")}\n`;
+    }
+
+    // Form field detection for profile-like pages
+    if (["/profile", "/ai-resume", "/signup", "/login", "/job-preferences", "/profile-visibility"].includes(currentPath)) {
       const inputLabels = Array.from(
         document.querySelectorAll("input, select, textarea"),
       )
         .map((el) => {
-          const field = el as
-            HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
-          const placeholder = "placeholder" in field ? field.placeholder : "";
+          const field = el as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
           return (
             field.previousElementSibling?.textContent?.trim() ||
-            placeholder ||
+            ("placeholder" in field ? field.placeholder : "") ||
             field.name ||
             field.id
           );
         })
-        .filter(Boolean)
-        .slice(0, 10);
+        .filter((t): t is string => !!t)
+        .slice(0, 15);
       if (inputLabels.length > 0) {
         summary += `Visible Form Fields: ${inputLabels.join(", ")}\n`;
       }
     }
 
+    // Job postings on jobs page
     if (currentPath.startsWith("/jobs")) {
       const cards = Array.from(
-        document.querySelectorAll('.job-card, [class*="job-card"]'),
+        document.querySelectorAll('[class*="job-card"], [class*="JobCard"], .border-b.border-gray-100')
       )
-        .map((el) => el.querySelector("h3")?.textContent?.trim())
-        .filter(Boolean)
-        .slice(0, 5);
+        .map((el) => {
+          const titleEl = el.querySelector("h3");
+          const companyEl = el.querySelector('[class*="text-gray-600"]');
+          if (titleEl) {
+            const title = titleEl.textContent?.trim() || "";
+            const company = companyEl?.textContent?.trim() || "";
+            return `${title}${company ? ` @ ${company}` : ""}`;
+          }
+          return null;
+        })
+        .filter((t): t is string => !!t)
+        .slice(0, 6);
       if (cards.length > 0) {
         summary += `Visible Job Postings: ${cards.join(", ")}\n`;
       }
@@ -665,12 +721,12 @@ function AIAssistantWidget() {
                     JobBridge AI Agent
                   </h3>
                   <span className="px-1.5 py-0.5 bg-emerald-400/25 border border-emerald-400/20 text-emerald-300 text-[9px] font-bold rounded-md">
-                    V2
+                    {modelInfo.provider === "DeepSeek" ? "DeepSeek" : "GPT"}
                   </span>
                 </div>
                 <p className="text-xs text-blue-100 flex items-center gap-1">
                   <Compass className="w-3 h-3" />
-                  Reasoning & Action Mode
+                  Deep Reasoning & Page Router
                 </p>
               </div>
             </div>
