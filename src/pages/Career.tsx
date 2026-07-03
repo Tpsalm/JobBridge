@@ -1,225 +1,345 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
-import PageHero from '../components/PageHero';
-import AnimatedSection from '../components/AnimatedSection';
-import Card3D from '../components/Card3D';
-import { HERO_CAROUSELS } from '../lib/media';
+import { supabase } from '../lib/supabase';
+import { fetchJobs } from '../lib/supabaseQueries';
 import {
   Briefcase, Bell, ArrowRight, Check, GraduationCap, Users, Target,
   FileText, MessageCircle, BookOpen, Tv, Trophy, Calendar,
-  Sparkles, Loader2, ChevronRight, Clock,
+  Sparkles, Loader2, ChevronRight, Clock, Star, MapPin, Send, Mail
 } from 'lucide-react';
 
 const UPCOMING_FEATURES = [
   {
     icon: GraduationCap,
     title: 'Career Coaching',
-    desc: 'One-on-one sessions with certified career coaches to help you define your professional path, build confidence, and land your dream role.',
-    color: 'from-blue-500 to-blue-700',
+    desc: 'One-on-one sessions with certified career coaches to define your path and land your dream role.',
+    color: 'from-blue-500 to-indigo-600',
     tag: 'Expert-Led',
   },
   {
     icon: Users,
     title: 'Mentorship Program',
-    desc: 'Connect with experienced professionals in your field who will guide you, share industry insights, and help you grow your network.',
-    color: 'from-emerald-500 to-emerald-700',
+    desc: 'Connect with experienced professionals in your field who will guide you and share industry insights.',
+    color: 'from-emerald-500 to-teal-600',
     tag: 'Community',
   },
   {
     icon: Target,
     title: 'Skill Assessments',
-    desc: 'Take verified assessments to benchmark your skills, identify gaps, and receive personalized recommendations for improvement.',
-    color: 'from-purple-500 to-purple-700',
+    desc: 'Take verified assessments to benchmark your skills and receive personalized recommendations.',
+    color: 'from-purple-500 to-pink-600',
     tag: 'Verify',
   },
   {
     icon: FileText,
     title: 'Professional Certifications',
-    desc: 'Earn JobBridge-recognized certifications in customer service, digital skills, sales, and more — backed by industry standards.',
-    color: 'from-amber-500 to-amber-700',
+    desc: 'Earn JobBridge-recognized certifications in customer service, coding, and sales.',
+    color: 'from-amber-500 to-orange-600',
     tag: 'Certified',
   },
   {
     icon: Tv,
-    title: 'Career Workshops & Webinars',
-    desc: 'Attend live and recorded sessions on CV writing, interview techniques, personal branding, and navigating the job market.',
-    color: 'from-rose-500 to-rose-700',
+    title: 'Workshops & Webinars',
+    desc: 'Attend live and recorded sessions on CV writing, branding, and navigating the job market.',
+    color: 'from-rose-500 to-red-600',
     tag: 'Live',
   },
   {
     icon: MessageCircle,
-    title: 'Peer Networking Groups',
-    desc: 'Join industry-specific groups to share opportunities, advice, and support with peers at every stage of their career journey.',
-    color: 'from-cyan-500 to-cyan-700',
+    title: 'Networking Groups',
+    desc: 'Join industry-specific groups to share opportunities and support with peers.',
+    color: 'from-cyan-500 to-blue-600',
     tag: 'Network',
-  },
-  {
-    icon: BookOpen,
-    title: 'Learning Library',
-    desc: 'Access a growing library of articles, guides, templates, and resources covering everything from job searching to career advancement.',
-    color: 'from-indigo-500 to-indigo-700',
-    tag: 'Resource',
-  },
-  {
-    icon: Trophy,
-    title: 'Career Challenges & Rewards',
-    desc: 'Take on career-building challenges — complete your profile, apply to jobs, upskill — and earn badges, points, and rewards.',
-    color: 'from-orange-500 to-orange-700',
-    tag: 'Gamified',
   },
 ];
 
 const ROADMAP = [
-  { phase: 'Q3 2026', title: 'Beta Launch', items: ['Career coaching booking', 'Mentorship matching (manual)', 'Learning library', 'Skill assessment pilot'] },
-  { phase: 'Q4 2026', title: 'Expansion', items: ['Certification exams live', 'Workshop & webinar calendar', 'Peer networking groups', 'AI-powered career recommendations'] },
-  { phase: 'Q1 2027', title: 'Full Release', items: ['Automated mentorship matching', 'Gamified challenges & rewards', 'Employer-sponsored coaching', 'Career progress dashboard'] },
+  { phase: 'Q3 2026', title: 'Beta Launch', items: ['Career coaching booking', 'Learning library', 'Skill assessment pilot'], gradient: 'from-blue-500 to-indigo-600' },
+  { phase: 'Q4 2026', title: 'Expansion', items: ['Certification exams live', 'Workshop calendar', 'Peer networking groups'], gradient: 'from-emerald-500 to-teal-600' },
+  { phase: 'Q1 2027', title: 'Full Release', items: ['Automated matching', 'Gamified rewards & badges', 'Progress dashboard'], gradient: 'from-purple-500 to-pink-600' },
 ];
 
 export default function Career() {
   const navigate = useNavigate();
-  const [notifying, setNotifying] = useState(false);
-  const [notified, setNotified] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'jobs' | 'roadmap'>('overview');
+  const [emailInput, setEmailInput] = useState('');
+  const [subscribing, setSubscribing] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+  const [subscribeError, setSubscribeError] = useState('');
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
 
-  const handleNotify = async () => {
-    setNotifying(true);
-    await new Promise(r => setTimeout(r, 1500));
-    setNotifying(false);
-    setNotified(true);
+  // Fetch dynamic listings from Database
+  useEffect(() => {
+    async function loadJobs() {
+      try {
+        setJobsLoading(true);
+        const data = await fetchJobs();
+        setJobs(data || []);
+      } catch (err) {
+        console.error('Error fetching jobs:', err);
+      } finally {
+        setJobsLoading(false);
+      }
+    }
+    loadJobs();
+  }, []);
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput.trim()) return;
+    setSubscribing(true);
+    setSubscribeError('');
+
+    try {
+      const { error } = await supabase
+        .from('blog_subscribers')
+        .insert([{ email: emailInput.trim().toLowerCase() }]);
+
+      if (error) {
+        if (error.code === '23505') {
+          // Unique violation
+          setSubscribed(true);
+        } else {
+          throw error;
+        }
+      } else {
+        setSubscribed(true);
+      }
+    } catch (err: any) {
+      setSubscribeError(err.message || 'Failed to subscribe. Please try again.');
+    } finally {
+      setSubscribing(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-[#f8f9fc]">
       <Header />
-      <PageHero compact title="Career Hub" subtitle="Your complete career growth ecosystem — coming soon" images={HERO_CAROUSELS.career || []} imageAlt="Career" overlay="dark" />
 
-      <div className="max-w-6xl mx-auto px-4 mt-6 relative z-10">
-        {/* Intro Banner */}
-        <AnimatedSection direction="up">
-          <div className="bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl p-6 sm:p-8 text-white mb-8 relative overflow-hidden">
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-blue-300 blur-3xl" />
-            </div>
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="w-6 h-6 text-amber-300" />
-                <span className="text-sm font-semibold text-blue-200 tracking-wider uppercase">What's Coming</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-bold mb-3">Your Career Growth Starts Here</h2>
-              <p className="text-blue-100 max-w-2xl mb-6">
-                We're building a complete career ecosystem — from coaching and mentorship to certifications and peer networks.
-                Everything you need to advance your career, all in one place.
-              </p>
-              {notified ? (
-                <div className="inline-flex items-center gap-2 bg-white/15 text-white px-5 py-2.5 rounded-lg text-sm font-semibold">
-                  <Check className="w-4 h-4 text-emerald-300" />
-                  You're on the list — we'll notify you at launch
-                </div>
-              ) : (
-                <button
-                  onClick={handleNotify}
-                  disabled={notifying}
-                  className="inline-flex items-center gap-2 bg-white text-blue-700 px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50"
-                >
-                  {notifying ? <><Loader2 className="w-4 h-4 animate-spin" /> Subscribing...</> : <><Bell className="w-4 h-4" /> Get Notified When Live</>}
-                </button>
-              )}
-            </div>
-          </div>
-        </AnimatedSection>
-
-        {/* Upcoming Features */}
-        <AnimatedSection direction="up" delay={100}>
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-1">What to Expect</h2>
-            <p className="text-sm text-gray-500">Explore the tools and opportunities coming to your Career Hub.</p>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {UPCOMING_FEATURES.map((f) => (
-              <Card3D key={f.title} className="bg-white rounded-xl p-5 border border-gray-100" strength={4}>
-                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${f.color} flex items-center justify-center mb-3`}>
-                  <f.icon className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-bold text-gray-900 text-sm">{f.title}</h3>
-                  <span className="shrink-0 text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{f.tag}</span>
-                </div>
-                <p className="text-xs text-gray-500 leading-relaxed">{f.desc}</p>
-              </Card3D>
-            ))}
-          </div>
-        </AnimatedSection>
-
-        {/* Roadmap */}
-        <AnimatedSection direction="up" delay={200}>
-          <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-sm mb-8">
-            <div className="flex items-center gap-2 mb-6">
-              <Calendar className="w-5 h-5 text-blue-700" />
-              <h2 className="text-xl font-bold text-gray-900">Launch Roadmap</h2>
-            </div>
-            <div className="grid md:grid-cols-3 gap-6">
-              {ROADMAP.map((phase) => (
-                <div key={phase.phase} className="relative">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-700 text-white text-xs font-bold flex items-center justify-center">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-blue-600 font-semibold">{phase.phase}</p>
-                      <p className="font-bold text-gray-900 text-sm">{phase.title}</p>
-                    </div>
-                  </div>
-                  <ul className="space-y-2 ml-10">
-                    {phase.items.map((item) => (
-                      <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
-                        <ChevronRight className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        </AnimatedSection>
-
-        {/* CTA Banner */}
-        <AnimatedSection direction="up" delay={300}>
-          <div className="bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl p-6 sm:p-8 text-center relative overflow-hidden mb-8">
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-0 left-1/2 w-72 h-72 rounded-full bg-white blur-3xl -translate-x-1/2" />
-            </div>
-            <div className="relative">
-              <GraduationCap className="w-10 h-10 text-amber-300 mx-auto mb-3" />
-              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Ready to Take the Next Step?</h2>
-              <p className="text-blue-100 max-w-lg mx-auto mb-6">
-                While the Career Hub is being built, start exploring jobs or connect with service providers today.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <button
-                  onClick={() => navigate('/jobs')}
-                  className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-colors"
-                >
-                  <Briefcase className="w-4 h-4" />
-                  Browse Jobs
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => navigate('/providers')}
-                  className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-colors border border-blue-500"
-                >
-                  <Users className="w-4 h-4" />
-                  Find Service Providers
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </AnimatedSection>
+      {/* Hero Banner with Background Gradient Cover */}
+      <div className="relative h-48 sm:h-56 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-700 via-blue-600 to-teal-500" />
+        <div className="absolute inset-0 opacity-15">
+          <div className="absolute top-8 left-[15%] w-36 h-36 bg-white/20 rounded-full blur-2xl animate-pulse" />
+          <div className="absolute bottom-6 right-[20%] w-48 h-48 bg-purple-300/25 rounded-full blur-3xl" />
+        </div>
+        <div className="absolute inset-0" style={{
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0)`,
+          backgroundSize: '20px 20px'
+        }} />
+        <div className="max-w-6xl mx-auto px-4 h-full flex flex-col justify-end pb-8 relative z-10 text-white">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-teal-300 bg-white/10 px-2.5 py-1 rounded-md w-fit mb-2 backdrop-blur-sm border border-white/10">Coming Soon</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">JobBridge Career Hub</h1>
+          <p className="text-xs sm:text-sm text-white/80 max-w-xl mt-1">Your comprehensive professional ecosystem for upskilling, mentorship, and career growth.</p>
+        </div>
       </div>
 
+      <div className="max-w-6xl mx-auto px-4 mt-6 pb-24 relative z-10">
+        
+        {/* Navigation Tabs (Overview, Dynamic Jobs, Roadmap) */}
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-1 hide-scrollbar">
+          {[
+            { id: 'overview', title: 'Hub Overview', icon: GraduationCap, color: 'from-blue-500 to-indigo-600' },
+            { id: 'jobs', title: 'Featured Jobs', icon: Briefcase, color: 'from-emerald-500 to-teal-600' },
+            { id: 'roadmap', title: 'Timeline & Roadmap', icon: Clock, color: 'from-purple-500 to-pink-600' },
+          ].map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap ${
+                  isActive
+                    ? 'bg-white text-gray-900 shadow-md border border-gray-100 scale-[1.02]'
+                    : 'bg-white/50 text-gray-500 hover:bg-white hover:text-gray-700 border border-transparent'
+                }`}
+              >
+                <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                  isActive ? `bg-gradient-to-br ${tab.color} text-white shadow-sm` : 'bg-gray-100 text-gray-400'
+                }`}>
+                  <Icon className="w-3.5 h-3.5" />
+                </div>
+                {tab.title}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ─── TAB 1: OVERVIEW ─── */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6" style={{ animation: 'pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {UPCOMING_FEATURES.map((f, i) => {
+                const Icon = f.icon;
+                return (
+                  <div
+                    key={f.title}
+                    className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group cursor-default"
+                  >
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${f.color} flex items-center justify-center mb-4 text-white shadow-sm`}>
+                      <Icon className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-bold text-gray-800 text-sm">{f.title}</h3>
+                      <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100/50 px-2 py-0.5 rounded-md">{f.tag}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed">{f.desc}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Newsletter signup panel */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-36 h-36 bg-blue-500/5 rounded-full -translate-y-8 translate-x-8 blur-2xl pointer-events-none" />
+              <div className="relative flex flex-col md:flex-row items-center gap-6">
+                <div className="flex-1 text-center md:text-left">
+                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded">Stay Updated</span>
+                  <h3 className="text-xl font-bold text-gray-900 mt-2">Get Beta Access & Launch Alerts</h3>
+                  <p className="text-xs text-gray-500 mt-1 max-w-md">Subscribe to be notified the instant these tools go live and secure your spot in our early-access coaching cohorts.</p>
+                </div>
+                <div className="w-full md:w-auto shrink-0 min-w-[280px]">
+                  {subscribed ? (
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center text-emerald-700 flex flex-col items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                        <Check className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold">You're on the list!</p>
+                        <p className="text-xs text-emerald-600/80">We'll alert you the moment the hub launches.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSubscribe} className="flex gap-2">
+                      <input
+                        type="email"
+                        required
+                        value={emailInput}
+                        onChange={e => setEmailInput(e.target.value)}
+                        placeholder="yourname@domain.com"
+                        className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-100 bg-gray-50/50 focus:bg-white transition-all"
+                      />
+                      <button
+                        type="submit"
+                        disabled={subscribing}
+                        className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl font-semibold text-xs hover:shadow-lg transition-all flex items-center gap-1.5"
+                      >
+                        {subscribing ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        Notify Me
+                      </button>
+                    </form>
+                  )}
+                  {subscribeError && (
+                    <p className="text-[11px] text-rose-500 font-medium mt-2">{subscribeError}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 2: DYNAMIC JOBS ─── */}
+        {activeTab === 'jobs' && (
+          <div className="space-y-6" style={{ animation: 'pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+              <h2 className="text-base font-bold text-gray-800 mb-1 flex items-center gap-1.5">
+                <Briefcase className="w-4.5 h-4.5 text-emerald-500" />
+                Featured Database Opportunities
+              </h2>
+              <p className="text-xs text-gray-500 mb-4">Live job postings fetched dynamically from our Postgres server database.</p>
+
+              {jobsLoading ? (
+                <div className="py-12 flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 rounded-full border-2 border-emerald-100 border-t-emerald-500 animate-spin" />
+                  <p className="text-xs text-gray-500">Querying database...</p>
+                </div>
+              ) : jobs.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 text-xs">
+                  No active jobs found in the database. Please post a job as recruiter to see it listed here dynamically!
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  {jobs.slice(0, 5).map(job => (
+                    <div
+                      key={job.id}
+                      onClick={() => navigate('/jobs')}
+                      className="border border-gray-100 bg-gray-50/50 hover:bg-white rounded-xl p-4 transition-all duration-300 hover:shadow-sm hover:border-gray-200 cursor-pointer flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"
+                    >
+                      <div>
+                        <h4 className="font-bold text-gray-800 text-sm hover:text-blue-600 transition-colors">{job.title}</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">{job.company}</p>
+                        <div className="flex flex-wrap items-center gap-3 mt-2">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-400">
+                            <MapPin className="w-3 h-3" /> {job.location}
+                          </span>
+                          <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-semibold">{job.type}</span>
+                        </div>
+                      </div>
+                      <button className="text-xs bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300 px-3.5 py-1.5 rounded-lg text-gray-700 font-semibold transition-all flex items-center gap-1">
+                        Apply Now
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* CTA panel */}
+            <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-3xl p-6 sm:p-8 text-center relative overflow-hidden text-white">
+              <h3 className="text-lg font-bold">Ready to Start Your Search?</h3>
+              <p className="text-xs text-white/80 max-w-md mx-auto mt-1 mb-4">View the entire catalog of hundreds of jobs posted across Nigerian companies.</p>
+              <button
+                onClick={() => navigate('/jobs')}
+                className="bg-white text-indigo-700 font-semibold px-6 py-2.5 rounded-xl text-xs hover:bg-indigo-50 transition-all inline-flex items-center gap-1 shadow-md hover:shadow-lg"
+              >
+                Browse All Listings
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 3: ROADMAP ─── */}
+        {activeTab === 'roadmap' && (
+          <div className="space-y-6" style={{ animation: 'pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-6">
+                <Calendar className="w-5 h-5 text-indigo-600" />
+                <h2 className="text-base font-bold text-gray-800">Launch Milestones</h2>
+              </div>
+
+              <div className="relative border-l-2 border-indigo-100 ml-3.5 space-y-8 py-2">
+                {ROADMAP.map((phase) => (
+                  <div key={phase.phase} className="relative pl-7 group">
+                    {/* Floating checkpoint icon */}
+                    <div className="absolute -left-[11px] top-0.5 w-5 h-5 rounded-full bg-white border-2 border-indigo-500 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
+                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider">{phase.phase}</span>
+                      <h4 className="font-bold text-gray-800 text-sm mt-1">{phase.title}</h4>
+                      <ul className="grid sm:grid-cols-2 gap-2 mt-3 pl-0">
+                        {phase.items.map(item => (
+                          <li key={item} className="flex items-center gap-2 text-xs text-gray-500">
+                            <Check className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
       <BottomNav />
     </div>
   );

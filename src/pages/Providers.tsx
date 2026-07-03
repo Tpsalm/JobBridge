@@ -85,7 +85,7 @@ export default function Providers() {
         bgColor: getBgColor(p.id),
         verified: p.is_verified || false,
         featured: p.is_featured || false,
-        tier: p.subscription_tier || 'basic',
+        tier: p.subscription?.tier || 'basic',
       }));
       setProviders(mapped);
     }).catch(() => {});

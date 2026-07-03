@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, Profile } from './supabase';
 
 // ─── Jobs ───────────────────────────────────────────────────────────────────
 

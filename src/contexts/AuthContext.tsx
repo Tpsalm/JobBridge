@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     let initialised = false;
 
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, sess) => {
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event: string, sess: any) => {
       if (cancelled) return;
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
         if (initialised && event === 'INITIAL_SESSION') return;

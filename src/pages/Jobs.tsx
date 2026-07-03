@@ -110,7 +110,7 @@ const Jobs = () => {
       }
       // Notify recruiter
       if (selectedJob?.recruiter_id && selectedJob?.recruiter_id !== user?.id) {
-        supabase.from('profiles').select('email, full_name').eq('id', selectedJob.recruiter_id).maybeSingle().then(({ data: recruiter }) => {
+        supabase.from('profiles').select('email, full_name').eq('id', selectedJob.recruiter_id).maybeSingle().then(({ data: recruiter }: { data: { email: string; full_name: string } | null }) => {
           if (recruiter?.email) {
             sendEmail({ type: 'recruiter_notification', email: recruiter.email, jobTitle: selectedJob.title, applicantName: profile?.full_name || user?.email || 'a candidate' });
           }

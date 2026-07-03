@@ -68,7 +68,7 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [noCredits, setNoCredits] = useState(false);
   const [form, setForm] = useState({ title: '', company: '', location: '', type: 'Full-time', salary: '', description: '' });
-  const { profile, subscription, fetchSubscription } = useAuth();
+  const { user, profile, subscription, fetchSubscription } = useAuth();
   const navigate = useNavigate();
 
   if (noCredits) {
@@ -184,10 +184,10 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
                     description: form.description,
                     location: form.location,
                     type: form.type,
-                    salary_range: form.salary_range,
-                    category: form.category || '',
-                    requirements: form.requirements ? form.requirements.split('\n').filter(Boolean) : [],
-                    benefits: form.benefits ? form.benefits.split('\n').filter(Boolean) : [],
+                    salary_range: form.salary || '',
+                    category: '',
+                    requirements: [],
+                    benefits: [],
                   });
                   try { window.dispatchEvent(new CustomEvent('jobs:updated')); } catch (e) {}
                   await fetchSubscription();
