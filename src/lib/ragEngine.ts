@@ -1,7 +1,7 @@
 import KB, { type KnowledgeSection } from './jobbridgeKnowledge';
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const LLM_MODEL = 'gpt-4o-mini'; // Can be upgraded to 'gpt-4o' or 'gpt-4-turbo' if available
+const LLM_MODEL = 'gpt-4o-mini'; // Can be upgraded to 'gpt-4o' if available
 const TOP_K = 8;
 const MAX_HISTORY = 25;
 const MAX_INPUT_LENGTH = 1000;
@@ -18,12 +18,27 @@ export interface SourceInfo {
   title: string;
 }
 
+export interface AgentThought {
+  toolName: string;
+  status: 'running' | 'completed' | 'failed';
+  query?: string;
+  output?: string;
+}
+
 export interface StreamCallbacks {
   onToken: (token: string) => void;
   onSources: (sources: SourceInfo[]) => void;
   onError: (err: string) => void;
   onPhase: (phase: string) => void;
+  onThought?: (thought: AgentThought) => void;
+  onAction?: (actionType: string, params: any) => void;
   onDone: (fullText: string, sources: SourceInfo[]) => void;
+}
+
+export interface PageState {
+  currentPath: string;
+  domSummary: string;
+  userProfile?: any;
 }
 
 export function hasApiKey(): boolean {
@@ -74,7 +89,7 @@ const rateLimit = (() => {
 
 // ─── Conversation memory ────────────────────────────────────────
 
-type HistoryMsg = { role: 'user' | 'assistant'; content: string };
+type HistoryMsg = { role: 'system' | 'user' | 'assistant' | 'tool'; name?: string; tool_call_id?: string; content: string | null; tool_calls?: any[] };
 
 function getConversation(convId: string): HistoryMsg[] {
   try {
@@ -93,42 +108,7 @@ export function clearConversation(convId: string) {
   try { localStorage.removeItem(CACHE_CONV_KEY + convId); } catch {}
 }
 
-// ─── Page context map ──────────────────────────────────────────
-
-const pageContextMap: Record<string, string> = {
-  '/': 'the home page — JobBridge platform overview, how it works, featured jobs, testimonials, and stats',
-  '/jobs': 'the Jobs page — browse, search, filter, and apply to job listings with the 3-step application form',
-  '/my-jobs': 'the My Jobs page — track your saved jobs, applied jobs with status, interviews, and archived jobs',
-  '/recruiter': 'the Recruiter Dashboard — post jobs, AI job description writer, applications panel, AI candidate ranking',
-  '/pricing': 'the Pricing page — compare recruiter job plans, AI subscription plans, service provider plans, and business ad packages',
-  '/payment': 'the Payment page — complete purchases via Paystack card payment or bank transfer to Moniepoint MFB',
-  '/ai-resume': 'the AI Resume Studio — Skills Extraction, AI Tailor Resume, AI Cover Letter Generator, AI Interview Preparation',
-  '/providers': 'the Service Provider Marketplace — browse professionals in engineering, design, marketing, finance, legal, and more',
-  '/business': 'the Business Advertisements page — create and manage business ads with weekly, monthly, or featured packages',
-  '/profile': 'the Profile page — personal info, professional info, inclusion fields, account security, and danger zone',
-  '/settings': 'the Settings page — manage notifications, privacy controls, premium subscriptions, and connected apps',
-  '/admin': 'the Admin Dashboard — manage users, moderate jobs, approve providers, view platform analytics',
-  '/support': 'the Support page — FAQ accordion covering job seekers, recruiters, and general questions',
-  '/contact': 'the Contact page — contact form and support email and phone information',
-  '/blog': 'the Blog page — career insights articles, categories, and newsletter subscription',
-  '/signup': 'the Sign Up page — create account with role selection: Job Seeker, Recruiter, or Service Provider',
-  '/login': 'the Login page — sign in with email and password, forgot password link, rate limiting',
-  '/about': 'the About page — company story, mission, values, team, and milestone information',
-  '/ceo': 'the CEO Vision page — founder video message, photo gallery, company milestones, and user messages',
-  '/games': 'the Games page — memory card matching game with multiple stages, scoring, and sound effects',
-  '/analytics': 'the Analytics page — platform statistics, job market trends, and data visualizations',
-  '/career': 'the Career page — coming soon careers section, subscribe for job opening notifications at JobBridge',
-  '/privacy': 'the Privacy Center — data collection, usage, sharing policies, security practices, and user rights',
-  '/messages': 'the Messages / Inbox page — conversation threads, chat panels, read receipts, and search',
-  '/notifications': 'the Notifications & Alerts page — notification history, job alerts, and notification preferences',
-};
-
-function currentPageContext(): string {
-  const path = window.location.pathname.replace(/\/$/, '') || '/';
-  return pageContextMap[path] || `the ${path} page`;
-}
-
-// ─── Improved scoring with multi-strategy matching ─────────────
+// ─── Scoring logic ──────────────────────────────────────────────
 
 function scoreSection(section: KnowledgeSection, query: string, pagePath: string): number {
   const lower = query.toLowerCase().trim();
@@ -137,60 +117,37 @@ function scoreSection(section: KnowledgeSection, query: string, pagePath: string
 
   let score = 0;
 
-  // 1) Exact multi-word keyword phrase matching (highest weight)
+  // Exact phrase match in keywords
   const phraseMatches = section.keywords.filter(kw => {
     const kl = kw.toLowerCase();
     return kl.length > 3 && lower.includes(kl);
   }).length;
   score += phraseMatches * 8;
 
-  // 2) Single keyword word-match (one keyword word matches a query word exactly)
+  // Word matches in keywords
   const keywordWords = new Set(section.keywords.flatMap(k => k.toLowerCase().split(/\s+/)));
   const exactKeywordMatches = queryWords.filter(w => keywordWords.has(w)).length;
   score += exactKeywordMatches * 4;
 
-  // 3) Title word matching
+  // Title matches
   const titleWords = section.title.toLowerCase().split(/\s+/);
   const titleMatches = queryWords.filter(w => titleWords.includes(w)).length;
   score += titleMatches * 5;
 
-  // 4) Tag matching
+  // Tag matches
   const tagMatches = section.tags.filter(t => lower.includes(t)).length;
   score += tagMatches * 3;
 
-  // 5) Page context boost (stronger if section explicitly lists this page)
+  // Path context boost
   if (section.pages.includes(pagePath)) {
     score += 8;
-  } else if (section.pages.some(p => pagePath.startsWith(p) && p !== '/')) {
-    score += 5;
   }
 
-  // 6) Content word overlap
+  // Content overlap
   const contentWords = (section.content + ' ' + section.title).toLowerCase().split(/\s+/);
   const contentWordSet = new Set(contentWords);
   const contentMatches = queryWords.filter(w => w.length > 2 && contentWordSet.has(w)).length;
   score += contentMatches * 1;
-
-  // 7) Word prefix matching (for partial/plural matches)
-  const prefixMatches = queryWords.filter(w => {
-    if (w.length < 4) return false;
-    return [...keywordWords].some(kw => kw.startsWith(w) || w.startsWith(kw));
-  }).length;
-  score += prefixMatches * 2;
-
-  // 8) Question-type boost — if query is procedural, boost sections with step/click/go keywords
-  const isProcedural = /^(how (to|do|can)|steps?|guide|walk|what are the steps)/i.test(lower);
-  if (isProcedural && /click|step|go to|select|enter|choose|fill|upload|submit/i.test(section.content)) {
-    score += 4;
-  }
-
-  // 9) Category relevance — if query has clear category, penalize wrong-tag sections slightly
-  const categoryTags = ['auth', 'pricing', 'jobs', 'recruiter', 'ai', 'providers', 'business', 'security', 'technical'];
-  const queryCatTags = categoryTags.filter(t => lower.includes(t));
-  if (queryCatTags.length > 0) {
-    const hasMatchingTag = queryCatTags.some(t => section.tags.includes(t));
-    if (!hasMatchingTag) score -= 2;
-  }
 
   return Math.max(0, score);
 }
@@ -205,19 +162,8 @@ function retrieveRelevant(question: string, pagePath: string): KnowledgeSection[
   }));
 
   scored.sort((a, b) => b.score - a.score);
-  const top = scored.filter(s => s.score > 0).slice(0, TOP_K);
-
-  if (top.length === 0) {
-    const fallback = scored.slice(0, 3);
-    if (fallback.some(s => s.score > 0)) {
-      return fallback.filter(s => s.score > 0).map(s => s.section);
-    }
-  }
-
-  return top.map(s => s.section);
+  return scored.filter(s => s.score > 0).slice(0, TOP_K).map(s => s.section);
 }
-
-// ─── Context trimming — keep within token budget ──────────────
 
 function trimContext(sections: KnowledgeSection[]): string {
   let combined = '';
@@ -226,16 +172,66 @@ function trimContext(sections: KnowledgeSection[]): string {
     if ((combined + block).length > MAX_CONTEXT_LENGTH) break;
     combined += block;
   }
-  if (!combined && sections.length > 0) {
-    return `## ${sections[0].title}\n${sections[0].content}`;
-  }
-  return combined;
+  return combined || (sections.length > 0 ? `## ${sections[0].title}\n${sections[0].content}` : '');
 }
 
-// ─── Streaming LLM call ─────────────────────────────────────────
+// ─── Conversational / Fallback responses when API Key is absent ────────────────
+
+function buildConversationalResponse(input: string, historyLength: number): string | null {
+  const lower = input.toLowerCase().trim();
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  if (/^(hello|hi|hey|greetings|hi there|hello there|hey there)([^a-z]|$)/i.test(lower)) {
+    if (historyLength === 0) {
+      return `${timeGreeting}! I'm your JobBridge AI Career Agent. I can help you search for jobs, optimize your profile, post hiring ads, and navigate all sections of the platform. What can I do for you today?`;
+    }
+    return `Hello again! How can I help you on JobBridge right now?`;
+  }
+
+  if (/^(who are you|what do you do|what are your features|introduce yourself)/i.test(lower)) {
+    return `I am the JobBridge AI Assistant — Nigeria's top career agent. I can guide you through every page, explain pricing, help write job descriptions, rank candidates, customize resumes, and even trigger direct actions like routing you to pricing or helping you auto-fill profile fields. Ask me anything!`;
+  }
+
+  if (/^(thanks|thank you|appreciate it)/i.test(lower)) {
+    return `You're very welcome! Let me know if you need anything else.`;
+  }
+
+  return null;
+}
+
+function extractSentences(text: string): string[] {
+  return text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 10);
+}
+
+function getStructuredAnswer(question: string, section: KnowledgeSection): string {
+  return section.content.split(/\n{2,}/).slice(0, 4).join('\n\n');
+}
+
+function buildFallbackAnswer(question: string, topSections: KnowledgeSection[]): string {
+  const best = topSections[0];
+  const parts = [
+    `Here's what I found in the JobBridge knowledge base:`,
+    getStructuredAnswer(question, best)
+  ];
+
+  if (topSections.length > 1) {
+    const related = topSections.slice(1, 3).map(s => `- ${s.title}: ${extractSentences(s.content)[0] || ''}`).join('\n');
+    parts.push(`### Related Topics\n${related}`);
+  }
+
+  const paths = [...new Set(topSections.flatMap(s => s.pages))].filter(Boolean);
+  if (paths.length > 0) {
+    parts.push(`### Navigation\nYou can explore this feature directly at: ${paths.join(', ')}`);
+  }
+
+  return parts.join('\n\n');
+}
+
+// ─── Tool-calling LLM Loop (Agentic) ────────────────────────────────
 
 async function streamLLM(
-  messages: { role: string; content: string }[],
+  messages: HistoryMsg[],
   onToken: (token: string) => void,
 ): Promise<string> {
   const res = await fetchWithRetry('https://api.openai.com/v1/chat/completions', {
@@ -243,9 +239,9 @@ async function streamLLM(
     headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: LLM_MODEL,
-      messages,
-      max_tokens: 2000,
-      temperature: 0.6, // Slightly more creative but still grounded
+      messages: messages.map(m => ({ role: m.role, name: m.name, tool_call_id: m.tool_call_id, content: m.content })),
+      max_tokens: 1500,
+      temperature: 0.3,
       stream: true,
     }),
   });
@@ -287,448 +283,309 @@ async function streamLLM(
   return full;
 }
 
-// ─── System prompt builder ──────────────────────────────────────
+async function runAgenticLoop(
+  messages: HistoryMsg[],
+  pageState: PageState,
+  conversationId: string,
+  cb: StreamCallbacks
+): Promise<void> {
+  const { onToken, onSources, onError, onPhase, onThought, onAction, onDone } = cb;
 
-function buildSystemPrompt(
-  context: string,
-  pageContext: string,
-  history: HistoryMsg[],
-): string {
-  return `You are the JobBridge AI Assistant — Nigeria's most trusted career companion. Your role is to be knowledgeable, professional, and deeply supportive, like an experienced career coach who understands both the platform and the Nigerian job market.
-
-## Your Personality & Communication Style
-- **Professional yet Warm**: Maintain a polished, business-appropriate tone while remaining approachable and encouraging. Think of yourself as a senior career advisor.
-- **Human-Like & Conversational**: Use natural, flowing language with contractions (don't, can't, it's) and avoid robotic phrasing. Structure your answers like you're speaking with someone in a professional setting.
-- **Encouraging & Empathetic**: Acknowledge the user's situation, validate their feelings, and offer constructive guidance. Phrases like "That's a great question", "I'm happy to help with that", or "Let's walk through this together" work well.
-- **Structured & Clear**: Organize information logically with clear headings, bullet points, and numbered lists when relevant. Make complex information easy to digest.
-- **Nigerian Context**: Remember that JobBridge is primarily for Nigeria and West Africa. Reference local context when appropriate.
-- **Proactive Helpful**: After answering, suggest 1-2 relevant follow-up actions or questions that could be useful.
-
-## Core Response Guidelines
-- **Answer Using Only the Knowledge Context**: Never invent or assume information not in the context below. If you don't have the answer, politely say so and direct them to support.
-- **Be Comprehensive but Concise**: Provide thorough, detailed answers without unnecessary fluff. A good response is usually 3-8 sentences plus any structured lists.
-- **Use Markdown for Clarity**: Employ **bold** for emphasis, *italic* for subtle highlights, bullet points (-), numbered lists (1. 2. 3.), and headings (##) when appropriate to improve readability.
-- **Include Relevant Page Links**: When referencing features, include the page path (like /jobs, /pricing, /ai-resume) so users know where to go next.
-- **Stay On-Topic**: If the user asks about something unrelated to JobBridge, politely acknowledge and redirect them to platform topics.
-- **Format Instructions Clearly**: Use numbered steps (1. 2. 3.) for actionable guides.
-
-## When You Don't Know Something
-If the knowledge context doesn't contain the answer, respond with:
-"I don't have specific information about that at the moment. For personalized assistance, please reach out to our support team at jobbridgesupport@gmail.com — they'd be happy to help you!"
-
-## Current Page Context
-The user is currently on: ${pageContext}
-
-## Conversation History
-${history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n')}
-
-## Knowledge Base (Answer ONLY From This)
-${context}
-
-Now, respond to the user's last message in a professional, warm, and clear manner, following the guidelines above.`;
-}
-
-// ─── Conversational greeting detection ──────────────────────────
-
-function buildConversationalResponse(input: string, historyLength: number): string | null {
-  const lower = input.toLowerCase().trim();
-  const hour = new Date().getHours();
-  const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-
-  // Pure greetings
-  if (/^(hello|hi|hey|howdy|yo|sup|greetings|hi there|hello there|hey there)([^a-z]|$)/i.test(lower)) {
-    if (historyLength === 0) {
-      return `${timeGreeting}! I'm so glad you're here. I'm your JobBridge AI career assistant, and I'm here to help you make the most of your experience on the platform. Whether you're looking for your dream job, hoping to hire top talent, or wanting to showcase your professional services, I can guide you through every step. What brings you to JobBridge today?`;
+  const tools = [
+    {
+      type: "function",
+      function: {
+        name: "search_knowledge_base",
+        description: "Queries the comprehensive JobBridge knowledge base for FAQs, pricing details, candidate matching metrics, and step-by-step guides.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description: "The topic, FAQ question, or keyword phrase to query."
+            }
+          },
+          required: ["query"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_current_page_context",
+        description: "Inspects what the user is looking at right now, including visible text, active elements, loaded items, and profile details.",
+        parameters: {
+          type: "object",
+          properties: {}
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "navigate_to_page",
+        description: "Redirects the user programmatically to a specific page or scrolls to a target section in JobBridge. Use this when they want to visit a feature or purchase something.",
+        parameters: {
+          type: "object",
+          properties: {
+            path: {
+              type: "string",
+              description: "The route path (e.g. '/pricing', '/ai-resume', '/jobs', '/profile', '/settings')."
+            },
+            selector: {
+              type: "string",
+              description: "Optional element ID/class to scroll to."
+            }
+          },
+          required: ["path"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "autofill_form",
+        description: "Helps the user fill in fields in the active page's forms (e.g. full name, bio, specialty).",
+        parameters: {
+          type: "object",
+          properties: {
+            fieldSelector: {
+              type: "string",
+              description: "The form input element's label, name or placeholder."
+            },
+            value: {
+              type: "string",
+              description: "The value to input."
+            }
+          },
+          required: ["fieldSelector", "value"]
+        }
+      }
     }
-    return `Hello again! Great to see you back. How can I help you with JobBridge today?`;
-  }
+  ];
 
-  // Time-based greetings
-  if (/^good morning/i.test(lower)) {
-    return `Good morning! I hope you're having a wonderful day. How can I assist you with JobBridge today?`;
-  }
-  if (/^good afternoon/i.test(lower)) {
-    return `Good afternoon! I hope you're having a wonderful day. How can I assist you with JobBridge today?`;
-  }
-  if (/^good evening/i.test(lower)) {
-    return `Good evening! I hope you're having a wonderful day. How can I assist you with JobBridge today?`;
-  }
+  const loopMessages: HistoryMsg[] = [
+    {
+      role: 'system',
+      content: `You are the JobBridge AI Assistant — a highly capable, empathetic, and professional career agent (comparable to Claude in reasoning). You help users navigate JobBridge (Nigeria's leading professional network).
+      
+      You have access to tools that let you search the knowledge base, inspect the active page context, route the user, and autofill forms.
+      
+      RULES:
+      - Always inspect the page using 'get_current_page_context' to see what page they are on and what they are viewing.
+      - Use 'search_knowledge_base' to check pricing, guides, and policies. Do not invent pricing or rules.
+      - Use clean markdown styling. For headings, use ##. Keep lists clean and concise.
+      - If you use 'navigate_to_page' or 'autofill_form', let the user know what you did.`
+    },
+    ...messages
+  ];
 
-  // How are you / small talk
-  if (/(how are you|how('s| is) it going|how are things|how('s| is) your day|how do you do|you good|you alright)/i.test(lower) && !/(how (much|many|to |do |can |does |would |will ))/i.test(lower)) {
-    return `I'm doing great, thank you for asking! I'm energized and ready to help you navigate JobBridge and achieve your career or hiring goals. What would you like to explore today? You can ask me about finding jobs, posting vacancies, pricing, AI tools, or any other feature on the platform.`;
-  }
+  let step = 0;
+  const maxSteps = 6;
 
-  // Who are you / introduction
-  if (/^(who are you|tell me about yourself|what can you do|what do you do|introduce your|what are you)\b/i.test(lower)) {
-    return `I'm your JobBridge AI career assistant! Think of me as your personal guide to everything on JobBridge — Nigeria's number one professional network connecting job seekers, recruiters, and service providers.
+  while (step < maxSteps) {
+    step++;
+    onPhase("Reasoning...");
 
-Here is what I can help you with:
-- Finding and applying to jobs that match your skills
-- Understanding recruiter plans and posting job vacancies
-- Navigating the AI Resume Studio with skills extraction, cover letter generation, and interview preparation
-- Explaining pricing, subscriptions, and payment options
-- Troubleshooting common issues
-- Guiding you through any page or feature on the platform
+    const res = await fetchWithRetry('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: LLM_MODEL,
+        messages: loopMessages.map(m => ({ role: m.role, name: m.name, tool_call_id: m.tool_call_id, content: m.content, tool_calls: m.tool_calls })),
+        tools,
+        tool_choice: "auto",
+        temperature: 0.2
+      }),
+    });
 
-I know every corner of JobBridge, so feel free to ask me anything! What would you like to learn about first?`;
-  }
-
-  // User sharing their role / situation
-  if (/^i('m| am) (a |an |)(fresh graduate|graduate|job seeker|seeker|recruiter|recruiting|student|employer|business owner|freelancer|service provider|provider|hiring|hr professional|career changer|entry level)/i.test(lower)) {
-    if (/fresh graduate|student|graduate|entry level|just finished|just graduated|career changer/i.test(lower)) {
-      return `That's wonderful, and welcome to the JobBridge community! Starting your career journey is an exciting time, and I'm here to help you every step of the way. I'd suggest beginning at the Jobs page at /jobs to explore what's out there. Also, the AI Resume Studio at /ai-resume can help you build a standout CV, generate cover letters, and practice interviews. What kind of roles or industries are you interested in?`;
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`API error: ${res.status} — ${err}`);
     }
-    if (/recruiter|hiring|hr/i.test(lower)) {
-      return `Great to have you here as a recruiter! JobBridge gives you powerful tools to find top talent — from posting jobs with AI-optimized descriptions to our candidate ranking feature that scores applicants by match percentage. Head over to the Recruiter Dashboard at /recruiter to get started. Do you have any roles you're looking to fill right now?`;
+
+    const json = await res.json();
+    const assistantMsg = json.choices?.[0]?.message;
+
+    if (!assistantMsg) {
+      throw new Error("Empty assistant message from API");
     }
-    if (/provider|freelancer|service/i.test(lower)) {
-      return `Excellent, welcome! As a service provider, JobBridge gives you a marketplace to showcase your skills to potential clients across Nigeria. I'd recommend starting at /providers to set up your profile and explore the categories. You can also check out the Featured Professional plan at /pricing for premium visibility. What services do you offer?`;
-    }
-    return `Nice to meet you! JobBridge has a lot to offer someone in your position. Feel free to ask me about any feature, and I'll guide you through it. What would you like to explore first?`;
-  }
 
-  // Tell me more / follow-up
-  if (/^(tell me more|go on|continue|say more|what else|can you elaborate|elaborate|explain further|go deeper|i('d| would) like to know more|give me more details|expand|dig deeper)/i.test(lower)) {
-    return `I'd love to go deeper! What aspect of JobBridge are you most curious about? You can ask me about specific pages like the Jobs page, Recruiter Dashboard, AI Resume Studio, or any feature you'd like to understand better.`;
-  }
+    if (assistantMsg.tool_calls && assistantMsg.tool_calls.length > 0) {
+      // Append assistant call to messages
+      loopMessages.push({
+        role: "assistant",
+        content: null,
+        tool_calls: assistantMsg.tool_calls
+      });
 
-  // I don't understand
-  if (/^(i (don't|do not) understand|i('m| am) (confused|lost)|can you clarify|clarify|what do you mean|that doesn't make sense|i don't get it|can you explain|explain it|explain again|simpler)/i.test(lower)) {
-    return `I'm sorry if I wasn't clear enough! Let me try to help. Could you let me know what you're trying to do on JobBridge, and I'll explain it in a simple, step-by-step way? For example, are you looking to find a job, post a vacancy, use AI tools for your resume, or something else?`;
-  }
+      for (const call of assistantMsg.tool_calls) {
+        const name = call.function.name;
+        const args = JSON.parse(call.function.arguments || '{}');
+        let toolOutput = "";
 
-  // Encouragement / confusion about careers
-  if (/(i('m| am) (tired|frustrated|overwhelmed|discouraged|stressed|lost|struggling)|this is (hard|difficult|tough|challenging)|finding a job is (hard|difficult|tough)|i keep getting rejected)/i.test(lower)) {
-    return `I hear you, and I want you to know that what you're feeling is completely valid. The job search journey can be challenging, but you don't have to go through it alone. JobBridge is designed to make things easier — from our AI-powered resume tools that help your application stand out, to personalized job matching. Let's take it one step at a time. What's the biggest challenge you're facing right now? I'd love to help.`;
-  }
+        if (onThought) {
+          onThought({ toolName: name, status: "running", query: args.query || args.path || args.fieldSelector });
+        }
 
-  // What should I do / advice
-  if (/^(what should i do|any (advice|tips|suggestions)|what do you (recommend|suggest)|give me (advice|tips|some guidance)|how can i (improve|get started|find|get))/i.test(lower) && !/(how (to|can i|do i) (find|apply|post|create|make|use))/i.test(lower)) {
-    return `I'd be happy to help guide you! The best place to start depends on what you're hoping to achieve on JobBridge. Are you looking to find a job, hire talent, offer your services, or promote your business? Let me know and I'll point you to exactly what you need!`;
-  }
+        try {
+          if (name === "search_knowledge_base") {
+            onPhase(`Searching knowledge base for "${args.query}"...`);
+            const sections = retrieveRelevant(args.query, pageState.currentPath);
+            toolOutput = trimContext(sections);
+            
+            const sourceList = sections.map(s => ({ id: s.id, title: s.title }));
+            onSources(sourceList);
+          } 
+          else if (name === "get_current_page_context") {
+            onPhase("Inspecting page contents...");
+            toolOutput = pageState.domSummary;
+          } 
+          else if (name === "navigate_to_page") {
+            onPhase(`Redirecting to ${args.path}...`);
+            if (onAction) {
+              onAction("navigate", args);
+            }
+            toolOutput = `Redirected user to ${args.path}. Tell the user they have been navigated.`;
+          } 
+          else if (name === "autofill_form") {
+            onPhase(`Auto-filling "${args.fieldSelector}"...`);
+            if (onAction) {
+              onAction("autofill", args);
+            }
+            toolOutput = `Autofilled field "${args.fieldSelector}" with value "${args.value}".`;
+          }
 
-  // That's helpful / positive reactions
-  if (/^(that('s| is) (helpful|great|good|awesome|perfect|exactly what i needed|useful)|good to know|makes sense|i (see|understand|get it)|sounds (good|great)|got it|okay|alright|nice|awesome|perfect|that helps)/i.test(lower)) {
-    return `I'm really glad that helped! Is there anything else you'd like to know about JobBridge? Don't hesitate to ask — I'm here for you.`;
-  }
+          if (onThought) {
+            onThought({ toolName: name, status: "completed", query: args.query || args.path || args.fieldSelector, output: toolOutput.slice(0, 150) + "..." });
+          }
+        } catch (toolErr: any) {
+          toolOutput = `Error executing tool: ${toolErr.message || 'unknown error'}`;
+          if (onThought) {
+            onThought({ toolName: name, status: "failed", query: args.query || args.path || args.fieldSelector });
+          }
+        }
 
-  // Expressing interest in a feature
-  if (/(that sounds (interesting|useful|helpful|good)|i('d| would) like to (try|use|see|explore)|this is (what i need|exactly what i('m| was) looking for))/i.test(lower)) {
-    return `That's great to hear! Whenever you're ready to dive in, just let me know and I'll walk you through it step by step. Is there a particular feature you'd like to explore first?`;
-  }
-
-  // Thanks / gratitude
-  if (/^(thanks|thank you|thank|appreciate it|thanks a lot|thx|thank you so much|much appreciated|i appreciate)/i.test(lower)) {
-    return `You're most welcome! I'm always here whenever you need assistance with JobBridge. Is there anything else I can help you with today?`;
-  }
-
-  // Goodbye
-  if (/^(bye|goodbye|see you|see ya|farewell|later|gotta go|take care|catch you|talk later|until next time)/i.test(lower)) {
-    return `It was a pleasure chatting with you! Feel free to come back anytime you need help with JobBridge. Wishing you the very best in your career journey — you've got this!`;
-  }
-
-  // Compliments
-  if (/^(you('re| are) (great|awesome|helpful|amazing|the best|wonderful|fantastic|kind|so helpful|incredible)|i love you|you rock|you are so)/i.test(lower)) {
-    return `That truly means a lot — thank you! I'm here to make your experience on JobBridge as smooth and rewarding as possible. Is there anything else I can help you with?`;
-  }
-
-  // Never mind / forget it
-  if (/^(never mind|forget it|forget about it|don't worry|not (really|right now)|nothing|no thanks|maybe later)/i.test(lower)) {
-    return `No worries at all! If you ever have any questions about JobBridge in the future, I'll be right here. Just say hello whenever you need me!`;
-  }
-
-  return null;
-}
-
-// ─── Fallback answer helpers ────────────────────────────────────
-
-function extractSentences(text: string): string[] {
-  return text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 10);
-}
-
-function getStructuredAnswer(question: string, section: KnowledgeSection, maxParas: number = 3): string {
-  const content = section.content;
-  const paragraphs = content.split(/\n{2,}/);
-  const q = question.toLowerCase();
-
-  // For comprehensive questions, return ALL relevant paragraphs
-  const isComprehensive = /^(tell me about|describe|explain|what (is|are|does) (all|everything|the|a|an))/i.test(q) || q.length < 8;
-  const limit = isComprehensive ? Math.max(maxParas, 8) : maxParas;
-
-  const relevantParas = paragraphs.filter(p => {
-    const qWords = q.split(/\s+/).filter(w => w.length > 2);
-    return qWords.length === 0 || qWords.some(w => p.toLowerCase().includes(w));
-  });
-  if (relevantParas.length > 0) {
-    return relevantParas.slice(0, limit).join('\n\n');
-  }
-  const sents = extractSentences(content.replace(/###.*/g, '').trim());
-  if (sents.length >= 3) return sents.slice(0, limit + 2).join(' ');
-  return content.split(/\.\s+/).slice(0, limit + 2).join('. ') + '.';
-}
-
-function combineComprehensiveAnswer(question: string, topSections: { section: KnowledgeSection; score: number }[]): string {
-  const parts: string[] = [];
-  const addedTitles = new Set<string>();
-
-  for (const item of topSections.slice(0, 4)) {
-    if (addedTitles.has(item.section.title)) continue;
-    addedTitles.add(item.section.title);
-
-    const content = getStructuredAnswer(question, item.section, 6);
-    if (content && content.length > 20) {
-      parts.push(content);
-    }
-  }
-
-  if (parts.length === 0) {
-    return getStructuredAnswer(question, topSections[0].section, 8);
-  }
-
-  return parts.join('\n\n');
-}
-
-function buildFallbackAnswer(
-  question: string,
-  topSections: { section: KnowledgeSection; score: number }[],
-): string {
-  const best = topSections[0];
-  const q = question.toLowerCase().trim();
-  const parts: string[] = [];
-
-  // Detect question type with more granularity
-  const isHow = /^(how (to|do|can|does)|how do (i|you)|steps? to|guide|walk me through|what are the steps|tell me how)/i.test(q);
-  const isWhat = /^(what|what is|what are|what does|whats|tell me about|describe|explain)/i.test(q) && !isHow;
-  const isCompare = /(differe|vs|versus|compare|or |which (is better|should|one))/i.test(q);
-  const isYesNo = /^(can (i|you)|is |are |does |do |will |should |has |was |did )/i.test(q) && !isHow;
-  const isList = /^(list|what are the|name|types? of|categories? of|examples of|kinds of)/i.test(q);
-  const isPrice = /(how much|cost|price|fee|pay|pricing|how many naira|naira|subscription cost|plan cost)/i.test(q);
-  const isLocation = /(where|location|address|find|accessible|available in|country|region|which page|what page)/i.test(q);
-  const isWhy = /^why/i.test(q);
-  const isWhen = /^when/i.test(q);
-
-  // Build professional, warm conversational opening
-  const warmOpeners: Record<string, string> = {
-    how: "I'd be happy to walk you through this! Here's how to do it on JobBridge:",
-    what: "That's a great question! Let me share what I know about that.",
-    compare: "Let me break down the key differences for you clearly:",
-    yesno: "",
-    list: "",
-    price: "Here's what you need to know about pricing on JobBridge:",
-    default: "Let me help you with that. Here's the information I found:",
-  };
-
-  // Build the answer
-  if (isHow) {
-    parts.push(warmOpeners.how);
-    const sents = extractSentences(best.section.content);
-    const steps = sents.filter(s => /^\d+[\)\.]|click|go to|select|enter|choose|fill|upload|submit/i.test(s));
-    if (steps.length >= 2) {
-      parts.push(steps.slice(0, 8).map((s, i) => `${i + 1}. ${s.trim().replace(/^\d+[\)\.]\s*/, '')}`).join('\n'));
-      const extra = sents.filter(s => !/click|go to|select|enter|choose|fill|upload|submit/i.test(s)).slice(0, 2);
-      if (extra.length) parts.push(extra.join('\n'));
+        loopMessages.push({
+          role: "tool",
+          name: name,
+          tool_call_id: call.id,
+          content: toolOutput
+        });
+      }
     } else {
-      parts.push(getStructuredAnswer(question, best.section, 5));
-    }
-  } else if (isCompare) {
-    parts.push(warmOpeners.compare);
-    const allContent = topSections.slice(0, 3).map(s => {
-      const first = extractSentences(s.section.content)[0] || s.section.content.split(/\./)[0];
-      return `- ${s.section.title}: ${first.trim()}`;
-    }).join('\n');
-    parts.push(allContent || getStructuredAnswer(question, best.section, 5));
-  } else if (isYesNo) {
-    const positiveIndicators = /(yes|can|is |are|does|available|supported|free|welcome|allowed|enabled)/i;
-    const contentStart = best.section.content.slice(0, 300);
-    const isPositive = positiveIndicators.test(contentStart) && !/cannot|do not|does not|is not|are not|not available|not supported/i.test(contentStart);
-    parts.push(isPositive ? 'Yes, that is indeed available on JobBridge.' : 'Here is what I found on that topic:');
-    parts.push(getStructuredAnswer(question, best.section, 4));
-  } else if (isList) {
-    const items = best.section.content.match(/[-*•]\s+[^\n]+/g);
-    if (items && items.length >= 2) {
-      parts.push(items.slice(0, 10).join('\n'));
-    } else {
-      const sents = extractSentences(best.section.content.replace(/###.*/g, ''));
-      parts.push(sents.slice(0, 6).join('\n'));
-    }
-  } else if (isPrice) {
-    parts.push(warmOpeners.price);
-    const priceSents = best.section.content.match(/[^.!?]*(₦|Naira|naira)[^.!?]*[.!?]/g);
-    if (priceSents && priceSents.length > 0) {
-      parts.push(priceSents.slice(0, 10).join('\n'));
-    } else {
-      parts.push(getStructuredAnswer(question, best.section, 5));
-    }
-  } else if (isWhat) {
-    // For "tell me about" and comprehensive questions, combine multiple related sections
-    const isComprehensive = /^(tell me about|describe|explain|what (is|are) (all|everything|the|a|an))/i.test(q);
-    if (isComprehensive && topSections.length > 1) {
-      parts.push(combineComprehensiveAnswer(question, topSections));
-    } else {
-      parts.push(getStructuredAnswer(question, best.section, 6));
-    }
-  } else if (isLocation) {
-    parts.push(getStructuredAnswer(question, best.section, 5));
-  } else if (isWhy) {
-    parts.push(warmOpeners.default);
-    parts.push(getStructuredAnswer(question, best.section, 5));
-  } else if (isWhen) {
-    parts.push(warmOpeners.default);
-    parts.push(getStructuredAnswer(question, best.section, 4));
-  } else {
-    parts.push(warmOpeners.default);
-    parts.push(getStructuredAnswer(question, best.section, 4));
-  }
+      // The assistant has finished reasoning and is ready to stream the final textual output.
+      onPhase("Writing response...");
+      
+      // Remove system prompt and past system prompts before streaming to keep it clean
+      const cleanedMessages = loopMessages.filter(m => m.role !== 'system');
+      
+      // Inject system context to guide the final stream response
+      cleanedMessages.unshift({
+        role: 'system',
+        content: `You are the JobBridge AI Assistant. You have just gathered all information and executed any necessary actions. Now, formulate the final user-facing response. 
+        Ensure you are conversational, encouraging, and highly accurate. Maintain standard markdown formatting (especially lists).`
+      });
 
-  // Add related sections (for richer context, but skip if already comprehensive)
-  if (topSections.length > 1 && !isCompare && !isWhat) {
-    const extra = topSections.slice(1, 3).map(s => {
-      const firstSent = extractSentences(s.section.content)[0] || '';
-      return firstSent ? `- ${s.section.title}: ${firstSent.trim()}` : '';
-    }).filter(Boolean).join('\n');
-    if (extra) {
-      parts.push(`\n## Related Information\n${extra}`);
+      let finalContent = "";
+      await streamLLM(cleanedMessages, (token) => {
+        finalContent += token;
+        onToken(token);
+      });
+
+      // Update local storage history
+      const savedMsgs = [
+        ...messages,
+        { role: 'assistant' as const, content: finalContent }
+      ];
+      saveConversation(conversationId, savedMsgs);
+
+      onDone(finalContent, []);
+      return;
     }
   }
 
-  // Add relevant page links
-  const allPages = [...new Set(topSections.flatMap(s => s.section.pages))].filter(Boolean).slice(0, 3);
-  if (allPages.length > 0) {
-    parts.push(`\n## Next Steps\nFor more details, you can visit: ${allPages.join(', ')}`);
-  }
-
-  parts.push(`\nIf you need further assistance, please don't hesitate to reach out to our support team at jobbridgesupport@gmail.com. They'll be happy to help you personally!`);
-
-  return parts.join('\n\n');
+  onError("Agent reached max reasoning steps without producing a final answer.");
 }
 
-// ─── Public API ─────────────────────────────────────────────────
+// ─── Public Entry Point ─────────────────────────────────────────────
 
 export async function streamAnswer(
   question: string,
   conversationId: string,
   cb: StreamCallbacks,
+  pageState: PageState
 ): Promise<void> {
   const { onToken, onSources, onError, onPhase, onDone } = cb;
-
-  const noApiKey = !API_KEY;
-  if (noApiKey) {
-    onPhase('Searching knowledge base...');
-  }
-
   const questionClean = sanitize(question);
 
   if (!questionClean) {
-    onError('Please enter a valid question.');
+    onError('Please enter a valid message.');
     return;
   }
 
   if (!rateLimit.allow()) {
-    onError('Please wait a moment between questions.');
+    onError('Please wait a moment before sending another message.');
     return;
   }
-
-  const pagePath = window.location.pathname.replace(/\/$/, '') || '/';
 
   try {
     const history = getConversation(conversationId);
 
-    // Check for conversational input first — greetings, introductions, thanks, etc.
-    const greetingResponse = buildConversationalResponse(questionClean, history.length);
-    if (greetingResponse) {
+    // 1. Direct Conversational Responses (greetings/thanks)
+    const greetResponse = buildConversationalResponse(questionClean, history.length);
+    if (greetResponse) {
       const updatedHistory: HistoryMsg[] = [
         ...history,
         { role: 'user', content: questionClean },
-        { role: 'assistant', content: greetingResponse },
+        { role: 'assistant', content: greetResponse },
       ];
       saveConversation(conversationId, updatedHistory);
-      onDone(greetingResponse, []);
+      onDone(greetResponse, []);
       return;
     }
 
-    onPhase('Analyzing your question...');
-
-    onPhase('Searching knowledge base...');
-    const sections = retrieveRelevant(questionClean, pagePath);
-
-    if (sections.length === 0) {
-      onError("I couldn't find relevant information in the knowledge base. Try rephrasing your question or contact jobbridgesupport@gmail.com for help.");
-      return;
-    }
-
-    const sourceList = sections.map(s => ({ id: s.id, title: s.title }));
-    onSources(sourceList);
-
-    const contextStr = trimContext(sections);
-    const pageCtx = currentPageContext();
-
-    if (noApiKey) {
-      const scored = KB.map(s => ({
-        section: s,
-        score: scoreSection(s, questionClean, pagePath),
-      }));
-      scored.sort((a, b) => b.score - a.score);
-      const topSections = scored.filter(s => s.score > 0).slice(0, TOP_K);
-
-      if (topSections.length === 0) {
-        onError("I couldn't find relevant information. Try rephrasing your question or contact jobbridgesupport@gmail.com for help.");
+    // 2. Local Fallback Mode if No API Key is set
+    if (!API_KEY) {
+      onPhase('Searching local database...');
+      const results = retrieveRelevant(questionClean, pageState.currentPath);
+      if (results.length === 0) {
+        onError("I couldn't find matches in the knowledge base. Please try rephrasing or email jobbridgesupport@gmail.com.");
         return;
       }
-
-      const showSources = topSections.map(s => ({ id: s.section.id, title: s.section.title }));
-
-      const fullText = buildFallbackAnswer(questionClean, topSections);
-
+      onSources(results.map(s => ({ id: s.id, title: s.title })));
+      
+      const textResponse = buildFallbackAnswer(questionClean, results);
       const updatedHistory: HistoryMsg[] = [
         ...history,
         { role: 'user', content: questionClean },
-        { role: 'assistant', content: fullText },
+        { role: 'assistant', content: textResponse },
       ];
       saveConversation(conversationId, updatedHistory);
-      onDone(fullText, showSources);
+      onDone(textResponse, results.map(s => ({ id: s.id, title: s.title })));
       return;
     }
 
-    onPhase('Generating response...');
+    // 3. Agentic Loop Execution
+    const userMessage: HistoryMsg = { role: 'user', content: questionClean };
+    const messages = [...history, userMessage];
 
-    const systemPrompt = buildSystemPrompt(contextStr, pageCtx, history);
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history,
-      { role: 'user', content: questionClean },
-    ];
+    await runAgenticLoop(messages, pageState, conversationId, cb);
 
-    let fullText = '';
-    await streamLLM(messages, (token) => {
-      fullText += token;
-      onToken(token);
-    });
-
-    const updatedHistory: HistoryMsg[] = [
-      ...history,
-      { role: 'user', content: questionClean },
-      { role: 'assistant', content: fullText },
-    ];
-    saveConversation(conversationId, updatedHistory);
-
-    onDone(fullText, sourceList);
   } catch (err: any) {
     const msg = err?.message || '';
     if (msg.includes('401')) {
-      onError('OpenAI API key is invalid. Please check your VITE_OPENAI_API_KEY.');
-    } else if (msg.includes('429') || msg.includes('rate')) {
-      onError('The AI service is temporarily busy. Please try again in a few seconds.');
-    } else if (msg.includes('fetch') || msg.includes('network')) {
-      onError('Network error. Check your internet connection and try again.');
+      onError('OpenAI API key is invalid or unauthorized. Please verify VITE_OPENAI_API_KEY.');
+    } else if (msg.includes('429')) {
+      onError('OpenAI rate limit exceeded. Please try again in a few moments.');
     } else {
-      onError(`Something went wrong: ${msg || 'unexpected error'}. Please try again.`);
+      onError(`Agent error: ${msg || 'an unexpected error occurred'}.`);
     }
   }
 }
 
-// ─── No-op prewarm (embeddings no longer needed) ────────────────
+// ─── No-op prewarm ──────────────────────────────────────────────
 
 export function prewarmEmbeddings(): void {
-  // Embeddings removed — retrieval is instant via keyword/tag matching
+  // Embedded model prewarming disabled
 }

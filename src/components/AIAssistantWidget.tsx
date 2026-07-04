@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Bot, X, Send, ChevronUp, Sparkles, FileText, MessageCircle, TrendingUp, Trash2, AlertCircle, RefreshCw, BookOpen } from 'lucide-react';
-import { streamAnswer, hasApiKey, clearConversation, prewarmEmbeddings, type SourceInfo } from '../lib/ragEngine';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  Bot, X, Send, ChevronUp, Sparkles, FileText, MessageCircle, TrendingUp,
+  Trash2, AlertCircle, RefreshCw, BookOpen, Compass, ChevronDown, Check,
+  ChevronRight, Copy, Terminal
+} from 'lucide-react';
+import { streamAnswer, clearConversation, prewarmEmbeddings, type SourceInfo, type AgentThought } from '../lib/ragEngine';
 
 interface Message {
   id: string;
@@ -10,27 +16,19 @@ interface Message {
   error?: boolean;
 }
 
-type Phase = 'idle' | 'analyzing' | 'searching' | 'generating';
-
 const CONVERSATION_ID = 'jobbridge-ai-widget';
-const PHASE_LABELS: Record<Phase, string> = {
-  idle: '',
-  analyzing: 'Analyzing your question',
-  searching: 'Searching knowledge base',
-  generating: 'Generating response',
-};
 
 function renderInline(text: string): React.ReactNode {
   const result: React.ReactNode[] = [];
   const boldParts = text.split(/(\*\*[^*]+\*\*)/g);
   for (const part of boldParts) {
     if (part.startsWith('**') && part.endsWith('**')) {
-      result.push(<strong key={result.length}>{part.slice(2, -2)}</strong>);
+      result.push(<strong key={result.length} className="font-bold text-gray-900">{part.slice(2, -2)}</strong>);
     } else {
       const italicParts = part.split(/(\*[^*]+\*)/g);
       for (const ip of italicParts) {
         if (ip.startsWith('*') && ip.endsWith('*') && ip.length > 2) {
-          result.push(<em key={result.length}>{ip.slice(1, -1)}</em>);
+          result.push(<em key={result.length} className="italic text-gray-700">{ip.slice(1, -1)}</em>);
         } else {
           result.push(ip);
         }
@@ -40,181 +38,394 @@ function renderInline(text: string): React.ReactNode {
   return result.length === 1 ? result[0] : result;
 }
 
-function formatMessage(text: string) {
+// Custom Markdown message formatting component supporting code blocks, links, lists, and tables
+function FormattedMessage({ text }: { text: string }) {
   const parts = text.split(/(https?:\/\/[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('http://') || part.startsWith('https://')) {
-      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{part}</a>;
-    }
-    if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(part)) {
-      const href = part.endsWith('@gmail.com')
-        ? `https://mail.google.com/mail/?view=cm&fs=1&to=${part}`
-        : `mailto:${part}`;
-      return <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">{part}</a>;
-    }
-    const lines = part.split('\n');
-    const elements: React.ReactNode[] = [];
-    let li = 0;
-    while (li < lines.length) {
-      const line = lines[li];
-      const trimmed = line.trim();
-      if (!trimmed) {
-        elements.push(<br key={`${i}-br-${li}`} />);
-        li++;
-        continue;
-      }
-      const headerMatch = trimmed.match(/^(#{1,3})\s+(.+)/);
-      if (headerMatch) {
-        const level = headerMatch[1].length;
-        const Tag = level === 3 ? 'h3' : level === 2 ? 'h2' : 'h3';
-        elements.push(<Tag key={`${i}-h-${li}`} className="font-bold mt-2 mb-1 text-sm">{renderInline(headerMatch[2])}</Tag>);
-        li++;
-        continue;
-      }
-      if (/^[-*•]\s/.test(trimmed)) {
-        const items: React.ReactNode[] = [];
-        while (li < lines.length && /^[-*•]\s/.test(lines[li].trim())) {
-          items.push(<li key={`${i}-uli-${li}`}>{renderInline(lines[li].trim().replace(/^[-*•]\s+/, ''))}</li>);
-          li++;
+  
+  return (
+    <div className="space-y-2">
+      {parts.map((part, i) => {
+        if (part.startsWith('http://') || part.startsWith('https://')) {
+          return (
+            <a
+              key={i}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline font-medium hover:text-blue-800 break-all inline-flex items-center gap-0.5"
+            >
+              {part}
+            </a>
+          );
         }
-        elements.push(<ul key={`${i}-ul`} className="list-disc list-inside mb-2 space-y-0.5">{items}</ul>);
-        continue;
-      }
-      const numberedMatch = trimmed.match(/^\d+[\)\.]\s(.+)/);
-      if (numberedMatch) {
-        const items: React.ReactNode[] = [];
+        if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(part)) {
+          const href = part.endsWith('@gmail.com')
+            ? `https://mail.google.com/mail/?view=cm&fs=1&to=${part}`
+            : `mailto:${part}`;
+          return (
+            <a
+              key={i}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline font-medium hover:text-blue-800 inline-flex items-center gap-0.5"
+            >
+              {part}
+            </a>
+          );
+        }
+
+        const lines = part.split('\n');
+        const elements: React.ReactNode[] = [];
+        let li = 0;
+        
         while (li < lines.length) {
-          const m = lines[li].trim().match(/^\d+[\)\.]\s(.+)/);
-          if (!m) break;
-          items.push(<li key={`${i}-oli-${li}`}>{renderInline(m[1])}</li>);
+          const line = lines[li];
+          const trimmed = line.trim();
+
+          if (!trimmed) {
+            elements.push(<div key={`${i}-br-${li}`} className="h-2" />);
+            li++;
+            continue;
+          }
+
+          // Headers
+          const headerMatch = trimmed.match(/^(#{1,3})\s+(.+)/);
+          if (headerMatch) {
+            const level = headerMatch[1].length;
+            const Tag = level === 3 ? 'h4' : level === 2 ? 'h3' : 'h4';
+            elements.push(
+              <Tag key={`${i}-h-${li}`} className="font-bold text-gray-900 mt-3 mb-1 text-sm border-b border-gray-100 pb-0.5">
+                {renderInline(headerMatch[2])}
+              </Tag>
+            );
+            li++;
+            continue;
+          }
+
+          // Fenced Code Blocks
+          if (trimmed.startsWith('```')) {
+            const lang = trimmed.slice(3).trim();
+            const codeLines: string[] = [];
+            li++;
+            while (li < lines.length && !lines[li].trim().startsWith('```')) {
+              codeLines.push(lines[li]);
+              li++;
+            }
+            li++; // skip closing ```
+            const codeStr = codeLines.join('\n');
+            elements.push(
+              <div key={`${i}-code-${li}`} className="relative my-2.5 rounded-xl border border-gray-100 bg-gray-900 overflow-hidden font-mono text-xs">
+                <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 text-gray-400 text-[10px]">
+                  <span className="flex items-center gap-1">
+                    <Terminal className="w-3.5 h-3.5" />
+                    {lang || 'code'}
+                  </span>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(codeStr)}
+                    className="hover:text-white transition-colors"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <pre className="p-3 overflow-x-auto text-gray-200">
+                  <code>{codeStr}</code>
+                </pre>
+              </div>
+            );
+            continue;
+          }
+
+          // Tables
+          if (trimmed.startsWith('|')) {
+            const rows: string[][] = [];
+            while (li < lines.length && lines[li].trim().startsWith('|')) {
+              const rowContent = lines[li]
+                .split('|')
+                .map(s => s.trim())
+                .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+              // Filter out markdown divider rows (e.g. ---)
+              if (!rowContent.every(cell => /^:?-+:?$/.test(cell))) {
+                rows.push(rowContent);
+              }
+              li++;
+            }
+            if (rows.length > 0) {
+              const headers = rows[0];
+              const body = rows.slice(1);
+              elements.push(
+                <div key={`${i}-table-${li}`} className="overflow-x-auto my-3 rounded-xl border border-gray-100 shadow-sm bg-white">
+                  <table className="min-w-full divide-y divide-gray-100 text-xs">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {headers.map((h, idx) => (
+                          <th key={idx} className="px-3 py-2 text-left font-bold text-gray-700">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {body.map((row, rIdx) => (
+                        <tr key={rIdx} className="hover:bg-gray-50/50 transition-colors">
+                          {row.map((cell, cIdx) => (
+                            <td key={cIdx} className="px-3 py-2 text-gray-600 whitespace-nowrap">{renderInline(cell)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            }
+            continue;
+          }
+
+          // Bullet lists
+          if (/^[-*•]\s/.test(trimmed)) {
+            const items: React.ReactNode[] = [];
+            while (li < lines.length && /^[-*•]\s/.test(lines[li].trim())) {
+              items.push(
+                <li key={`${i}-uli-${li}`} className="flex gap-2 text-gray-700">
+                  <span className="text-blue-500">•</span>
+                  <span>{renderInline(lines[li].trim().replace(/^[-*•]\s+/, ''))}</span>
+                </li>
+              );
+              li++;
+            }
+            elements.push(<ul key={`${i}-ul`} className="space-y-1 my-2.5 pl-1">{items}</ul>);
+            continue;
+          }
+
+          // Numbered lists
+          const numberedMatch = trimmed.match(/^\d+[\)\.]\s(.+)/);
+          if (numberedMatch) {
+            const items: React.ReactNode[] = [];
+            while (li < lines.length) {
+              const m = lines[li].trim().match(/^\d+[\)\.]\s(.+)/);
+              if (!m) break;
+              items.push(
+                <li key={`${i}-oli-${li}`} className="flex gap-2 text-gray-700">
+                  <span className="font-bold text-blue-500 text-xs mt-0.5">{items.length + 1}.</span>
+                  <span>{renderInline(m[1])}</span>
+                </li>
+              );
+              li++;
+            }
+            elements.push(<ol key={`${i}-ol`} className="space-y-1.5 my-2.5 pl-1">{items}</ol>);
+            continue;
+          }
+
+          elements.push(
+            <p key={`${i}-p-${li}`} className="text-gray-700 leading-relaxed my-1">
+              {renderInline(trimmed)}
+            </p>
+          );
           li++;
         }
-        elements.push(<ol key={`${i}-ol`} className="list-decimal list-inside mb-2 space-y-0.5">{items}</ol>);
-        continue;
-      }
-      elements.push(<p key={`${i}-p-${li}`} className="mb-2 last:mb-0">{renderInline(trimmed)}</p>);
-      li++;
-    }
-    return elements;
-  });
+        return elements;
+      })}
+    </div>
+  );
 }
 
 const pagePrompts: Record<string, string[]> = {
   '/': ['What is JobBridge?', 'How to find a job?', 'Recruiter plans', 'AI Resume Builder'],
-  '/jobs': ['How to apply?', 'Job types available', 'Save jobs', 'Application tips'],
-  '/my-jobs': ['Track applications', 'Saved jobs', 'Application status', 'Job alerts'],
-  '/recruiter': ['Post a job', 'AI candidate ranking', 'Applications panel', 'Recruiter plans'],
-  '/pricing': ['Recruiter plans', 'AI tools pricing', 'How to pay', 'Payment methods'],
-  '/ai-resume': ['Build resume', 'Cover letter', 'Extract skills', 'AI subscription'],
-  '/providers': ['Become a provider', 'Provider plans', 'Featured listing', 'Service categories'],
-  '/business': ['Ad packages', 'Create advert', 'Featured business', 'Promote business'],
-  '/settings': ['Change password', 'Notifications', 'Privacy', 'Delete account'],
-  '/admin': ['Admin tools', 'Manage users', 'Approve jobs', 'Platform stats'],
+  '/jobs': ['How to apply?', 'Filter by remote jobs', 'What is the salary expectation field?', 'Save a job'],
+  '/my-jobs': ['Track applications', 'What does reviewed mean?', 'Interviews list', 'Archive a job'],
+  '/recruiter': ['Post a job', 'What is AI Candidate Ranking?', 'Write job description', 'Check my credits'],
+  '/pricing': ['Compare recruiter plans', 'AI tools pricing', 'Naira currencies details', 'Paystack details'],
+  '/ai-resume': ['Tailor my resume', 'Generate cover letter', 'Resume interview prep', 'Skills extraction'],
+  '/providers': ['Become a provider', 'Hourly rates list', 'Service categories', 'Verify provider listing'],
+  '/business': ['Weekly ad package', 'Featured business spotlight', 'Create advert', 'Manage ads'],
+  '/settings': ['Update notification preferences', 'Change visibility status', 'Connected accounts', 'Premium details'],
+  '/profile': ['Help me fill in my profile', 'Disability status field', 'Account deletion', 'Profile strength'],
 };
 
-const defaultPrompts = ['What is JobBridge?', 'How to find a job?', 'Recruiter plans', 'Contact support'];
+const defaultPrompts = ['What is JobBridge?', 'How do payments work?', 'AI Resume Studio options', 'Contact support'];
 
 let msgCounter = 0;
 function nextId() { return `msg-${++msgCounter}`; }
 
 function getTimeGreeting(): string {
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  return greeting;
+  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 }
 
 function AIAssistantWidget() {
+  const { user, profile, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: nextId(),
-      text: `${getTimeGreeting()}! I'm your JobBridge AI assistant. I can answer questions about finding jobs, posting vacancies, pricing, AI tools, and more. What would you like to know?`,
+      text: `${getTimeGreeting()}! I'm your JobBridge AI Career Agent. I have deep knowledge of the platform and can inspect your active page to help you guide actions or fill forms. Ask me anything!`,
       sender: 'bot',
     },
   ]);
+  
   const [input, setInput] = useState('');
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState('');
   const [streamText, setStreamText] = useState('');
   const [streamSources, setStreamSources] = useState<SourceInfo[]>([]);
   const [showIntro, setShowIntro] = useState(false);
+  const [thoughts, setThoughts] = useState<AgentThought[]>([]);
+  const [showThoughts, setShowThoughts] = useState(true);
+  const [toastMsg, setToastMsg] = useState('');
+
   const lastUserMsgRef = useRef<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const aborterRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  useEffect(() => { scrollToBottom(); }, [messages, streamText, phase]);
+  useEffect(() => { scrollToBottom(); }, [messages, streamText, phase, thoughts]);
 
   useEffect(() => {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
   useEffect(() => {
-    return () => { aborterRef.current?.abort(); };
+    prewarmEmbeddings();
   }, []);
 
-  useEffect(() => {
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => prewarmEmbeddings());
+  const currentPath = location.pathname.replace(/\/$/, '') || '/';
+  const suggestedPrompts = pagePrompts[currentPath] || defaultPrompts;
+
+  // Extract visible page data, auth info, and active forms to pass to the Agentic RAG loop
+  const getPageContextSummary = useCallback(() => {
+    let summary = `Current URL Path: ${currentPath}\n`;
+
+    if (isAuthenticated && profile) {
+      summary += `User Logged In: Yes\nName: ${profile.full_name || 'Not set'}\nRole: ${profile.role || ''}\nEmail: ${user?.email || ''}\n`;
     } else {
-      setTimeout(prewarmEmbeddings, 2000);
+      summary += `User Logged In: No (Guest)\n`;
     }
-  }, []);
 
-  const path = window.location.pathname.replace(/\/$/, '') || '/';
-  const suggestedPrompts = pagePrompts[path] || defaultPrompts;
+    // Capture page headers
+    const headings = Array.from(document.querySelectorAll('h1, h2, h3'))
+      .map(el => el.textContent?.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+    if (headings.length > 0) {
+      summary += `Visible Headings: ${headings.join(' | ')}\n`;
+    }
 
-  function appendBotMessage(text: string, sources?: SourceInfo[]) {
-    setMessages(prev => [...prev, { id: nextId(), text, sender: 'bot', sources }]);
-  }
+    // Capture form fields (without password values)
+    const inputs = Array.from(document.querySelectorAll('input, select, textarea'))
+      .map((el: any) => {
+        const label = el.previousElementSibling?.textContent?.trim() || el.placeholder || el.name || el.id;
+        const val = el.value || '';
+        if (el.type === 'password') return `${label}: [Hidden Password]`;
+        return label && val ? `${label}: "${val}"` : '';
+      })
+      .filter(Boolean)
+      .slice(0, 12);
+    if (inputs.length > 0) {
+      summary += `Active Form Inputs: ${inputs.join(', ')}\n`;
+    }
+
+    // Inspect Job Listings
+    if (currentPath.startsWith('/jobs')) {
+      const cards = Array.from(document.querySelectorAll('.job-card, [class*="job-card"]'))
+        .map(el => el.querySelector('h3')?.textContent?.trim())
+        .filter(Boolean)
+        .slice(0, 5);
+      if (cards.length > 0) {
+        summary += `Visible Job Postings: ${cards.join(', ')}\n`;
+      }
+    }
+
+    return summary;
+  }, [currentPath, isAuthenticated, profile, user]);
+
+  const handleAgentAction = useCallback((actionType: string, params: any) => {
+    if (actionType === 'navigate') {
+      const { path, selector } = params;
+      navigate(path);
+      setToastMsg(`Navigated to ${path}`);
+      setTimeout(() => setToastMsg(''), 3000);
+
+      if (selector) {
+        setTimeout(() => {
+          const el = document.querySelector(selector);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 600);
+      }
+    } 
+    else if (actionType === 'autofill') {
+      const { fieldSelector, value } = params;
+      // Resolve dynamic input fields
+      const query = `input[name="${fieldSelector}"], input[id="${fieldSelector}"], input[placeholder*="${fieldSelector}" i], select[name="${fieldSelector}"], textarea[name="${fieldSelector}"], [placeholder*="${fieldSelector}" i]`;
+      const input = document.querySelector(query) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+
+      if (input) {
+        input.value = value;
+        // Dispatch synthetic events so React notices changes
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // Visual flash confirmation
+        input.classList.add('ring-2', 'ring-emerald-400', 'transition-all');
+        setToastMsg(`Filled field "${fieldSelector}"`);
+        setTimeout(() => {
+          input.classList.remove('ring-2', 'ring-emerald-400');
+          setToastMsg('');
+        }, 2000);
+      } else {
+        setToastMsg(`Field "${fieldSelector}" not found on page`);
+        setTimeout(() => setToastMsg(''), 3000);
+      }
+    }
+  }, [navigate]);
 
   function handleSend(text?: string) {
-    const messageText = text || input.trim();
-    if (!messageText || phase !== 'idle') return;
+    const msgText = text || input.trim();
+    if (!msgText || phase) return;
 
-    lastUserMsgRef.current = messageText;
-    setMessages(prev => [...prev, { id: nextId(), text: messageText, sender: 'user' }]);
+    lastUserMsgRef.current = msgText;
+    setMessages(prev => [...prev, { id: nextId(), text: msgText, sender: 'user' }]);
     setInput('');
-    setPhase('analyzing');
+    setPhase('Thinking...');
     setStreamText('');
     setStreamSources([]);
+    setThoughts([]);
 
-    streamAnswer(messageText, CONVERSATION_ID, {
-      onPhase: (p) => {
-        if (p.includes('Analyzing')) setPhase('analyzing');
-        else if (p.includes('Searching')) setPhase('searching');
-        else setPhase('generating');
-      },
-      onToken: (token) => {
-        setStreamText(prev => prev + token);
-      },
-      onSources: (sources) => {
-        setStreamSources(sources);
-      },
-      onError: (err) => {
-        setPhase('idle');
-        setStreamText('');
-        setStreamSources([]);
-        setMessages(prev => {
-          const last = prev[prev.length - 1];
-          if (last && last.sender === 'bot' && last.id.startsWith('msg-')) {
-            const updated = [...prev];
-            updated[updated.length - 1] = { ...last, text: err, error: true };
-            return updated;
+    const pageState = {
+      currentPath,
+      domSummary: getPageContextSummary(),
+      userProfile: profile
+    };
+
+    streamAnswer(msgText, CONVERSATION_ID, {
+      onPhase: (p) => setPhase(p),
+      onToken: (tok) => setStreamText(prev => prev + tok),
+      onSources: (src) => setStreamSources(src),
+      onThought: (th) => {
+        setThoughts(prev => {
+          // If thought tool is already running/recorded, update it, else add it
+          const idx = prev.findIndex(t => t.toolName === th.toolName && t.query === th.query && t.status === 'running');
+          if (idx > -1) {
+            const copy = [...prev];
+            copy[idx] = th;
+            return copy;
           }
-          return [...prev, { id: nextId(), text: err, sender: 'bot', error: true }];
+          return [...prev, th];
         });
       },
-      onDone: (finalText, finalSources) => {
-        setPhase('idle');
-        appendBotMessage(finalText, finalSources);
-        setStreamText('');
-        setStreamSources([]);
+      onAction: (act, params) => handleAgentAction(act, params),
+      onError: (err) => {
+        setPhase('');
+        setMessages(prev => [...prev, { id: nextId(), text: err, sender: 'bot', error: true }]);
       },
-    });
+      onDone: (final, finalSources) => {
+        setPhase('');
+        setStreamText('');
+        setMessages(prev => [...prev, { id: nextId(), text: final, sender: 'bot', sources: finalSources }]);
+      }
+    }, pageState);
   }
 
   function handleClear() {
@@ -222,125 +433,104 @@ function AIAssistantWidget() {
     setMessages([
       {
         id: nextId(),
-        text: `Conversation cleared. ${getTimeGreeting()}! How can I help you today?`,
+        text: `Conversation history cleared. How can I help you navigate JobBridge now?`,
         sender: 'bot',
       },
     ]);
+    setThoughts([]);
     setStreamText('');
-    setStreamSources([]);
-    setPhase('idle');
-  }
-
-  function handleKeyPress(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    setPhase('');
   }
 
   return (
     <>
-      {/* Launcher button */}
-      <button
-        onClick={() => setShowIntro(true)}
-        className={`fixed z-40 w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center ${isOpen ? 'scale-0' : 'scale-100'}`}
-        style={{ bottom: 'max(80px, env(safe-area-inset-bottom, 0px))', right: 'max(16px, env(safe-area-inset-right, 0px))' }}
-      >
-        <div className="relative">
-          <Bot className="w-6 h-6" />
-          <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse" />
-        </div>
-      </button>
-
-      {/* Intro modal */}
-      {showIntro && !isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowIntro(false)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
-            onClick={e => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-bold mb-3">Say hello to your AI Career Assistant!</h2>
-            <p className="text-sm text-gray-700 mb-3">We've just launched an innovative tool to help you boost your career chances, whether you're just starting out or aiming for your next leadership role.</p>
-            <p className="text-sm text-gray-700 font-semibold mb-2">Now you can easily:</p>
-            <ul className="list-disc list-inside text-sm text-gray-700 mb-4 space-y-1">
-              <li>Build a standout CV from scratch or improve your current one</li>
-              <li>Generate job-specific cover letters in minutes</li>
-              <li>Practice mock interviews tailored to your role or industry</li>
-              <li>Negotiate job offers confidently with AI-generated counteroffers</li>
-            </ul>
-            <p className="text-sm text-gray-700 mb-4">And the best part? It's affordable.</p>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => setShowIntro(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button onClick={() => { setShowIntro(false); setIsOpen(true); }} className="px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800">Try it now</button>
-            </div>
-          </div>
+      {/* Action execution toast */}
+      {toastMsg && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-900/90 backdrop-blur text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 border border-gray-800 transition-all duration-300">
+          <Sparkles className="w-3.5 h-3.5 text-blue-400 animate-spin" />
+          {toastMsg}
         </div>
       )}
 
-      {/* Chat panel */}
+      {/* Launcher Button */}
+      <button
+        onClick={() => setIsOpen(true)}
+        className={`fixed z-40 w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-700 text-white shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center justify-center border border-white/10 hover:scale-105 active:scale-95 ${isOpen ? 'scale-0 pointer-events-none' : 'scale-100'}`}
+        style={{ bottom: 'max(80px, env(safe-area-inset-bottom, 0px))', right: 'max(16px, env(safe-area-inset-right, 0px))' }}
+      >
+        <div className="relative">
+          <Bot className="w-6 h-6 animate-pulse" />
+          <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-emerald-400 rounded-full border border-white" />
+        </div>
+      </button>
+
+      {/* Slide-out Agent Chat Panel */}
       <div
-        className={`fixed z-50 transition-all duration-300 ${
-          isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+        className={`fixed z-50 transition-all duration-300 ease-out ${
+          isOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-95 pointer-events-none'
         }`}
         style={{
           bottom: 'max(80px, env(safe-area-inset-bottom, 0px))',
           right: 'max(16px, env(safe-area-inset-right, 0px))',
           width: 'calc(100vw - 32px)',
-          maxWidth: '400px',
+          maxWidth: '420px',
           maxHeight: 'calc(100dvh - max(120px, env(safe-area-inset-bottom, 0px)))',
         }}
       >
-        <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200" style={{ maxHeight: 'calc(100dvh - max(120px, env(safe-area-inset-bottom, 0px)))' }}>
+        <div className="bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-100" style={{ maxHeight: 'calc(100dvh - max(120px, env(safe-area-inset-bottom, 0px)))' }}>
+          
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 flex items-center justify-between shrink-0">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-5 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center backdrop-blur-sm shadow-inner">
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-white text-sm">JobBridge AI</h3>
-                <p className="text-xs text-blue-100">Your career assistant</p>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-bold text-white text-sm">JobBridge AI Agent</h3>
+                  <span className="px-1.5 py-0.5 bg-emerald-400/25 border border-emerald-400/20 text-emerald-300 text-[9px] font-bold rounded-md">V2</span>
+                </div>
+                <p className="text-xs text-blue-100 flex items-center gap-1">
+                  <Compass className="w-3 h-3" />
+                  Reasoning & Action Mode
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={handleClear} title="Clear conversation" className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+            <div className="flex items-center gap-1">
+              <button onClick={handleClear} title="Clear Conversation" className="p-2 hover:bg-white/10 rounded-xl transition-colors">
                 <Trash2 className="w-4 h-4 text-white" />
               </button>
-              <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
-                <ChevronUp className="w-4 h-4 text-white" />
-              </button>
-              <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+              <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
                 <X className="w-4 h-4 text-white" />
               </button>
             </div>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50" style={{ minHeight: '200px' }}>
+          {/* Messages Stream */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#f8f9fc]" style={{ minHeight: '260px' }}>
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[88%] px-3 py-2 rounded-xl text-sm ${
+                <div className={`max-w-[88%] px-4 py-3 rounded-2xl text-[13px] shadow-sm transition-all duration-200 ${
                   msg.sender === 'user'
-                    ? 'bg-blue-700 text-white rounded-br-sm'
-                    : 'bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100'
+                    ? 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white rounded-tr-none'
+                    : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
                 }`}>
-                  <div className="text-sm leading-relaxed">{formatMessage(msg.text)}</div>
+                  <FormattedMessage text={msg.text} />
+                  
                   {msg.sender === 'bot' && msg.sources && msg.sources.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-gray-100">
+                    <div className="flex flex-wrap gap-1 mt-3 pt-2.5 border-t border-gray-100">
                       {msg.sources.map(s => (
-                        <span key={s.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">
-                          <BookOpen className="w-2.5 h-2.5" />
+                        <span key={s.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-[10px] font-semibold">
+                          <BookOpen className="w-3 h-3" />
                           {s.title}
                         </span>
                       ))}
                     </div>
                   )}
+
                   {msg.sender === 'bot' && msg.error && (
                     <div className="flex items-center gap-2 mt-2">
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                       <button
                         onClick={() => {
                           setMessages(prev => prev.filter(m => m.id !== msg.id));
@@ -348,7 +538,7 @@ function AIAssistantWidget() {
                         }}
                         className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                       >
-                        <RefreshCw className="w-3 h-3" /> Retry
+                        <RefreshCw className="w-3 h-3 animate-spin" /> Retry Response
                       </button>
                     </div>
                   )}
@@ -356,37 +546,56 @@ function AIAssistantWidget() {
               </div>
             ))}
 
-            {/* Streaming message */}
-            {(phase !== 'idle' || streamText) && (
-              <div className="flex justify-start">
-                <div className="max-w-[88%] px-3 py-2 rounded-xl text-sm bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100">
-                  {!streamText && phase !== 'idle' ? (
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
-                          <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                          <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+            {/* AI Agent Thought Process Log */}
+            {thoughts.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-3.5 shadow-sm text-xs transition-all duration-300">
+                <button
+                  onClick={() => setShowThoughts(!showThoughts)}
+                  className="w-full flex items-center justify-between text-gray-500 font-semibold hover:text-gray-700 transition-colors"
+                >
+                  <span className="flex items-center gap-1.5 text-blue-600 font-bold">
+                    <Sparkles className="w-4 h-4 animate-pulse" />
+                    Agent Thought Process
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughts ? 'rotate-180' : ''}`} />
+                </button>
+                {showThoughts && (
+                  <div className="space-y-2 mt-2.5 border-l-2 border-blue-100 pl-2.5">
+                    {thoughts.map((th, idx) => (
+                      <div key={idx} className="flex flex-col text-gray-600">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px]">
+                            {th.status === 'running' ? '⏳' : th.status === 'completed' ? '✅' : '❌'}
+                          </span>
+                          <span className="font-semibold text-gray-700">{th.toolName}</span>
+                          {th.query && (
+                            <span className="text-gray-400 italic font-mono text-[10px]">("{th.query}")</span>
+                          )}
                         </div>
-                        <span className="text-xs text-gray-500">{PHASE_LABELS[phase]}...</span>
                       </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Active Streaming Answer */}
+            {(phase || streamText) && (
+              <div className="flex justify-start">
+                <div className="max-w-[88%] px-4 py-3 rounded-2xl text-[13px] bg-white text-gray-800 rounded-tl-none border border-gray-100 shadow-sm">
+                  {!streamText && phase ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
+                        <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+                        <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+                      </div>
+                      <span className="text-xs text-gray-500 font-medium">{phase}...</span>
                     </div>
                   ) : (
                     <>
-                      <div className="text-sm leading-relaxed">{formatMessage(streamText)}</div>
-                      {phase === 'generating' && (
-                        <span className="inline-block w-1.5 h-4 bg-blue-600 ml-0.5 animate-pulse" style={{ verticalAlign: 'text-bottom' }} />
-                      )}
-                      {streamSources.length > 0 && !streamText && (
-                        <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-gray-100">
-                          {streamSources.map(s => (
-                            <span key={s.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">
-                              <BookOpen className="w-2.5 h-2.5" />
-                              {s.title}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      <FormattedMessage text={streamText} />
+                      <span className="inline-block w-1.5 h-4 bg-blue-600 ml-0.5 animate-pulse align-middle" />
                     </>
                   )}
                 </div>
@@ -396,61 +605,38 @@ function AIAssistantWidget() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Suggested prompts */}
-          <div className="px-3 py-2 bg-white border-t border-gray-100 shrink-0">
+          {/* Quick Actions Shortcuts */}
+          <div className="px-4 py-3 bg-white border-t border-gray-50 shrink-0">
             <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
-              {suggestedPrompts.map((prompt) => (
+              {suggestedPrompts.map((p) => (
                 <button
-                  key={prompt}
-                  onClick={() => handleSend(prompt)}
-                  disabled={phase !== 'idle'}
-                  className="shrink-0 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs text-gray-700 transition-colors disabled:opacity-40 whitespace-nowrap"
+                  key={p}
+                  onClick={() => handleSend(p)}
+                  disabled={!!phase}
+                  className="shrink-0 px-3.5 py-1.5 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 rounded-xl text-xs text-gray-600 transition-all border border-gray-100 font-medium disabled:opacity-40 whitespace-nowrap"
                 >
-                  {prompt}
+                  {p}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Quick action buttons */}
-          <div className="px-3 pb-1 bg-white shrink-0">
-            <div className="grid grid-cols-4 gap-1.5">
-              {[
-                { icon: FileText, label: 'Resume' },
-                { icon: MessageCircle, label: 'Interview' },
-                { icon: TrendingUp, label: 'Salary' },
-                { icon: Sparkles, label: 'Plans' },
-              ].map(({ icon: Icon, label }) => (
-                <button
-                  key={label}
-                  onClick={() => handleSend(`Tell me about ${label.toLowerCase()}`)}
-                  disabled={phase !== 'idle'}
-                  className="flex flex-col items-center gap-1 p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
-                >
-                  <Icon className="w-4 h-4 text-blue-700" />
-                  <span className="text-[10px] text-gray-600">{label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Input */}
-          <form onSubmit={e => { e.preventDefault(); handleSend(); }} className="p-3 bg-white border-t border-gray-100 shrink-0">
+          {/* Bottom Chat Input Form */}
+          <form onSubmit={e => { e.preventDefault(); handleSend(); }} className="p-4 bg-white border-t border-gray-50 shrink-0">
             <div className="flex gap-2">
               <input
                 ref={inputRef}
                 type="text"
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={handleKeyPress}
-                placeholder="Ask me anything..."
-                disabled={phase !== 'idle'}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50"
+                placeholder="Ask AI Agent to search, route, or fill forms..."
+                disabled={!!phase}
+                className="flex-1 px-4 py-3 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm disabled:opacity-50 transition-all shadow-inner bg-gray-50"
               />
               <button
                 type="submit"
-                disabled={!input.trim() || phase !== 'idle'}
-                className="p-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!input.trim() || !!phase}
+                className="p-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-md shadow-blue-200"
               >
                 <Send className="w-4 h-4" />
               </button>
