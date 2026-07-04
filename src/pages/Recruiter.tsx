@@ -610,10 +610,32 @@ export default function Recruiter() {
                     )}
 
                     {selectedApp.resume_url && (
-                      <a href={selectedApp.resume_url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-sm text-blue-700 hover:underline">
+                      <button
+                        onClick={async () => {
+                          const url = selectedApp.resume_url;
+                          const match = url.match(/\/object\/public\/resumes\/(.+)$/) || url.match(/\/resumes\/(.+)$/);
+                          const path = match ? decodeURIComponent(match[1]) : null;
+                          if (!path) {
+                            window.open(url, '_blank');
+                            return;
+                          }
+                          try {
+                            const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 3600);
+                            if (error) throw error;
+                            if (data?.signedUrl) {
+                              window.open(data.signedUrl, '_blank');
+                            } else {
+                              window.open(url, '_blank');
+                            }
+                          } catch (err) {
+                            console.error('Error generating signed URL:', err);
+                            window.open(url, '_blank');
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 text-sm text-blue-700 hover:underline bg-transparent border-none cursor-pointer p-0"
+                      >
                         <Download className="w-4 h-4" /> Download CV
-                      </a>
+                      </button>
                     )}
 
                     {/* Status actions */}

@@ -290,7 +290,7 @@ CREATE POLICY "Admins can view subscribers"
 -- 9) Storage bucket for resumes
 -- =========================
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('resumes', 'resumes', true)
+VALUES ('resumes', 'resumes', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- Authenticated users can upload only to their own folder
@@ -303,4 +303,24 @@ CREATE POLICY "Authenticated users can upload resumes"
     bucket_id = 'resumes'
     AND auth.uid() IS NOT NULL
     AND split_part(name, '/', 1) = auth.uid()::text
+  );
+
+-- Only owner, recruiters of the job, or admins can read resumes
+DROP POLICY IF EXISTS "Authorized users can read resumes" ON storage.objects;
+CREATE POLICY "Authorized users can read resumes"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'resumes'
+    AND (
+      (auth.uid() IS NOT NULL AND split_part(name, '/', 1) = auth.uid()::text)
+      OR
+      EXISTS (
+        SELECT 1 FROM public.applications
+        JOIN public.jobs ON public.jobs.id = public.applications.job_id
+        WHERE public.applications.resume_url LIKE '%' || name
+          AND public.jobs.recruiter_id = auth.uid()
+      )
+      OR
+      public.is_admin()
+    )
   );
