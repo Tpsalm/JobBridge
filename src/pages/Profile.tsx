@@ -4,70 +4,95 @@ import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { updateProfile, fetchProfile } from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
-import { Camera, Check, ChevronRight, Lock, Shield, AlertTriangle, Upload, Loader, Eye, EyeOff, Trash2, Sliders, RefreshCw, Pencil, Eye as EyeIcon, Users, Briefcase, Settings, LogOut, HelpCircle, ArrowRight, ExternalLink, MessageCircle, TrendingUp, Star } from 'lucide-react';
-import { IMG } from '../lib/media';
+import {
+  Camera, Check, ChevronRight, Lock, Shield, Upload, Loader, Eye, EyeOff,
+  RefreshCw, Pencil, Eye as EyeIcon, Users, Briefcase, Settings, LogOut,
+  HelpCircle, ArrowRight, ExternalLink, MessageCircle, TrendingUp, Star,
+  MapPin, Calendar, Award, Zap, Target, BookOpen, FileText, Bell,
+  User, Mail, Phone, Globe, Hash, DollarSign, Clock, Sparkles
+} from 'lucide-react';
 
 type ProfileField = keyof typeof PROFILE_FIELDS;
 
 const PROFILE_FIELDS = {
-  full_name: { label: 'Full Name', section: 'personal', weight: 2 },
-  phone: { label: 'Phone Number', section: 'personal', weight: 1 },
-  date_of_birth: { label: 'Date of Birth', section: 'personal', weight: 1 },
-  gender: { label: 'Gender', section: 'personal', weight: 1 },
-  location: { label: 'Location', section: 'personal', weight: 1 },
-  professional_headline: { label: 'Professional Headline', section: 'professional', weight: 2 },
-  years_of_experience: { label: 'Years of Experience', section: 'professional', weight: 1 },
-  function: { label: 'Function / Industry', section: 'professional', weight: 1 },
-  work_type: { label: 'Preferred Work Type', section: 'professional', weight: 1 },
-  highest_qualification: { label: 'Highest Qualification', section: 'professional', weight: 1 },
-  availability: { label: 'Availability', section: 'professional', weight: 1 },
-  salary_expectation: { label: 'Salary Expectation', section: 'professional', weight: 1 },
-  bio: { label: 'Bio / About', section: 'professional', weight: 2 },
-  is_disabled: { label: 'Disability Status', section: 'inclusion', weight: 1 },
-  is_displaced: { label: 'Displaced Person Status', section: 'inclusion', weight: 1 },
-  specialty: { label: 'Service Specialty (Providers)', section: 'provider', weight: 2 },
-  hourly_rate: { label: 'Hourly Rate (NGN)', section: 'provider', weight: 1 },
-  skills: { label: 'Skills (comma-separated)', section: 'provider', weight: 1 },
+  full_name: { label: 'Full Name', section: 'personal', weight: 2, icon: User },
+  phone: { label: 'Phone Number', section: 'personal', weight: 1, icon: Phone },
+  date_of_birth: { label: 'Date of Birth', section: 'personal', weight: 1, icon: Calendar },
+  gender: { label: 'Gender', section: 'personal', weight: 1, icon: Users },
+  location: { label: 'Location', section: 'personal', weight: 1, icon: MapPin },
+  professional_headline: { label: 'Professional Headline', section: 'professional', weight: 2, icon: Briefcase },
+  years_of_experience: { label: 'Years of Experience', section: 'professional', weight: 1, icon: Clock },
+  function: { label: 'Function / Industry', section: 'professional', weight: 1, icon: Globe },
+  work_type: { label: 'Preferred Work Type', section: 'professional', weight: 1, icon: Target },
+  highest_qualification: { label: 'Highest Qualification', section: 'professional', weight: 1, icon: Award },
+  availability: { label: 'Availability', section: 'professional', weight: 1, icon: Zap },
+  salary_expectation: { label: 'Salary Expectation', section: 'professional', weight: 1, icon: DollarSign },
+  bio: { label: 'Bio / About', section: 'professional', weight: 2, icon: BookOpen },
+  is_disabled: { label: 'Disability Status', section: 'inclusion', weight: 1, icon: Shield },
+  is_displaced: { label: 'Displaced Person Status', section: 'inclusion', weight: 1, icon: Shield },
+  specialty: { label: 'Service Specialty (Providers)', section: 'provider', weight: 2, icon: Star },
+  hourly_rate: { label: 'Hourly Rate (NGN)', section: 'provider', weight: 1, icon: DollarSign },
+  skills: { label: 'Skills (comma-separated)', section: 'provider', weight: 1, icon: Hash },
 };
 
-// Mock recommendations data for the right sidebar
-const MOCK_RECOMMENDATIONS = [
+const NAV_SECTIONS = [
   {
-    id: 1,
-    title: 'Job Referrals!',
-    description: 'A community to share strategy and seek advice on networking and building professional connections',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge1',
-    members: '1M'
+    title: 'Job Seeking',
+    items: [
+      { label: 'Hiring employers can find you', icon: EyeIcon, badge: 'On' },
+      { label: 'Resume & experience', icon: FileText },
+      { label: 'Job preferences', icon: Target },
+      { label: 'Job activity', icon: TrendingUp },
+    ],
   },
   {
-    id: 2,
-    title: 'The Worklife Bowl',
-    description: 'A place for professionals from any industry to come together and discuss the day-to-day',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge2',
-    members: '12M'
+    title: 'Community',
+    items: [
+      { label: 'Following', icon: Users },
+      { label: 'Messages', icon: MessageCircle },
+    ],
   },
   {
-    id: 3,
-    title: 'New York City',
-    description: 'To help NYC residents as well as visitors discover what the city has to offer!',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge3',
-    members: '248K'
+    title: 'Contributions',
+    items: [
+      { label: 'Reviews & contributions', icon: Star },
+    ],
   },
   {
-    id: 4,
-    title: 'Career Advice for Students',
-    description: 'A place for students to ask questions and get advice from working professionals.',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge4',
-    members: '4M'
+    title: 'Account',
+    items: [
+      { label: 'Account settings', icon: Settings },
+      { label: 'Notifications', icon: Bell },
+    ],
   },
-  {
-    id: 5,
-    title: 'Personal Investment Chatter',
-    description: 'Offer questions and experiences related to personal finance and investments.',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JobBridge5',
-    members: '546K'
-  }
 ];
+
+// Circular progress ring component
+function ProfileCompletionRing({ percentage }: { percentage: number }) {
+  const radius = 38;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const color = percentage >= 80 ? '#10b981' : percentage >= 50 ? '#f59e0b' : '#ef4444';
+
+  return (
+    <div className="relative w-24 h-24 mx-auto">
+      <svg className="w-24 h-24 -rotate-90" viewBox="0 0 88 88">
+        <circle cx="44" cy="44" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="5" />
+        <circle
+          cx="44" cy="44" r={radius} fill="none" stroke={color} strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-lg font-bold text-gray-900" style={{ color }}>{percentage}%</span>
+        <span className="text-[10px] text-gray-500 font-medium">Complete</span>
+      </div>
+    </div>
+  );
+}
 
 export default function Profile() {
   const { user, profile: userProfile } = useAuth();
@@ -77,8 +102,10 @@ export default function Profile() {
   const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
   const [showPasswords, setShowPasswords] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState('');
-  const [activeTab, setActiveTab] = useState('edit'); // 'view', 'edit', 'settings', etc.
+  const [activeSection, setActiveSection] = useState('personal');
   const [profileLoading, setProfileLoading] = useState(true);
+  const [hoveredNav, setHoveredNav] = useState<string | null>(null);
+  const [avatarHover, setAvatarHover] = useState(false);
   const profRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -121,6 +148,13 @@ export default function Profile() {
       return true;
     });
   }, [userProfile?.role]);
+
+  // Profile completion percentage
+  const completionPct = useMemo(() => {
+    const totalWeight = activeFields.reduce((s, [, v]) => s + v.weight, 0);
+    const filled = activeFields.reduce((s, [k, v]) => s + (form[k]?.trim() ? v.weight : 0), 0);
+    return totalWeight > 0 ? Math.round((filled / totalWeight) * 100) : 0;
+  }, [form, activeFields]);
 
   const updateField = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -173,109 +207,218 @@ export default function Profile() {
     }
   };
 
-  const renderSelect = (field: string, label: string, options: string[]) => (
-    <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-800 mb-1">{label}</label>
-      <select value={form[field] || ''} onChange={e => updateField(field, e.target.value)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-500 bg-white text-sm">
-        <option value="">Select...</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </div>
-  );
+  // Group fields by section for the form
+  const sectionGroups = useMemo(() => {
+    const groups: Record<string, typeof activeFields> = {};
+    activeFields.forEach(([key, val]) => {
+      if (!groups[val.section]) groups[val.section] = [];
+      groups[val.section].push([key, val]);
+    });
+    return groups;
+  }, [activeFields]);
 
-  const renderInput = (field: string, label: string, type = 'text', placeholder?: string, readOnly?: boolean) => (
-    <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-800 mb-1">{label}</label>
-      <input type={type} value={form[field] || ''} onChange={e => updateField(field, e.target.value)}
-        placeholder={placeholder} readOnly={readOnly}
-        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-500 text-sm ${readOnly ? 'bg-gray-50 text-gray-500' : ''}`} />
-    </div>
-  );
+  const sectionMeta: Record<string, { title: string; description: string; icon: any; gradient: string }> = {
+    personal: { title: 'Personal Information', description: 'Basic details about you', icon: User, gradient: 'from-blue-500 to-indigo-600' },
+    professional: { title: 'Professional Details', description: 'Your career and expertise', icon: Briefcase, gradient: 'from-emerald-500 to-teal-600' },
+    inclusion: { title: 'Inclusion & Accessibility', description: 'Help us serve you better', icon: Shield, gradient: 'from-purple-500 to-pink-600' },
+    provider: { title: 'Service Provider', description: 'Your service offering details', icon: Zap, gradient: 'from-amber-500 to-orange-600' },
+  };
+
+  const renderFormField = (key: string, field: typeof PROFILE_FIELDS[keyof typeof PROFILE_FIELDS]) => {
+    const Icon = field.icon;
+    const selectFields: Record<string, string[]> = {
+      gender: ['Male', 'Female', 'Non-binary', 'Prefer not to say'],
+      work_type: ['Remote', 'On-site', 'Hybrid', 'Freelance'],
+      highest_qualification: ['High School', 'Associate Degree', 'Bachelor\'s', 'Master\'s', 'PhD', 'Other'],
+      availability: ['Immediately', 'Within 2 weeks', 'Within 1 month', 'Within 3 months', 'Not looking'],
+      function: ['Tech', 'Finance', 'Healthcare', 'Education', 'Marketing', 'Engineering', 'Design', 'Other'],
+      is_disabled: ['No', 'Yes', 'Prefer not to say'],
+      is_displaced: ['No', 'Yes', 'Prefer not to say'],
+      specialty: ['Data Science', 'Software Engineering', 'UX Design', 'Product Management', 'DevOps', 'Consulting', 'Other'],
+    };
+
+    const isSelect = key in selectFields;
+    const isTextarea = key === 'bio';
+
+    return (
+      <div
+        key={key}
+        className="group relative"
+      >
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1.5">
+          <Icon className="w-3.5 h-3.5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+          {field.label}
+        </label>
+        {isTextarea ? (
+          <textarea
+            value={form[key] || ''}
+            onChange={e => updateField(key, e.target.value)}
+            rows={3}
+            placeholder={`Enter your ${field.label.toLowerCase()}...`}
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm transition-all duration-200 resize-none"
+          />
+        ) : isSelect ? (
+          <div className="relative">
+            <select
+              value={form[key] || ''}
+              onChange={e => updateField(key, e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm transition-all duration-200 appearance-none cursor-pointer"
+            >
+              <option value="">Select...</option>
+              {selectFields[key].map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 rotate-90 pointer-events-none" />
+          </div>
+        ) : (
+          <input
+            type={key === 'date_of_birth' ? 'date' : key === 'phone' ? 'tel' : key === 'salary_expectation' || key === 'hourly_rate' || key === 'years_of_experience' ? 'number' : 'text'}
+            value={form[key] || ''}
+            onChange={e => updateField(key, e.target.value)}
+            placeholder={`Enter your ${field.label.toLowerCase()}...`}
+            readOnly={key === 'email'}
+            className={`w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm transition-all duration-200 ${key === 'email' ? 'text-gray-400 cursor-not-allowed' : ''}`}
+          />
+        )}
+      </div>
+    );
+  };
+
+  const missingFields = activeFields.filter(([key]) => !form[key]?.trim()).slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f8f9fc]">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Main 3-column layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          
-          {/* Left Sidebar: Profile & Navigation */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
-              {/* Profile Card */}
-              <div className="flex items-center gap-3 mb-6">
-                <div className="relative">
-                  <img 
-                    src={form.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Samuel'} 
-                    alt="Profile"
-                    className="w-14 h-14 rounded-full object-cover"
-                  />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-gray-900">{form.full_name || 'Your Name'}</h3>
-                    <button className="text-gray-500 hover:text-gray-700">
-                      <Pencil className="w-4 h-4" />
-                    </button>
+      {/* Cover Banner with Gradient */}
+      <div className="relative h-44 sm:h-52 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700" />
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute top-6 left-[10%] w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+          <div className="absolute bottom-4 right-[15%] w-48 h-48 bg-purple-300/20 rounded-full blur-3xl" />
+          <div className="absolute top-10 right-[30%] w-20 h-20 bg-blue-300/20 rounded-full blur-xl" />
+        </div>
+        {/* Mesh pattern overlay */}
+        <div className="absolute inset-0" style={{
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0)`,
+          backgroundSize: '24px 24px'
+        }} />
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 -mt-20 relative z-10 pb-24">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          {/* ─── Left Sidebar ─── */}
+          <div className="lg:col-span-3">
+            {/* Profile Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4"
+              style={{ animation: 'pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+              {/* Mini gradient banner */}
+              <div className="h-16 bg-gradient-to-r from-blue-500 to-indigo-600 relative">
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
+                  <div
+                    className="relative group cursor-pointer"
+                    onMouseEnter={() => setAvatarHover(true)}
+                    onMouseLeave={() => setAvatarHover(false)}
+                  >
+                    <img
+                      src={form.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Samuel'}
+                      alt="Profile"
+                      className="w-16 h-16 rounded-full object-cover border-[3px] border-white shadow-md transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <div className={`absolute inset-0 rounded-full bg-black/40 flex items-center justify-center transition-opacity duration-200 ${avatarHover ? 'opacity-100' : 'opacity-0'}`}>
+                      <Camera className="w-4 h-4 text-white" />
+                    </div>
+                    {/* Online indicator */}
+                    <div className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white" />
                   </div>
-                  <p className="text-xs text-gray-600">{form.professional_headline || 'Senior Data Scientist'}</p>
-                  <p className="text-xs text-gray-500">{form.location || 'London'}</p>
                 </div>
               </div>
 
-              {/* Navigation Links */}
-              <nav className="space-y-1">
-                <div className="pt-2 border-t border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 mb-2 px-2">Job seeking</p>
-                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
-                    <EyeIcon className="w-4 h-4" />
-                    Hiring employers can find you
-                    <ChevronRight className="w-4 h-4 ml-auto text-gray-400" />
-                  </button>
-                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
-                    Resume & experience
-                  </button>
-                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
-                    Job preferences
-                  </button>
-                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
-                    Job activity
+              <div className="pt-12 pb-4 px-4 text-center">
+                <h3 className="font-bold text-gray-900 text-base">{form.full_name || 'Your Name'}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{form.professional_headline || 'Add your headline'}</p>
+                {form.location && (
+                  <p className="text-xs text-gray-400 mt-0.5 flex items-center justify-center gap-1">
+                    <MapPin className="w-3 h-3" /> {form.location}
+                  </p>
+                )}
+                <p className="text-xs text-blue-600 font-medium mt-1.5">{form.email}</p>
+              </div>
+
+              {/* Profile Completion */}
+              <div className="px-4 pb-4">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100/50">
+                  <ProfileCompletionRing percentage={completionPct} />
+                  <p className="text-xs text-gray-600 text-center mt-2 font-medium">Profile Strength</p>
+                  {completionPct < 100 && missingFields.length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {missingFields.map(([key, field]) => (
+                        <button
+                          key={key}
+                          onClick={() => setActiveSection(field.section)}
+                          className="w-full text-left text-xs text-blue-600 hover:text-blue-700 bg-white/80 rounded-lg px-2.5 py-1.5 flex items-center gap-2 hover:bg-white transition-colors"
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                          Add {field.label}
+                          <ArrowRight className="w-3 h-3 ml-auto opacity-50" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Navigation Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+              style={{ animation: 'pop-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+              <nav className="p-3">
+                {NAV_SECTIONS.map((section, si) => (
+                  <div key={section.title} className={si > 0 ? 'mt-3 pt-3 border-t border-gray-100' : ''}>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-2">{section.title}</p>
+                    {section.items.map(item => {
+                      const Icon = item.icon;
+                      const isHovered = hoveredNav === item.label;
+                      return (
+                        <button
+                          key={item.label}
+                          onMouseEnter={() => setHoveredNav(item.label)}
+                          onMouseLeave={() => setHoveredNav(null)}
+                          className={`w-full text-left px-2.5 py-2 rounded-xl text-sm flex items-center gap-2.5 transition-all duration-200 ${
+                            isHovered ? 'bg-blue-50 text-blue-700 translate-x-0.5' : 'text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors duration-200 ${
+                            isHovered ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="flex-1 text-[13px] font-medium">{item.label}</span>
+                          {'badge' in item && item.badge && (
+                            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md">{item.badge}</span>
+                          )}
+                          <ChevronRight className={`w-3.5 h-3.5 text-gray-300 transition-all duration-200 ${isHovered ? 'text-blue-400 translate-x-0.5' : ''}`} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+
+                {/* Sign Out */}
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <button className="w-full text-left px-2.5 py-2 rounded-xl text-sm flex items-center gap-2.5 text-red-500 hover:bg-red-50 transition-all duration-200">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-red-50 text-red-500 flex-shrink-0">
+                      <LogOut className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="flex-1 text-[13px] font-medium">Sign out</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-red-300" />
                   </button>
                 </div>
 
-                <div className="pt-4 mt-2 border-t border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 mb-2 px-2">Community & conversations</p>
-                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
-                    Following
-                  </button>
-                </div>
-
-                <div className="pt-4 mt-2 border-t border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 mb-2 px-2">Help other job seekers</p>
-                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
-                    Reviews & contributions
-                  </button>
-                </div>
-
-                <div className="pt-4 mt-2 border-t border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 mb-2 px-2">Manage account</p>
-                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
-                    Account settings
-                  </button>
-                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
-                    Notifications
-                  </button>
-                  <button className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700">
-                    <LogOut className="w-4 h-4" />
-                    Sign out
-                    <ExternalLink className="w-4 h-4 ml-auto text-gray-400" />
-                  </button>
-                </div>
-
-                <div className="pt-4 mt-2">
-                  <button className="w-full py-2 border border-black rounded-md text-sm font-semibold hover:bg-gray-50">
+                {/* Help Center */}
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <button className="w-full py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 flex items-center justify-center gap-2">
+                    <HelpCircle className="w-4 h-4" />
                     Help Center
                   </button>
                 </div>
@@ -283,112 +426,346 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Middle: Profile Edit Form */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-              {/* Header with illustration */}
-              <div className="bg-gray-50 p-6 flex justify-center border-b border-gray-100">
-                <img 
-                  src="https://illustrations.popsy.co/gray/creative-writing.svg" 
-                  alt="Profile"
-                  className="h-32"
-                />
+          {/* ─── Middle: Profile Edit Form ─── */}
+          <div className="lg:col-span-6" ref={profRef}>
+            {/* Success Toast */}
+            {saveSuccess && (
+              <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-sm"
+                style={{ animation: 'pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Profile updated successfully!</p>
+                  <p className="text-xs text-emerald-600">Your changes have been saved.</p>
+                </div>
               </div>
+            )}
 
-              {/* Profile Avatar & Form */}
-              <div className="p-6">
-                <div className="flex flex-col items-center mb-8">
-                  <div className="relative mb-2">
-                    <img 
-                      src={form.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Samuel'} 
-                      alt="Profile"
-                      className="w-24 h-24 rounded-full object-cover"
-                    />
-                    <button className="absolute bottom-0 right-0 bg-white rounded-full p-1 shadow-sm border border-gray-100">
-                      <Check className="w-4 h-4 text-gray-700" />
-                    </button>
+            {/* Section Tab Pills */}
+            <div className="flex gap-2 mb-5 overflow-x-auto pb-1 hide-scrollbar">
+              {Object.entries(sectionMeta).map(([key, meta]) => {
+                const Icon = meta.icon;
+                const isActive = activeSection === key;
+                const hasFields = sectionGroups[key]?.length > 0;
+                if (!hasFields) return null;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveSection(key)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-300 ${
+                      isActive
+                        ? 'bg-white text-gray-900 shadow-md shadow-gray-200/60 border border-gray-100 scale-[1.02]'
+                        : 'bg-white/60 text-gray-500 hover:bg-white hover:text-gray-700 border border-transparent'
+                    }`}
+                  >
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                      isActive ? `bg-gradient-to-br ${meta.gradient} text-white shadow-sm` : 'bg-gray-100 text-gray-400'
+                    }`}>
+                      <Icon className="w-3.5 h-3.5" />
+                    </div>
+                    {meta.title.split(' ')[0]}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Form Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+              style={{ animation: 'pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+
+              {/* Section Header */}
+              {sectionMeta[activeSection] && (
+                <div className={`bg-gradient-to-r ${sectionMeta[activeSection].gradient} px-6 py-5`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                      {(() => { const Icon = sectionMeta[activeSection].icon; return <Icon className="w-5 h-5 text-white" />; })()}
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-white">{sectionMeta[activeSection].title}</h2>
+                      <p className="text-sm text-white/70">{sectionMeta[activeSection].description}</p>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                <div className="max-w-md mx-auto space-y-4">
-                  {renderInput('full_name', 'First Name')}
-                  {/* Last name - we'll just use the same field for now */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-800 mb-1">Last Name</label>
-                    <input type="text" value={form.full_name?.split(' ')[1] || ''} onChange={e => updateField('full_name', `${form.full_name?.split(' ')[0] || ''} ${e.target.value}`)}
-                      placeholder="Last Name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-500 text-sm" />
-                  </div>
-                  {renderSelect('is_disabled' as any, 'Employment status', ['Not Employed', 'Employed', 'Looking for work'])}
-                  {renderInput('professional_headline', 'Most recent job title')}
-                  {renderInput('location', 'Location')}
-                  {renderSelect('function', 'Primary industry', [
-                    'Tech', 'Finance', 'Healthcare', 'Education', 'Marketing', 'Other'
-                  ])}
-                  {renderSelect('specialty' as any, 'Specialization', [
-                    'Data Science', 'Software Engineering', 'UX Design', 'Product Management', 'Other'
-                  ])}
-
-                  <div className="pt-4">
-                    <p className="text-xs text-gray-500 flex items-center justify-center gap-2 mb-4">
-                      <RefreshCw className="w-3 h-3" />
-                      This data syncs between JobBridge and Indeed
-                    </p>
-                    <button onClick={handleSave} disabled={saving}
-                      className={`w-full py-3 rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
-                        Object.values(form).some(v => v?.trim()) 
-                          ? 'bg-black text-white hover:bg-gray-800' 
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
+              {/* Loading state */}
+              {profileLoading ? (
+                <div className="p-12 flex flex-col items-center justify-center gap-3">
+                  <div className="w-10 h-10 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin" />
+                  <p className="text-sm text-gray-500">Loading your profile...</p>
+                </div>
+              ) : (
+                <div className="p-6">
+                  {/* Avatar Section */}
+                  <div className="flex items-center gap-5 mb-8 pb-6 border-b border-gray-100">
+                    <div
+                      className="relative group cursor-pointer"
+                      onMouseEnter={() => setAvatarHover(true)}
+                      onMouseLeave={() => setAvatarHover(false)}
                     >
-                      {saving ? (
-                        <><Loader className="w-4 h-4 animate-spin" /> Saving...</>
-                      ) : saveSuccess ? (
-                        <><Check className="w-4 h-4" /> Saved!</>
-                      ) : (
-                        'Save'
-                      )}
-                    </button>
+                      <img
+                        src={form.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Samuel'}
+                        alt="Profile"
+                        className="w-20 h-20 rounded-2xl object-cover border-2 border-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-lg group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-900">{form.full_name || 'Your Name'}</h3>
+                      <p className="text-sm text-gray-500">{form.email}</p>
+                      <div className="flex gap-2 mt-2">
+                        <button className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-semibold hover:bg-blue-100 transition-colors flex items-center gap-1.5">
+                          <Upload className="w-3 h-3" /> Upload Photo
+                        </button>
+                        {form.avatar_url && (
+                          <button
+                            onClick={() => updateField('avatar_url', '')}
+                            className="px-3 py-1.5 bg-red-50 text-red-500 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Form Fields for active section */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+                    {(sectionGroups[activeSection] || []).map(([key, field]) => (
+                      <div key={key} className={key === 'bio' ? 'sm:col-span-2' : ''}>
+                        {renderFormField(key, field)}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Email (read-only) - only show in personal section */}
+                  {activeSection === 'personal' && (
+                    <div className="mt-4">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1.5">
+                        <Mail className="w-3.5 h-3.5 text-gray-400" />
+                        Email Address
+                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">Read only</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={form.email || ''}
+                        readOnly
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-400 cursor-not-allowed text-sm"
+                      />
+                    </div>
+                  )}
+
+                  {/* Save Button */}
+                  <div className="mt-8 pt-6 border-t border-gray-100">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                        <RefreshCw className="w-3 h-3" />
+                        Auto-synced with your JobBridge profile
+                      </p>
+                      <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className={`px-8 py-3 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 min-w-[140px] ${
+                          saving
+                            ? 'bg-gray-200 text-gray-500 cursor-wait'
+                            : saveSuccess
+                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
+                              : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-200 hover:-translate-y-0.5 active:translate-y-0'
+                        }`}
+                      >
+                        {saving ? (
+                          <><Loader className="w-4 h-4 animate-spin" /> Saving...</>
+                        ) : saveSuccess ? (
+                          <><Check className="w-4 h-4" /> Saved!</>
+                        ) : (
+                          <><Sparkles className="w-4 h-4" /> Save Changes</>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Password Section */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6"
+              style={{ animation: 'pop-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+              <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Security & Password</h3>
+                  <p className="text-xs text-gray-500">Change your password to keep your account secure</p>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1.5 block">Current Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords ? 'text' : 'password'}
+                        value={passwordForm.current}
+                        onChange={e => setPasswordForm(p => ({ ...p, current: e.target.value }))}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm transition-all duration-200 pr-10"
+                        placeholder="••••••••"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1.5 block">New Password</label>
+                    <input
+                      type={showPasswords ? 'text' : 'password'}
+                      value={passwordForm.newPass}
+                      onChange={e => setPasswordForm(p => ({ ...p, newPass: e.target.value }))}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm transition-all duration-200"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1.5 block">Confirm Password</label>
+                    <input
+                      type={showPasswords ? 'text' : 'password'}
+                      value={passwordForm.confirm}
+                      onChange={e => setPasswordForm(p => ({ ...p, confirm: e.target.value }))}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm transition-all duration-200"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-4">
+                  <button
+                    onClick={() => setShowPasswords(!showPasswords)}
+                    className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1.5 transition-colors"
+                  >
+                    {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {showPasswords ? 'Hide' : 'Show'} passwords
+                  </button>
+                  <button
+                    onClick={handlePasswordChange}
+                    className="px-5 py-2 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-800 transition-all duration-200 hover:shadow-md"
+                  >
+                    Update Password
+                  </button>
+                </div>
+                {passwordMsg && (
+                  <p className={`mt-3 text-sm font-medium px-3 py-2 rounded-lg ${
+                    passwordMsg.includes('success') ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                  }`}>
+                    {passwordMsg}
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Right Sidebar: Recommendations */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <h3 className="font-bold text-gray-800 mb-1">Bowls for you</h3>
-              <a href="#" className="text-sm text-green-600 font-semibold flex items-center gap-1 mb-4 hover:text-green-700">
-                Explore all Bowls <ArrowRight className="w-3 h-3" />
-              </a>
-
-              <div className="space-y-4">
-                {MOCK_RECOMMENDATIONS.map(bowl => (
-                  <div key={bowl.id} className="flex gap-3">
-                    <img 
-                      src={bowl.image} 
-                      alt={bowl.title}
-                      className="w-10 h-10 rounded-full flex-shrink-0"
-                    />
-                    <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-gray-900">{bowl.title}</h4>
-                      <p className="text-xs text-gray-500 line-clamp-2 mb-2">{bowl.description}</p>
-                      <div className="flex items-center gap-2">
-                        <button className="px-3 py-1 border border-gray-300 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                          View
-                        </button>
-                        <button className="px-3 py-1 bg-white border border-gray-300 rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                          Join
-                        </button>
+          {/* ─── Right Sidebar ─── */}
+          <div className="lg:col-span-3">
+            {/* Quick Stats */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4"
+              style={{ animation: 'pop-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+              <h3 className="font-bold text-gray-800 text-sm mb-4 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-blue-500" />
+                Your Activity
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Profile Views', value: '128', icon: Eye, color: 'bg-blue-50 text-blue-600', iconBg: 'bg-blue-100' },
+                  { label: 'Applications', value: '24', icon: Briefcase, color: 'bg-emerald-50 text-emerald-600', iconBg: 'bg-emerald-100' },
+                  { label: 'Saved Jobs', value: '16', icon: Star, color: 'bg-amber-50 text-amber-600', iconBg: 'bg-amber-100' },
+                  { label: 'Messages', value: '8', icon: MessageCircle, color: 'bg-purple-50 text-purple-600', iconBg: 'bg-purple-100' },
+                ].map(stat => {
+                  const Icon = stat.icon;
+                  return (
+                    <div key={stat.label} className={`${stat.color} rounded-xl p-3 text-center transition-all duration-200 hover:scale-105 cursor-pointer`}>
+                      <div className={`w-8 h-8 ${stat.iconBg} rounded-lg flex items-center justify-center mx-auto mb-1.5`}>
+                        <Icon className="w-4 h-4" />
                       </div>
+                      <p className="text-xl font-bold">{stat.value}</p>
+                      <p className="text-[10px] font-medium opacity-70">{stat.label}</p>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Skills / Tags */}
+            {form.skills && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4"
+                style={{ animation: 'pop-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+                <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  Your Skills
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {form.skills.split(',').filter(Boolean).map((skill, i) => (
+                    <span
+                      key={i}
+                      className="px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 text-xs font-semibold rounded-lg border border-blue-100 hover:shadow-sm transition-all duration-200 cursor-default"
+                    >
+                      {skill.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tips Card */}
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-sm p-5 text-white relative overflow-hidden"
+              style={{ animation: 'pop-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-8 translate-x-8 blur-xl" />
+              <div className="relative z-10">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mb-3 backdrop-blur-sm">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="font-bold text-sm mb-1">Pro Tip</h3>
+                <p className="text-xs text-white/80 leading-relaxed">
+                  Profiles with a professional photo and complete details get <span className="font-bold text-white">3x more visibility</span> from recruiters.
+                </p>
+                <button className="mt-3 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5">
+                  Learn more <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* Community Bowls */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mt-4"
+              style={{ animation: 'pop-in 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                  <Users className="w-4 h-4 text-emerald-500" />
+                  Communities
+                </h3>
+                <a href="#" className="text-xs text-blue-600 font-semibold flex items-center gap-1 hover:text-blue-700 transition-colors">
+                  Explore <ArrowRight className="w-3 h-3" />
+                </a>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { title: 'Job Referrals!', members: '1M', color: 'bg-blue-100 text-blue-600' },
+                  { title: 'Career Advice', members: '4M', color: 'bg-emerald-100 text-emerald-600' },
+                  { title: 'Tech Professionals', members: '2.5M', color: 'bg-purple-100 text-purple-600' },
+                ].map((bowl, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-all duration-200 cursor-pointer group">
+                    <div className={`w-9 h-9 ${bowl.color} rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm`}>
+                      {bowl.title[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold text-gray-900 truncate">{bowl.title}</h4>
+                      <p className="text-[10px] text-gray-500">{bowl.members} members</p>
+                    </div>
+                    <button className="px-3 py-1.5 border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all duration-200 opacity-0 group-hover:opacity-100">
+                      Join
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-
         </div>
       </div>
 
