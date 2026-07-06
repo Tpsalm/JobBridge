@@ -647,6 +647,7 @@ export default function Profile() {
 
   const missingFields = activeFields
     .filter(([key]) => !form[key]?.trim())
+    .filter(([key]) => !['phone', 'date_of_birth', 'gender'].includes(key))
     .slice(0, 3);
 
   return (
