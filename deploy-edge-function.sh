@@ -19,4 +19,11 @@ npx supabase secrets set RESEND_API_KEY="$RESEND_KEY"
 # Deploy
 npx supabase functions deploy send-welcome-email --no-verify-jwt
 
-echo "Done! Welcome emails will now be sent on signup."
+# Deploy Kora webhook handler
+echo "Deploying kora-webhook edge function..."
+echo "Enter your KoraPay Secret Key (starts with sk_):"
+read -s KORA_SECRET
+npx supabase secrets set VITE_KORA_SECRET_KEY="$KORA_SECRET"
+npx supabase functions deploy kora-webhook --no-verify-jwt
+
+echo "Done! Welcome emails and Kora webhooks are deployed."
