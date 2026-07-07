@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
@@ -8,7 +8,7 @@ import { useAuthRequired } from '../hooks/useAuthRequired';
 import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight } from 'lucide-react';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
-import { pexel, ENTREPRENEURSHIP_VIDEOS } from '../lib/media';
+import { pexel } from '../lib/media';
 
 const stats = [
   { label: 'Active Jobs', value: '24,500+', icon: Briefcase, color: 'bg-blue-50 text-blue-700' },
@@ -59,97 +59,24 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
   );
 }
 
-/** Rotating HD video background for the hero section — all videos with ref-based programmatic playback */
-function HeroVideoBackground({ activeIdx }: { activeIdx: number }) {
-  const videos = ENTREPRENEURSHIP_VIDEOS;
-  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
-  const [failedVideos, setFailedVideos] = useState<Set<number>>(new Set());
-
-  const handleVideoError = (idx: number) => {
-    setFailedVideos(prev => new Set(prev).add(idx));
-  };
-
-  // Programmatically play active video, pause others
-  useEffect(() => {
-    videoRefs.current.forEach((video, i) => {
-      if (!video || failedVideos.has(i)) return;
-      if (i === activeIdx) {
-        video.currentTime = 0;
-        video.play().catch(() => {
-          // Autoplay blocked — mark as failed so poster shows instead
-          handleVideoError(i);
-        });
-      } else {
-        video.pause();
-      }
-    });
-  }, [activeIdx, failedVideos]);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden bg-black z-0">
-      {videos.map((video, i) => {
-        const isFailed = failedVideos.has(i);
-        const isActive = i === activeIdx;
-
-        // When video fails to load, render a poster image as fallback
-        if (isFailed) {
-          return (
-            <div
-              key={i}
-              className={`absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-1000 ${
-                isActive ? 'opacity-100' : 'opacity-0'
-              }`}
-              style={{ backgroundImage: `url(${video.poster})`, willChange: 'opacity' }}
-              aria-hidden="true"
-            />
-          );
-        }
-
-        return (
-          <video
-            key={i}
-            ref={el => { videoRefs.current[i] = el; }}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
-              isActive ? 'opacity-100' : 'opacity-0'
-            }`}
-            muted
-            playsInline
-            disablePictureInPicture
-            preload={isActive ? 'auto' : 'metadata'}
-            poster={video.poster}
-            crossOrigin="anonymous"
-            onError={() => handleVideoError(i)}
-            style={{ willChange: 'opacity' }}
-          >
-            <source src={video.src} type="video/mp4" onError={() => handleVideoError(i)} />
-          </video>
-        );
-      })}
-    </div>
-  );
-}
-
 export default function Home() {
   const { openModal } = useModal();
   const { openProtectedModal } = useAuthRequired();
-  const [heroVideoIdx, setHeroVideoIdx] = useState(0);
-  const videos = ENTREPRENEURSHIP_VIDEOS;
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setHeroVideoIdx(i => (i + 1) % videos.length);
-    }, 10000);
-    return () => clearInterval(timer);
-  }, []); // empty deps — functional updater ensures we always get latest state
 
   return (
     <div className="min-h-screen bg-stone-50">
       <Header />
 
-      {/* Hero — Entrepreneurship Video Background */}
-      <section className="relative overflow-hidden bg-black min-h-[560px]" style={{ perspective: '1000px' }}>
-        {/* Rotating HD entrepreneurship video carousel */}
-        <HeroVideoBackground activeIdx={heroVideoIdx} />
+      {/* Hero — Static Background */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 min-h-[560px]" style={{ perspective: '1000px' }}>
+        {/* Static background image */}
+        <div className="absolute inset-0 bg-black z-0">
+          <img
+            src="https://images.pexels.com/photos/3194519/pexels-photo-3194519.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&dpr=2"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover opacity-20"
+          />
+        </div>
 
         {/* Gradient overlay for text readability */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900/75 via-blue-800/50 to-blue-900/75 pointer-events-none z-10" />
