@@ -63,41 +63,68 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
 function HeroVideoBackground({ activeIdx }: { activeIdx: number }) {
   const videos = ENTREPRENEURSHIP_VIDEOS;
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const [failedVideos, setFailedVideos] = useState<Set<number>>(new Set());
+
+  const handleVideoError = (idx: number) => {
+    setFailedVideos(prev => new Set(prev).add(idx));
+  };
 
   // Programmatically play active video, pause others
   useEffect(() => {
     videoRefs.current.forEach((video, i) => {
-      if (!video) return;
+      if (!video || failedVideos.has(i)) return;
       if (i === activeIdx) {
         video.currentTime = 0;
         video.play().catch(() => {
-          // Autoplay may be blocked on first visit; user interaction will unblock
+          // Autoplay blocked — mark as failed so poster shows instead
+          handleVideoError(i);
         });
       } else {
         video.pause();
       }
     });
-  }, [activeIdx]);
+  }, [activeIdx, failedVideos]);
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black z-0">
-      {videos.map((video, i) => (
-        <video
-          key={i}
-          ref={el => { videoRefs.current[i] = el; }}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
-            i === activeIdx ? 'opacity-100' : 'opacity-0'
-          }`}
-          muted
-          playsInline
-          disablePictureInPicture
-          preload={i === activeIdx ? 'auto' : 'metadata'}
-          poster={video.poster}
-          style={{ willChange: 'opacity' }}
-        >
-          <source src={video.src} type="video/mp4" />
-        </video>
-      ))}
+      {videos.map((video, i) => {
+        const isFailed = failedVideos.has(i);
+        const isActive = i === activeIdx;
+
+        // When video fails to load, render a poster image as fallback
+        if (isFailed) {
+          return (
+            <div
+              key={i}
+              className={`absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-1000 ${
+                isActive ? 'opacity-100' : 'opacity-0'
+              }`}
+              style={{ backgroundImage: `url(${video.poster})`, willChange: 'opacity' }}
+              aria-hidden="true"
+            />
+          );
+        }
+
+        return (
+          <video
+            key={i}
+            ref={el => { videoRefs.current[i] = el; }}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+              isActive ? 'opacity-100' : 'opacity-0'
+            }`}
+            muted
+            playsInline
+            disablePictureInPicture
+            preload={isActive ? 'auto' : 'metadata'}
+            poster={video.poster}
+            crossOrigin="anonymous"
+            onError={() => handleVideoError(i)}
+            style={{ willChange: 'opacity' }}
+          >
+            <source src={video.src} type="video/mp4" onError={() => handleVideoError(i)} />
+          </video>
+        );
+      })}
     </div>
   );
 }
@@ -120,7 +147,7 @@ export default function Home() {
       <Header />
 
       {/* Hero — Entrepreneurship Video Background */}
-      <section className="relative overflow-hidden bg-black" style={{ perspective: '1000px' }}>
+      <section className="relative overflow-hidden bg-black min-h-[560px]" style={{ perspective: '1000px' }}>
         {/* Rotating HD entrepreneurship video carousel */}
         <HeroVideoBackground activeIdx={heroVideoIdx} />
 
