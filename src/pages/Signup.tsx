@@ -62,7 +62,9 @@ export default function Signup() {
         );
         if (signupErr) {
           const msg =
-            signupErr?.message || String(signupErr) || "Failed to create account";
+            signupErr?.message && typeof signupErr.message === 'string' && signupErr.message.trim()
+              ? signupErr.message.trim()
+              : 'Failed to create account. Please try again.';
           console.error("[Signup Error]", signupErr);
           setError(msg);
           window.dispatchEvent(
@@ -531,9 +533,7 @@ export default function Signup() {
 
               {error !== null && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  {typeof error === "string"
-                    ? error
-                    : "Error signing up. Please try again."}
+                  {error || "An error occurred. Please try again."}
                 </div>
               )}
 

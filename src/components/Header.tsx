@@ -47,7 +47,18 @@ export default function Header() {
           const items = JSON.parse(raw);
           setNotifCount(items.filter((n: any) => !n.isRead).length);
         } else {
-          setNotifCount(0);
+          // Seed initial notifications for new users so the badge shows
+          const INITIAL: Array<{ id: string; isRead: boolean }> = [
+            { id: 'n1', isRead: false },
+            { id: 'n2', isRead: false },
+            { id: 'n3', isRead: false },
+            { id: 'n4', isRead: true },
+            { id: 'n5', isRead: true },
+            { id: 'n6', isRead: true },
+            { id: 'n7', isRead: true },
+            { id: 'n8', isRead: true },
+          ];
+          setNotifCount(INITIAL.filter(n => !n.isRead).length);
         }
       } catch { setNotifCount(0); }
     };

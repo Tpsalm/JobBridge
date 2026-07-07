@@ -328,16 +328,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
-        // Extract a meaningful message from various error shapes
-        let fullMsg = error?.message || error?.error_description || '';
-        if (!fullMsg) {
-          try {
-            const str = JSON.stringify(error);
-            fullMsg = str && str !== '{}' ? str : 'Signup failed. Please try again or use a different email.';
-          } catch {
-            fullMsg = 'Signup failed. Please try again.';
-          }
+        // Extract a meaningful message — Supabase AuthApiError is a class instance,
+        // JSON.stringify() returns '{}' on class instances. Always use .message first.
+        let fullMsg = '';
+
+        // Supabase AuthApiError always has a .message string
+        if (error?.message && typeof error.message === 'string' && error.message.trim()) {
+          fullMsg = error.message.trim();
+        } else if ((error as any)?.error_description) {
+          fullMsg = String((error as any).error_description);
+        } else if ((error as any)?.msg) {
+          fullMsg = String((error as any).msg);
+        } else if ((error as any)?.status) {
+          fullMsg = `Signup failed (status ${(error as any).status}). Please try again.`;
+        } else {
+          fullMsg = 'Signup failed. Please try again or use a different email.';
         }
+
+        // Make common Supabase error codes human-readable
+        const lowerMsg = fullMsg.toLowerCase();
+        if (lowerMsg.includes('user already registered') || lowerMsg.includes('already been registered')) {
+          fullMsg = 'An account with this email already exists. Please sign in instead.';
+        } else if (lowerMsg.includes('invalid email')) {
+          fullMsg = 'Please enter a valid email address.';
+        } else if (lowerMsg.includes('password should be at least')) {
+          fullMsg = 'Password must be at least 6 characters long.';
+        } else if (lowerMsg.includes('signup is disabled') || lowerMsg.includes('signups not allowed')) {
+          fullMsg = 'New account registration is temporarily disabled. Please contact support.';
+        } else if (lowerMsg.includes('email rate limit') || lowerMsg.includes('too many requests')) {
+          fullMsg = 'Too many signup attempts. Please wait a few minutes and try again.';
+        }
+
         console.error('[AuthContext signUp] Supabase error:', error);
         return { error: new Error(fullMsg), session: null };
       }
@@ -364,7 +385,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return { error: null, session: newSession };
     } catch (error: any) {
-      const msg = error?.message || error?.error_description || error?.toString() || 'Failed to create account. Please try again.';
+      // Safely extract message from any error shape (class instance, plain object, string)
+      let msg = '';
+      if (error?.message && typeof error.message === 'string') {
+        msg = error.message;
+      } else if (typeof error === 'string') {
+        msg = error;
+      } else {
+        msg = 'Failed to create account. Please try again.';
+      }
       return { error: new Error(msg), session: null };
     }
   };
