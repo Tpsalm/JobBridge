@@ -1,0 +1,21 @@
+{
+  "name": "JobBridge",
+  "short_name": "JobBridge",
+  "description": "Nigeria's #1 professional network connecting job seekers, recruiters, and service providers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf9f6",
+  "theme_color": "#1e40af",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='24' cy='8' r='6' fill='%232563EB'/%3E%3Crect x='18' y='16' width='12' height='36' rx='2' fill='%231D4ED8'/%3E%3Cpath d='M30 52 C30 58 24 62 18 58 C14 55 14 50 18 48' stroke='%231D4ED8' stroke-width='10' stroke-linecap='round' fill='none'/%3E%3Cpath d='M30 28 Q40 14 52 28' stroke='%231D4ED8' stroke-width='4' stroke-linecap='round' fill='none'/%3E%3Cline x1='28' y1='28' x2='54' y2='28' stroke='%231D4ED8' stroke-width='3.5' stroke-linecap='round'/%3E%3Cline x1='34' y1='19' x2='34' y2='28' stroke='%231D4ED8' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='41' y1='15.5' x2='41' y2='28' stroke='%231D4ED8' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='48' y1='19' x2='48' y2='28' stroke='%231D4ED8' stroke-width='2.5' stroke-linecap='round'/%3E%3Crect x='50' y='28' width='6' height='24' rx='2' fill='%231D4ED8'/%3E%3C/svg%3E",
+      "sizes": "64x64",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Ccircle cx='72' cy='24' r='18' fill='%232563EB'/%3E%3Crect x='54' y='48' width='36' height='108' rx='6' fill='%231D4ED8'/%3E%3Cpath d='M90 156 C90 174 72 186 54 174 C42 165 42 150 54 144' stroke='%231D4ED8' stroke-width='30' stroke-linecap='round' fill='none'/%3E%3Cpath d='M90 84 Q120 42 156 84' stroke='%231D4ED8' stroke-width='12' stroke-linecap='round' fill='none'/%3E%3Cline x1='84' y1='84' x2='162' y2='84' stroke='%231D4ED8' stroke-width='10' stroke-linecap='round'/%3E%3Cline x1='102' y1='57' x2='102' y2='84' stroke='%231D4ED8' stroke-width='8' stroke-linecap='round'/%3E%3Cline x1='123' y1='46' x2='123' y2='84' stroke='%231D4ED8' stroke-width='8' stroke-linecap='round'/%3E%3Cline x1='144' y1='57' x2='144' y2='84' stroke='%231D4ED8' stroke-width='8' stroke-linecap='round'/%3E%3Crect x='150' y='84' width='18' height='72' rx='6' fill='%231D4ED8'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

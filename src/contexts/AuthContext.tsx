@@ -59,14 +59,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { return JSON.parse(localStorage.getItem('jobbridge_applied_jobs') || '[]'); } catch { return []; }
   });
 
-  const fetchSubscription = useCallback(async () => {
-    // Placeholder — subscription data can come from a Supabase table or Stripe webhook later
-    setSubscription({ tier: null, status: 'inactive', expires_at: null, credits: 0 });
-  }, []);
+  const fetchSubscription = useCallback(async (userId?: string) => {
+    const uid = userId || user?.id;
+    if (!uid) {
+      setSubscription({ tier: null, status: 'inactive', expires_at: null, credits: 0 });
+      return;
+    }
 
-  const fetchAiSubscription = useCallback(async () => {
-    setAiSubscription({ ai_tier: null, ai_status: 'inactive', ai_expires_at: null });
-  }, []);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_premium, subscription_tier, subscription_expires_at, credits')
+        .eq('id', uid)
+        .maybeSingle();
+
+      if (error || !data) {
+        setSubscription({ tier: null, status: 'inactive', expires_at: null, credits: 0 });
+        return;
+      }
+
+      const now = new Date();
+      const expiresAt = data.subscription_expires_at ? new Date(data.subscription_expires_at) : null;
+      const isExpired = expiresAt ? expiresAt < now : false;
+
+      let status: 'active' | 'inactive' | 'expired' = 'inactive';
+      if (data.is_premium && !isExpired) {
+        status = 'active';
+      } else if (data.is_premium && isExpired) {
+        status = 'expired';
+      }
+
+      setSubscription({
+        tier: data.subscription_tier || null,
+        status,
+        expires_at: data.subscription_expires_at || null,
+        credits: data.credits || 0,
+      });
+    } catch {
+      setSubscription({ tier: null, status: 'inactive', expires_at: null, credits: 0 });
+    }
+  }, [user?.id]);
+
+  const fetchAiSubscription = useCallback(async (userId?: string) => {
+    const uid = userId || user?.id;
+    if (!uid) {
+      setAiSubscription({ ai_tier: null, ai_status: 'inactive', ai_expires_at: null });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('subscription_tier, subscription_expires_at')
+        .eq('id', uid)
+        .maybeSingle();
+
+      if (error || !data) {
+        setAiSubscription({ ai_tier: null, ai_status: 'inactive', ai_expires_at: null });
+        return;
+      }
+
+      const now = new Date();
+      const expiresAt = data.subscription_expires_at ? new Date(data.subscription_expires_at) : null;
+      const isExpired = expiresAt ? expiresAt < now : false;
+
+      let ai_status: 'active' | 'inactive' | 'expired' = 'inactive';
+      // AI subscription is active if the user has an ai_tools tier that hasn't expired
+      if (data.subscription_tier === 'ai_tools' && !isExpired) {
+        ai_status = 'active';
+      } else if (data.subscription_tier === 'ai_tools' && isExpired) {
+        ai_status = 'expired';
+      }
+
+      setAiSubscription({
+        ai_tier: data.subscription_tier === 'ai_tools' ? data.subscription_tier : null,
+        ai_status,
+        ai_expires_at: data.subscription_expires_at || null,
+      });
+    } catch {
+      setAiSubscription({ ai_tier: null, ai_status: 'inactive', ai_expires_at: null });
+    }
+  }, [user?.id]);
 
   const toggleSaveJob = (jobId: string) => {
     setSavedJobs(prev => {
@@ -152,8 +225,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(sess);
         setUser(sess?.user ?? null);
         if (sess?.user) {
-          buildProfile(sess.user).then(p => {
+          buildProfile(sess.user).then(async p => {
             if (!cancelled) { setProfile(p); setLoading(false); }
+            // Fetch subscription data after profile loads
+            await fetchSubscription(sess.user.id);
+            await fetchAiSubscription(sess.user.id);
           });
           fetchUserApplications(sess.user.id).then(apps => {
             if (cancelled) return;
@@ -177,12 +253,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(sess?.user ?? null);
         if (sess?.user) {
           buildProfile(sess.user).then(p => { if (!cancelled) setProfile(p); });
+          fetchSubscription(sess.user.id);
+          fetchAiSubscription(sess.user.id);
         }
       }
     });
 
-    return () => { cancelled = true; authSub.unsubscribe(); };
-  }, [buildProfile]);
+    // Re-fetch subscription when user returns to the page (e.g., after admin verifies payment)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user?.id) {
+        fetchSubscription(user.id);
+        fetchAiSubscription(user.id);
+      }
+    };
+    const handleFocus = () => {
+      if (user?.id) {
+        fetchSubscription(user.id);
+        fetchAiSubscription(user.id);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      cancelled = true;
+      authSub.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [buildProfile, user?.id]);
 
   // Inactivity auto-logout timer
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

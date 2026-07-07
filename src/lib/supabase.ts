@@ -67,6 +67,10 @@ export type Profile = {
   is_verified?: boolean;
   is_featured?: boolean;
   reviews_count?: number;
+  is_premium?: boolean;
+  subscription_tier?: string;
+  subscription_expires_at?: string;
+  credits?: number;
   is_active?: boolean;
   subscription?: SubscriptionInfo;
   created_at: string;

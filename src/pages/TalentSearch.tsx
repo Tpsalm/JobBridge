@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Search, ChevronDown, MapPin, Briefcase, MessageSquare } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
@@ -168,14 +167,10 @@ const TalentSearch: React.FC = () => {
     return colors[id % colors.length];
   };
 
-  const getMatchBadgeColor = (score: number): string => {
-    if (score >= 85) return 'bg-emerald-100 text-emerald-700';
-    return 'text-gray-600';
+  const handleSearch = () => {
+    // Trigger search re-evaluation
+    setSearchName(prev => prev);
   };
-
-  const [searchTriggered, setSearchTriggered] = useState(0);
-
-  const handleSearch = () => setSearchTriggered(t => t + 1);
 
   const filteredCandidates = candidates.filter(candidate => {
     if (searchName && !candidate.name.toLowerCase().includes(searchName.toLowerCase())) return false;

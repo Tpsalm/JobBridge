@@ -439,7 +439,7 @@ function AIAssistantWidget() {
     const pageTopicMap: Record<string, string> = {
       "/": "Home page with hero, stats, featured jobs, testimonial",
       "/pricing": "Pricing and subscription plans for recruiters, AI tools, providers, ads",
-      "/payment": "Payments and checkout with Paystack, card & bank transfer",
+      "/payment": "Payments and checkout with KoraPay — card, USSD, bank transfer",
       "/jobs": "Job search and applications with split-panel layout, filters",
       "/my-jobs": "Saved and applied jobs dashboard with tabs",
       "/recruiter": "Recruiter dashboard for posting jobs and managing candidates",

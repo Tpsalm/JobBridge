@@ -226,51 +226,23 @@ export async function recordPayment(payment: {
   return data;
 }
 
-export async function activatePremiumPlan(userId: string, planKey: string, amount: number) {
-  const tier = planKey === 'basic' ? 'basic'
-    : planKey === 'standard' ? 'standard'
-    : planKey === 'premium' ? 'premium'
-    : planKey === 'ai_monthly' || planKey === 'ai_annual' ? 'ai_tools'
-    : planKey === 'service_verified' ? 'service_verified'
-    : 'basic';
-
-  const durationDays = planKey === 'basic' ? 7
-    : planKey === 'standard' ? 14
-    : planKey === 'premium' ? 30
-    : planKey === 'ai_monthly' ? 30
-    : planKey === 'ai_annual' ? 365
-    : planKey === 'service_verified' ? 30
-    : planKey === 'service_featured' ? 30
-    : 7;
-
-  const credits = planKey === 'basic' ? 1
-    : planKey === 'standard' ? 1
-    : planKey === 'premium' ? 3
-    : 0;
-
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-
-  const updates: Record<string, any> = {
-    is_premium: true,
-    subscription_tier: tier,
-    subscription_expires_at: expiresAt,
-    credits,
-    updated_at: now.toISOString(),
-  };
-
-  if (planKey === 'service_verified') {
-    updates.is_verified = true;
-    updates.is_featured = false;
-  } else if (planKey === 'service_featured') {
-    updates.is_verified = true;
-    updates.is_featured = true;
+export async function decrementCredits(userId: string) {
+  const { error } = await supabase.rpc('decrement_credits', { user_id: userId });
+  if (error) {
+    console.warn('decrement_credits RPC failed, attempting direct update:', error);
+    // Direct fallback: read current credits and subtract 1
+    const { data: profile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('credits')
+      .eq('id', userId)
+      .maybeSingle();
+    if (fetchError) throw fetchError;
+    const currentCredits = profile?.credits || 0;
+    const newCredits = Math.max(0, currentCredits - 1);
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ credits: newCredits, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+    if (updateError) throw updateError;
   }
-
-  const { error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', userId);
-
-  if (error) throw error;
 }

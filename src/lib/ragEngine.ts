@@ -99,12 +99,12 @@ const INTENT_SIGNATURES: Record<Exclude<IntentType, null>, {
   },
   payment: {
     patterns: [
-      /(pay|payment|checkout|paystack|card|bank transfer|debit|credit card|verve|mastercard|visa|moniepoint|transaction|receipt|billing|invoice|pay for|make payment|payment method)/i,
+      /(pay|payment|checkout|korapay|card|bank transfer|debit|credit card|verve|mastercard|visa|transaction|receipt|billing|invoice|pay for|make payment|payment method)/i,
     ],
     primaryRoute: "/payment",
     title: "Payment Page",
-    description: "Card payment, bank transfer, Paystack integration, payment activation",
-    synonyms: ["payment", "pay", "checkout", "paystack", "transaction"],
+    description: "Card payment, USSD, bank transfer, KoraPay integration, payment activation",
+    synonyms: ["payment", "pay", "checkout", "korapay", "transaction"],
     contexts: ["how to pay", "payment method", "card", "bank transfer"],
   },
   jobs: {

@@ -32,7 +32,7 @@ interface KoraWebhookPayload {
  * Verify the HMAC SHA256 signature sent by KoraPay
  * The signature is computed over the `data` object in the payload
  */
-function verifySignature(payload: KoraWebhookPayload, signature: string | null): boolean {
+async function verifySignature(payload: KoraWebhookPayload, signature: string | null): Promise<boolean> {
   if (!signature || !KORA_SECRET_KEY) return false;
 
   try {
@@ -41,22 +41,18 @@ function verifySignature(payload: KoraWebhookPayload, signature: string | null):
     const dataBytes = new TextEncoder().encode(dataStr);
 
     // Use Web Crypto API for HMAC-SHA256
-    const key = crypto.subtle.importKey(
+    const key = await crypto.subtle.importKey(
       'raw',
       keyBytes,
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign']
-    ).then((k) =>
-      crypto.subtle.sign('HMAC', k, dataBytes)
-    ).then((sig) => {
-      const hex = Array.from(new Uint8Array(sig))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
-      return hex === signature;
-    }).catch(() => false);
-
-    return key;
+    );
+    const sig = await crypto.subtle.sign('HMAC', key, dataBytes);
+    const hex = Array.from(new Uint8Array(sig))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return hex === signature;
   } catch {
     return false;
   }

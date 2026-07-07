@@ -2,18 +2,10 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
-  CreditCard,
   Wallet,
-  Banknote,
   ShieldCheck,
   CheckCircle,
   Loader2,
-  Clock,
-  ChevronRight,
-  Building2,
-  Copy,
-  Check,
-  Smartphone,
   Lock,
   Receipt,
   Sparkles,
@@ -23,7 +15,7 @@ import {
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
-import { activatePremiumPlan, recordPayment } from '../lib/supabaseQueries';
+import { recordPayment } from '../lib/supabaseQueries';
 import { sendEmail } from '../lib/email';
 
 // ═══════════════════════════════════════════════
@@ -71,29 +63,7 @@ const PLANS: Record<string, { name: string; duration: string; price: number; cre
   service_featured: { name: 'Featured Professional Listing', duration: '30 days', price: 5000, credits: 0, service: true },
 };
 
-type PaymentMethod = 'kora' | 'transfer';
-type CheckoutStep = 'method' | 'kora-checkout' | 'transfer-details' | 'success';
-
-const JB_BLUE = '#1A4BCE';
-
-const PAYMENT_METHODS = [
-  {
-    id: 'kora' as PaymentMethod,
-    label: 'KoraPay',
-    subtitle: 'Card, USSD, Bank Transfer',
-    icon: Wallet,
-    gradient: 'from-[#1A4BCE] to-[#2563eb]',
-    features: ['Instant activation', 'Multiple payment options', 'Secure checkout'],
-  },
-  {
-    id: 'transfer' as PaymentMethod,
-    label: 'Bank Transfer',
-    subtitle: 'Direct bank deposit',
-    icon: Building2,
-    gradient: 'from-[#1A4BCE] to-[#3b82f6]',
-    features: ['Manual verification', '24hr activation', 'Bank deposit'],
-  },
-];
+type CheckoutStep = 'kora-checkout' | 'success';
 
 // ═══════════════════════════════════════════════
 //  Helpers
@@ -113,8 +83,9 @@ async function activateAndRecord(
   fetchSubscription: () => Promise<void>,
   fetchAiSubscription: () => Promise<void>,
 ): Promise<void> {
-  await activatePremiumPlan(userId, planKey, plan.price);
-  await recordPayment({ user_id: userId, plan: planKey, amount: plan.price, reference, status: 'completed' });
+  // Insert payment with status 'verified' so the SQL trigger activate_plan_on_verify
+  // handles plan activation + credits in a single authoritative path.
+  await recordPayment({ user_id: userId, plan: planKey, amount: plan.price, reference, status: 'verified' });
   if (plan.ai) await fetchAiSubscription();
   else await fetchSubscription();
 }
@@ -135,16 +106,12 @@ export default function Payment() {
   const planKey = searchParams.get('plan') || 'basic';
   const plan = PLANS[planKey] || PLANS.basic;
 
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('kora');
-  const [step, setStep] = useState<CheckoutStep>('method');
+  const [step, setStep] = useState<CheckoutStep>('kora-checkout');
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
   const [error, setError] = useState<ReactNode>('');
-  const [copied, setCopied] = useState(false);
   const [koraReady, setKoraReady] = useState(false);
   const koraCompletedRef = useRef(false);
-
-  const total = plan.price;
 
   // ─── Load KoraPay Script ───────────────────────────
 
@@ -158,7 +125,7 @@ export default function Payment() {
     document.body.appendChild(s);
   }, []);
 
-  // ─── Payment Handlers ─────────────────────────────
+  // ─── Payment Handler ─────────────────────────────
 
   const handlePayWithKora = () => {
     if (!user?.id) { setError('Please log in first.'); return; }
@@ -177,11 +144,16 @@ export default function Payment() {
 
     const reference = 'JB-KORA-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    if (!supabaseUrl) console.warn('[Payment] VITE_SUPABASE_URL missing — webhook notification_url will not be set');
+    const notificationUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/kora-webhook` : undefined;
+
     window.Korapay.initialize({
       key: publicKey,
       reference,
       amount: plan.price,
       currency: 'NGN',
+      notification_url: notificationUrl,
       customer: {
         name: user?.full_name || 'JobBridge User',
         email: user?.email || 'user@example.com',
@@ -204,160 +176,15 @@ export default function Payment() {
     });
   };
 
-  const handlePayWithTransfer = async () => {
-    if (!user?.id) { setError('Please log in first.'); return; }
-    setPaying(true);
-    setError('');
-    try {
-      const reference = 'BANK-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-      await recordPayment({ user_id: user.id, plan: planKey, amount: plan.price, reference, status: 'pending' });
-      setPaying(false);
-      setPaid(true);
-      setStep('success');
-    } catch (err: any) {
-      setPaying(false);
-      setError(err?.message || 'Failed to record payment.');
-    }
-  };
-
-  const handleCopyAccount = () => {
-    navigator.clipboard.writeText('9136171354').then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
   const successTarget = getSuccessTarget(plan);
 
   // ═══════════════════════════════════════════════
-  //  RENDER — Method Selection Screen
-  // ═══════════════════════════════════════════════
-
-  function renderMethodScreen() {
-    return (
-      <div className="max-w-[420px] mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#1A4BCE]/10 mb-4">
-            <CreditCard className="w-7 h-7 text-[#1A4BCE]" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Choose payment method</h1>
-          <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
-            Select how you'd like to pay for <span className="font-semibold text-gray-800">{plan.name}</span>
-          </p>
-        </div>
-
-        {/* Plan Summary Card */}
-        <div className="bg-gray-50/80 rounded-2xl p-4 mb-6 border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#1A4BCE] flex items-center justify-center text-white text-sm font-bold shadow-sm">
-                {plan.name.charAt(0)}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
-                <p className="text-xs text-gray-500">{plan.duration}{plan.ai ? '' : ` · ${plan.credits} post${plan.credits > 1 ? 's' : ''}`}</p>
-              </div>
-            </div>
-            <p className="text-lg font-bold text-[#1A4BCE]">{formatNaira(plan.price)}</p>
-          </div>
-        </div>
-
-        {/* Payment Methods */}
-        <div className="space-y-3 mb-6">
-          {PAYMENT_METHODS.map((method) => {
-            const active = selectedMethod === method.id;
-            const Icon = method.icon;
-            return (
-              <button
-                key={method.id}
-                onClick={() => { setSelectedMethod(method.id); setError(''); }}
-                className={`relative w-full text-left rounded-2xl border-2 p-4 transition-all duration-200 ${
-                  active
-                    ? 'border-[#1A4BCE] bg-[#1A4BCE]/5 shadow-sm shadow-[#1A4BCE]/10'
-                    : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-sm'
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
-                    active ? `bg-gradient-to-br ${method.gradient} text-white shadow-md` : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base font-semibold text-gray-900">{method.label}</span>
-                      {active && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#1A4BCE]/10 text-[10px] font-semibold text-[#1A4BCE]">
-                          <Check className="w-3 h-3" />
-                          Selected
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-500">{method.subtitle}</p>
-                  </div>
-                  <ChevronRight className={`w-5 h-5 transition-colors ${active ? 'text-[#1A4BCE]' : 'text-gray-300'}`} />
-                </div>
-
-                {/* Features */}
-                {active && (
-                  <div className="mt-3 pt-3 border-t border-[#1A4BCE]/10 grid grid-cols-3 gap-2">
-                    {method.features.map((f) => (
-                      <div key={f} className="flex items-center gap-1.5 text-xs text-gray-600">
-                        <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <span className="truncate">{f}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700 flex items-start gap-2">
-            <Circle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="currentColor" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Continue Button */}
-        <button
-          onClick={() => {
-            setError('');
-            if (selectedMethod === 'kora') setStep('kora-checkout');
-            else setStep('transfer-details');
-          }}
-          className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base 
-                     transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
-                     shadow-lg shadow-[#1A4BCE]/25 hover:shadow-xl hover:shadow-[#1A4BCE]/30"
-        >
-          Continue with {selectedMethod === 'kora' ? 'KoraPay' : 'Bank Transfer'}
-        </button>
-
-        {/* Security Note */}
-        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-gray-400">
-          <Lock className="w-3.5 h-3.5" />
-          <span>Secured by JobBridge · Your data is protected</span>
-        </div>
-      </div>
-    );
-  }
-
-  // ═══════════════════════════════════════════════
-  //  RENDER — Kora Checkout Screen
+  //  RENDER — KoraPay Checkout Screen
   // ═══════════════════════════════════════════════
 
   function renderKoraCheckoutScreen() {
     return (
       <div className="max-w-[420px] mx-auto">
-        {/* Back */}
-        <button onClick={() => { setStep('method'); setError(''); }} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          Back to payment methods
-        </button>
-
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1A4BCE] to-blue-500 shadow-lg shadow-[#1A4BCE]/25 mb-4">
@@ -379,7 +206,7 @@ export default function Payment() {
           </div>
           <div className="flex items-center justify-between pt-4">
             <span className="text-sm font-medium text-gray-700">Total</span>
-            <span className="text-xl font-bold text-[#1A4BCE]">{formatNaira(total)}</span>
+            <span className="text-xl font-bold text-[#1A4BCE]">{formatNaira(plan.price)}</span>
           </div>
         </div>
 
@@ -397,7 +224,9 @@ export default function Payment() {
           <div className="flex flex-wrap gap-2">
             {['Pay with Card', 'USSD', 'Bank Transfer'].map((method) => (
               <span key={method} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/80 text-xs font-medium text-gray-600 border border-gray-100">
-                <Check className="w-3 h-3 text-emerald-500" />
+                <svg className="w-3 h-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
                 {method}
               </span>
             ))}
@@ -433,7 +262,7 @@ export default function Payment() {
           ) : (
             <span className="inline-flex items-center gap-2">
               <Lock className="w-5 h-5" />
-              Pay {formatNaira(total)} securely
+              Pay {formatNaira(plan.price)} securely
             </span>
           )}
         </button>
@@ -446,184 +275,33 @@ export default function Payment() {
   }
 
   // ═══════════════════════════════════════════════
-  //  RENDER — Bank Transfer Screen
-  // ═══════════════════════════════════════════════
-
-  function renderTransferScreen() {
-    return (
-      <div className="max-w-[420px] mx-auto">
-        {/* Back */}
-        <button onClick={() => { setStep('method'); setError(''); }} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          Back to payment methods
-        </button>
-
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#1A4BCE]/10 mb-4">
-            <Building2 className="w-7 h-7 text-[#1A4BCE]" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Bank Transfer</h1>
-          <p className="text-sm text-gray-500 mt-1.5">Transfer the exact amount to the account below</p>
-        </div>
-
-        {/* Account Details Card */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-5 shadow-sm">
-          <div className="text-center mb-6">
-            <p className="text-sm text-gray-500 mb-1">Amount to transfer</p>
-            <p className="text-3xl font-bold text-[#1A4BCE] tracking-tight">{formatNaira(total)}</p>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl">
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">Bank</p>
-                <p className="text-sm font-semibold text-gray-900">Moniepoint MFB</p>
-              </div>
-              <Building2 className="w-5 h-5 text-gray-400" />
-            </div>
-
-            <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl">
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">Account Name</p>
-                <p className="text-sm font-semibold text-gray-900">JobBridge Connect Africa</p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between py-3 px-4 bg-[#1A4BCE]/5 rounded-xl border border-[#1A4BCE]/10">
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">Account Number</p>
-                <p className="text-lg font-bold text-gray-900 tracking-wider">9136171354</p>
-              </div>
-              <button
-                onClick={handleCopyAccount}
-                className="w-9 h-9 rounded-lg bg-[#1A4BCE] flex items-center justify-center text-white hover:bg-[#1A4BCE]/90 transition-colors"
-              >
-                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Steps */}
-        <div className="mb-5 space-y-3">
-          {[
-            { num: '1', text: 'Transfer the exact amount using any banking app' },
-            { num: '2', text: 'Come back and tap "I have paid" below' },
-            { num: '3', text: 'Admin verifies within 24 hours and activates your plan' },
-          ].map((s) => (
-            <div key={s.num} className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-full bg-[#1A4BCE]/10 flex items-center justify-center text-xs font-bold text-[#1A4BCE] shrink-0">
-                {s.num}
-              </div>
-              <p className="text-sm text-gray-600">{s.text}</p>
-            </div>
-          ))}
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700 flex items-start gap-2">
-            <Circle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="currentColor" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Submit Button */}
-        <button
-          onClick={handlePayWithTransfer}
-          disabled={paying}
-          className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base 
-                     transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
-                     shadow-lg shadow-[#1A4BCE]/25 hover:shadow-xl hover:shadow-[#1A4BCE]/30
-                     disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {paying ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Submitting...
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-2">
-              <CheckCircle className="w-5 h-5" />
-              I have paid — {formatNaira(total)}
-            </span>
-          )}
-        </button>
-
-        <p className="mt-4 text-center text-xs text-gray-400">
-          Transfers are verified manually within 24 hours
-        </p>
-      </div>
-    );
-  }
-
-  // ═══════════════════════════════════════════════
   //  RENDER — Success Screen
   // ═══════════════════════════════════════════════
 
   function renderSuccessScreen() {
-    const isKora = selectedMethod === 'kora';
     return (
       <div className="max-w-[420px] mx-auto text-center">
         <div className="mb-8">
-          <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-5 ${
-            isKora ? 'bg-emerald-100' : 'bg-amber-100'
-          }`}>
-            {isKora ? (
-              <CheckCircle className="w-10 h-10 text-emerald-600" />
-            ) : (
-              <Clock className="w-10 h-10 text-amber-600" />
-            )}
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-100 mb-5">
+            <CheckCircle className="w-10 h-10 text-emerald-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            {isKora ? 'Payment Successful!' : 'Payment Submitted!'}
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Payment Successful!</h1>
           <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto leading-relaxed">
-            {isKora ? (
-              <>Your <strong className="text-gray-900">{plan.name}</strong> plan is now active.</>
-            ) : (
-              <>Your <strong className="text-gray-900">{formatNaira(total)}</strong> payment for <strong className="text-gray-900">{plan.name}</strong> has been recorded.</>
-            )}
+            Your <strong className="text-gray-900">{plan.name}</strong> plan is now active.
           </p>
         </div>
 
         {/* Status Card */}
-        <div className={`rounded-2xl border p-5 mb-6 ${
-          isKora ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'
-        }`}>
+        <div className="rounded-2xl border bg-emerald-50 border-emerald-100 p-5 mb-6">
           <div className="flex items-center gap-3 mb-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-              isKora ? 'bg-emerald-500' : 'bg-amber-500'
-            }`}>
-              {isKora ? (
-                <CheckCircle className="w-4 h-4 text-white" />
-              ) : (
-                <Clock className="w-4 h-4 text-white" />
-              )}
+            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 text-white" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-gray-900">
-                {isKora ? 'Plan Activated' : 'Awaiting Verification'}
-              </p>
-              <p className="text-xs text-gray-600">
-                {isKora
-                  ? `Your ${plan.name} is ready to use`
-                  : 'Admin will verify your transfer within 24 hours'
-                }
-              </p>
+              <p className="text-sm font-semibold text-gray-900">Plan Activated</p>
+              <p className="text-xs text-gray-600">Your {plan.name} is ready to use</p>
             </div>
           </div>
-          {!isKora && (
-            <div className="pt-3 border-t border-amber-200/50">
-              <p className="text-xs text-amber-700">
-                {plan.ai
-                  ? 'AI Career Tools will activate once verified.'
-                  : plan.service
-                    ? 'Professional listing will activate once verified.'
-                    : 'Job post credits will be added once verified.'}
-              </p>
-            </div>
-          )}
         </div>
 
         {/* What's Next */}
@@ -631,13 +309,15 @@ export default function Payment() {
           <p className="text-sm font-semibold text-gray-900 mb-3">What's next</p>
           <div className="space-y-3">
             {[
-              isKora ? 'Your plan is active — start using it now' : 'We\'ll notify you once your payment is verified',
+              'Your plan is active — start using it now',
               'A receipt will be sent to your email',
               plan.ai ? 'Explore AI Career Tools' : plan.service ? 'Manage your professional listing' : 'Post your jobs and reach candidates',
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-[#1A4BCE]/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3.5 h-3.5 text-[#1A4BCE]" />
+                  <svg className="w-3.5 h-3.5 text-[#1A4BCE]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
                 </div>
                 <p className="text-sm text-gray-600 text-left">{item}</p>
               </div>
@@ -659,7 +339,7 @@ export default function Payment() {
   }
 
   // ═══════════════════════════════════════════════
-  //  MAIN RENDER — Three Screens Showcase
+  //  MAIN RENDER
   // ═══════════════════════════════════════════════
 
   return (
@@ -692,14 +372,14 @@ export default function Payment() {
               Back to pricing
             </button>
             <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Complete Checkout</h1>
-            <p className="text-blue-200 text-sm mt-1">Pay for <strong className="text-white">{plan.name}</strong> and activate instantly</p>
+            <p className="text-blue-200 text-sm mt-1">Pay for <strong className="text-white">{plan.name}</strong> with KoraPay and activate instantly</p>
           </div>
         </div>
 
-        {/* Three Screens Showcase */}
+        {/* Checkout Content */}
         <div className="max-w-7xl mx-auto px-4 -mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Screen 1: Method Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* KoraPay Checkout */}
             <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden transition-transform duration-300 hover:shadow-2xl hover:-translate-y-1">
               <div className="bg-gray-50/80 px-5 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
@@ -713,58 +393,16 @@ export default function Payment() {
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
                     <Sparkles className="w-3 h-3 text-[#1A4BCE]" />
-                    Step 1
+                    Secure Checkout
                   </div>
                 </div>
               </div>
               <div className="p-6">
-                {step === 'method' ? renderMethodScreen() : (
-                  <div className="max-w-[420px] mx-auto text-center py-12">
-                    <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                    <p className="text-sm font-medium text-gray-700">Method selected</p>
-                    <p className="text-xs text-gray-400 mt-1">Proceeded to next step</p>
-                  </div>
-                )}
+                {renderKoraCheckoutScreen()}
               </div>
             </div>
 
-            {/* Screen 2: Payment Flow */}
-            <div className={`bg-white rounded-3xl border shadow-xl shadow-gray-200/50 overflow-hidden transition-all duration-300 ${
-              step === 'method' ? 'opacity-50 scale-[0.97]' : 'hover:shadow-2xl hover:-translate-y-1'
-            }`}>
-              <div className="bg-gray-50/80 px-5 py-3 border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                    </div>
-                    <span className="text-[11px] font-medium text-gray-400 ml-2">
-                      {selectedMethod === 'kora' ? 'KoraPay Checkout' : 'Transfer Details'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
-                    <Sparkles className="w-3 h-3 text-[#1A4BCE]" />
-                    Step 2
-                  </div>
-                </div>
-              </div>
-              <div className="p-6">
-                {step === 'kora-checkout' ? renderKoraCheckoutScreen() :
-                 step === 'transfer-details' ? renderTransferScreen() : (
-                  <div className="max-w-[420px] mx-auto text-center py-12">
-                    <div className="text-gray-300 mb-2">
-                      <Smartphone className="w-16 h-16 mx-auto" />
-                    </div>
-                    <p className="text-sm font-medium text-gray-500">Select a method first</p>
-                    <p className="text-xs text-gray-400 mt-1">Choose KoraPay or Bank Transfer to continue</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Screen 3: Order Summary / Info */}
+            {/* Order Summary */}
             <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden transition-transform duration-300 hover:shadow-2xl hover:-translate-y-1">
               <div className="bg-gray-50/80 px-5 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
@@ -813,7 +451,7 @@ export default function Payment() {
                       </div>
                       <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
                         <span className="text-sm font-semibold text-gray-900">Total</span>
-                        <span className="text-xl font-bold text-[#1A4BCE]">{formatNaira(total)}</span>
+                        <span className="text-xl font-bold text-[#1A4BCE]">{formatNaira(plan.price)}</span>
                       </div>
                     </div>
                   </div>
@@ -827,8 +465,8 @@ export default function Payment() {
                     <div className="space-y-3">
                       {[
                         step === 'success'
-                          ? selectedMethod === 'kora' ? 'Plan activated successfully' : 'Payment recorded — awaiting verification'
-                          : 'Select a payment method and complete checkout',
+                          ? 'Plan activated successfully'
+                          : 'Complete checkout with KoraPay',
                         step === 'success' ? 'Receipt sent to your email' : 'Instant activation with KoraPay',
                         plan.ai ? 'AI Career Tools ready' : plan.service ? 'Professional listing ready' : `${plan.credits} job post credit${plan.credits > 1 ? 's' : ''} added`,
                       ].map((item, i) => (
@@ -837,7 +475,9 @@ export default function Payment() {
                             step === 'success' ? 'bg-emerald-100' : 'bg-[#1A4BCE]/10'
                           }`}>
                             {step === 'success' ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
                             ) : (
                               <div className="w-2 h-2 rounded-full bg-[#1A4BCE]" />
                             )}

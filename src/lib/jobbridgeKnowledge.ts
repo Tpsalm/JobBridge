@@ -86,7 +86,7 @@ Visit /ceo to watch a personal video message from Victor Eniola sharing his jour
 - **text-embedding-3-small** — for embeddings (retrieval)
 
 ### Payments
-- **Paystack** — handles all payment processing, supporting Nigerian cards (Visa, Mastercard, Verve) and bank transfers
+- **KoraPay** — handles all payment processing, supporting cards (Visa, Mastercard, Verve), USSD, and bank transfers
 
 ### Hosting & Deployment
 - **GitHub Pages** — application hosting with Apache .htaccess for SPA routing
@@ -108,7 +108,7 @@ JobBridge primarily serves **Nigeria** and **West Africa**. While the platform i
 All pricing is in **Nigerian Naira (NGN)** with the symbol **₦**. All amounts throughout the platform are denominated in Naira.
 
 ### International Payments
-Users can make payments from anywhere in the world using international cards through Paystack, but all amounts are in Nigerian Naira. Paystack supports Visa, Mastercard, Verve, and bank transfers.`,
+Users can make payments from anywhere in the world using international cards through KoraPay, but all amounts are in Nigerian Naira. KoraPay supports Visa, Mastercard, Verve, USSD, and bank transfers.`,
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -745,7 +745,7 @@ Upload CV files in **TXT, PDF, DOC, or DOCX** format to populate the resume text
 ### How to Purchase
 1. Go to the **Pricing page** at **/pricing**
 2. Select **"AI Career Tools Monthly"** or **"AI Career Tools Annual"**
-3. Complete payment through Paystack
+3. Complete payment through KoraPay
 4. Access is activated immediately after successful payment
 
 ### Check Your Status
@@ -781,42 +781,32 @@ Your AI subscription status is shown on the **Settings page** at **/settings** u
 - **Monthly Ad**: 7500 Naira for 30 days
 - **Featured Business**: 15000 Naira for 30 days with homepage spotlight carousel
 
-All prices are in **Nigerian Naira (₦)**. Payments processed securely through **Paystack**.`,
+All prices are in **Nigerian Naira (₦)**. Payments processed securely through **KoraPay**.`,
   },
   {
     id: 'payment-flow',
     title: 'Payment Process & Activation',
-    tags: ['pricing', 'payment', 'paystack'],
+    tags: ['pricing', 'payment', 'korapay'],
     pages: ['/payment'],
-    keywords: ['payment', 'pay', 'how to pay', 'paystack', 'card payment', 'bank transfer', 'payment methods', 'pay for plan', 'activate plan', 'make payment', 'payment page', '/payment', 'payment process', 'complete payment', 'purchase plan', 'how to make payment', 'payment options', 'pay for subscription'],
+    keywords: ['payment', 'pay', 'how to pay', 'korapay', 'card payment', 'USSD', 'payment methods', 'pay for plan', 'activate plan', 'make payment', 'payment page', '/payment', 'payment process', 'complete payment', 'purchase plan', 'how to make payment', 'payment options', 'pay for subscription'],
     content: `### How to Start
 1. Go to the **Pricing page** at **/pricing**
 2. Click **"Get Started"** or **"Subscribe"** on your chosen plan
 3. You are redirected to **/payment?plan=planKey**
 
-### Card Payment
-1. Select the **Card** option
-2. Click **"Pay NGN [amount]"**
-3. Paystack's secure payment popup opens
-4. Enter your card details: Visa, Mastercard, or Verve number, expiry date, CVV, cardholder name
-5. Paystack handles the transaction with PCI-compliant encryption
-6. After successful payment, the popup closes and your subscription activates immediately
-
-### Bank Transfer
-1. Select the **Transfer** option
-2. View the bank details:
-   - **Bank**: Moniepoint MFB
-   - **Account Name**: JobBridge Connect Africa
-   - **Account Number**: 9136171354
-3. Transfer the exact amount from your bank account
-4. Use the **"Copy"** button to copy the account number
-5. Select your bank from the dropdown (all Nigerian commercial banks and microfinance banks)
-6. Enter the payment reference or teller ID
-7. Click **"Submit transfer details"**
+### Pay with KoraPay
+1. Select your plan on the Pricing page at **/pricing**
+2. Click **"Get Started"** on your chosen plan
+3. You are redirected to **/payment?plan=planKey**
+4. KoraPay's secure payment popup opens where you can pay via:
+   - **Card**: Visa, Mastercard, or Verve
+   - **USSD**: Direct bank payment from your phone
+   - **Bank Transfer**: Instant transfer via KoraPay
+5. After successful payment, the popup closes and your subscription activates immediately
 
 ### After Payment
-- **Card**: Subscription activated immediately, confirmation email sent
-- **Bank Transfer**: Recorded as pending, verified within **24 hours** by an administrator, confirmation email sent once activated`,
+- Subscription activated immediately
+- Confirmation email sent to your registered email address`,
   },
   {
     id: 'subscription-status',
@@ -929,7 +919,7 @@ Your profile appears on the Providers page for potential clients to discover. Tr
    - Category
    - Optional: image URL, website URL, phone number, email, location
 3. Select your preferred package
-4. Complete payment via Paystack
+4. Complete payment via KoraPay
 5. Your ad goes live immediately
 
 ### Managing Your Ads
@@ -1276,7 +1266,7 @@ When career opportunities at JobBridge become available, subscribed users will b
 - Name, email address, phone number
 - Profile details and professional information
 - Resume and CV documents
-- Payment information (handled directly by Paystack, never stored on JobBridge servers)
+- Payment information (handled directly by KoraPay, never stored on JobBridge servers)
 - Usage data to improve the platform
 
 ### How Information Is Used
@@ -1288,7 +1278,7 @@ When career opportunities at JobBridge become available, subscribed users will b
 
 ### Information Sharing
 Your data is **never sold to third parties**. It is only shared with contracted service providers:
-- **Paystack** — payment processing
+- **KoraPay** — payment processing
 - **OpenAI** — AI features
 - **Supabase** — database and authentication
 - **Resend** — email delivery
@@ -1356,8 +1346,8 @@ JobBridge is a **Progressive Web App (PWA)** — installable on your device for 
 - Prevents interception by third parties
 
 ### Payment Security
-- All payments through **Paystack** (PCI-DSS compliant)
-- Paystack handles payment data directly — never exposed to JobBridge servers
+- All payments through **KoraPay** (PCI-DSS compliant)
+- KoraPay handles payment data directly — never exposed to JobBridge servers
 
 ### Platform Protection
 - **Content Security Policy** — prevents XSS attacks and data injection

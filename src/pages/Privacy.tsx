@@ -7,7 +7,7 @@ import { Shield, CheckCircle, ChevronRight, Mail, ArrowLeft } from 'lucide-react
 const SECTIONS = [
   {
     title: 'What Information We Collect',
-    content: 'We collect only the information you provide to us: your name, email address, phone number, profile details (professional headline, experience, skills, education, location), resume/CV documents, job application data, payment information (processed securely by Paystack — we never store card details), and communications with other users. We also collect basic usage data like page views and feature interactions to improve our platform.',
+    content: 'We collect only the information you provide to us: your name, email address, phone number, profile details (professional headline, experience, skills, education, location), resume/CV documents, job application data, payment information (processed securely by KoraPay — we never store card details), and communications with other users. We also collect basic usage data like page views and feature interactions to improve our platform.',
   },
   {
     title: 'How We Use Your Information',
@@ -15,7 +15,7 @@ const SECTIONS = [
   },
   {
     title: 'Information Sharing',
-    content: 'We do not sell your personal data to third parties. Your profile information is visible to recruiters and employers on the platform as part of the job matching process. We share data with trusted service providers strictly for platform operations: Paystack (payment processing), OpenAI (AI features — anonymized queries), Supabase (database hosting), and Resend (transactional emails). These providers are contractually bound to protect your data.',
+    content: 'We do not sell your personal data to third parties. Your profile information is visible to recruiters and employers on the platform as part of the job matching process. We share data with trusted service providers strictly for platform operations: KoraPay (payment processing), OpenAI (AI features — anonymized queries), Supabase (database hosting), and Resend (transactional emails). These providers are contractually bound to protect your data.',
   },
   {
     title: 'Data Storage & Security',

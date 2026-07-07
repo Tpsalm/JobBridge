@@ -1,7 +1,7 @@
 import { useModal } from '../contexts/ModalContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { createJob, createApplication } from '../lib/supabaseQueries';
+import { createJob, createApplication, decrementCredits } from '../lib/supabaseQueries';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building, Wrench, ArrowRight, BadgeCheck, Loader2, CheckCircle, Mail, Eye, EyeOff } from 'lucide-react';
@@ -189,7 +189,13 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
                     requirements: [],
                     benefits: [],
                   });
-                  try { window.dispatchEvent(new CustomEvent('jobs:updated')); } catch (e) {}
+                  // Decrement credits after successful job post
+                  try {
+                    await decrementCredits(user?.id || profile?.id || '');
+                  } catch (creditErr) {
+                    console.warn('Failed to decrement credits:', creditErr);
+                  }
+                  try { window.dispatchEvent(new CustomEvent('jobs:updated')); } catch (e) { console.warn('Failed to dispatch jobs:updated event', e); }
                   await fetchSubscription();
                   setSubmitted(true);
                 } catch (err) {
@@ -473,8 +479,7 @@ function ApplyJobModal({ data, onClose }: { data: { job_id?: string; title?: str
   const [submitting, setSubmitting] = useState(false);
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState('');
-  const { profile, user } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [form, setForm] = useState({
     date_of_birth: '',

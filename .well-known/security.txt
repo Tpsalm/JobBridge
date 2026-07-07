@@ -1,0 +1,18 @@
+# Security Contact
+Contact: mailto:jobbridgesupport@gmail.com
+Contact: https://jobbridge.com.ng/contact
+
+# Disclosure Policy
+Preferred-Languages: en
+
+# Encryption
+Encryption: https://jobbridge.com.ng/.well-known/pgpkey.txt
+
+# Canonical
+Canonical: https://jobbridge.com.ng/.well-known/security.txt
+
+# Expiry
+Expires: 2027-06-30T00:00:00.000Z
+
+# Acknowledgments
+Acknowledgments: https://jobbridge.com.ng/acknowledgments

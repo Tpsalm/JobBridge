@@ -21,5 +21,9 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.local
+.env.*.local
 stealth-admin/
 supabase/.temp/
+
+.vercel

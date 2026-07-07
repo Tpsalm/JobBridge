@@ -6,10 +6,9 @@ import JobBridgeLogo from '../components/JobBridgeLogo';
 import { useModal } from '../contexts/ModalContext';
 import { useAuthRequired } from '../hooks/useAuthRequired';
 import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight } from 'lucide-react';
-import HeroCarousel from '../components/HeroCarousel';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
-import { pexel, HERO_CAROUSELS } from '../lib/media';
+import { pexel, ENTREPRENEURSHIP_VIDEOS } from '../lib/media';
 
 const stats = [
   { label: 'Active Jobs', value: '24,500+', icon: Briefcase, color: 'bg-blue-50 text-blue-700' },
@@ -60,21 +59,64 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
   );
 }
 
+/** Rotating HD video background for the hero section — all videos rendered with CSS crossfade */
+function HeroVideoBackground({ activeIdx }: { activeIdx: number }) {
+  const videos = ENTREPRENEURSHIP_VIDEOS;
+  const nextIdx = (activeIdx + 1) % videos.length;
+
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-black">
+      {/* All videos rendered — only active is visible via CSS opacity transition */}
+      {videos.map((video, i) => (
+        <video
+          key={i}
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+            i === activeIdx ? 'opacity-100' : 'opacity-0'
+          }`}
+          autoPlay={i === activeIdx}
+          muted
+          loop={i === activeIdx}
+          playsInline
+          preload={i === activeIdx || i === nextIdx ? 'auto' : 'none'}
+          poster={video.poster}
+        >
+          <source src={video.src} type="video/mp4" />
+        </video>
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
   const { openModal } = useModal();
   const { openProtectedModal } = useAuthRequired();
+  const [heroVideoIdx, setHeroVideoIdx] = useState(0);
+  const videos = ENTREPRENEURSHIP_VIDEOS;
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHeroVideoIdx(i => (i + 1) % videos.length);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []); // empty deps — functional updater ensures we always get latest state
 
   return (
     <div className="min-h-screen bg-stone-50">
       <Header />
 
-      {/* Hero */}
-      <section className="relative bg-gradient-to-br from-blue-900 via-blue-800 to-blue-700 overflow-hidden" style={{ perspective: '1000px' }}>
-        <div className="absolute inset-0 opacity-10">
+      {/* Hero — Entrepreneurship Video Background */}
+      <section className="relative overflow-hidden bg-black" style={{ perspective: '1000px' }}>
+        {/* Rotating HD entrepreneurship video carousel */}
+        <HeroVideoBackground activeIdx={heroVideoIdx} />
+
+        {/* Gradient overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/75 via-blue-800/50 to-blue-900/75 pointer-events-none z-10" />
+        <div className="absolute inset-0 opacity-10 pointer-events-none z-10">
           <div className="absolute top-10 left-10 w-72 h-72 rounded-full bg-white blur-3xl" />
           <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-blue-300 blur-3xl" />
         </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-28">
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-28 z-20">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-sm text-blue-100 mb-6 animate-float">
@@ -100,20 +142,45 @@ export default function Home() {
               </div>
             </div>
             <div className="hidden lg:block relative">
+              {/* Entrepreneurship showcase card — updates with active video */}
               <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 hover:shadow-blue-500/20 transition-shadow duration-500" style={{ transform: 'rotateY(-2deg) rotateX(2deg)', transformStyle: 'preserve-3d' }}>
-                <div className="relative h-[420px]">
-                  <HeroCarousel images={HERO_CAROUSELS.home} alt="Professionals collaborating in modern offices" className="rounded-2xl" variant="slide3d" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-blue-900/60 to-transparent" />
-                <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3">
-                  <div className="flex -space-x-2">
-                    <img src={pexel(774909, 40, 40)} alt="" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
-                    <img src={pexel(220453, 40, 40)} alt="" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
-                    <img src={pexel(415829, 40, 40)} alt="" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
+                <div className="relative h-[420px] bg-gradient-to-br from-blue-900/60 via-blue-800/40 to-transparent flex flex-col items-center justify-center p-8 text-center">
+                  {/* Decorative background pattern */}
+                  <div className="absolute inset-0 opacity-5">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-white blur-3xl" />
                   </div>
-                  <span className="text-white text-sm font-medium">2M+ professionals already joined</span>
+                  {/* Field icon */}
+                  <div className="relative z-10 mb-6">
+                    <div className="w-20 h-20 mx-auto rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center">
+                      <span className="text-3xl">💼</span>
+                    </div>
+                  </div>
+                  <p className="relative z-10 text-white/60 text-xs uppercase tracking-[0.2em] mb-2">Now Showing</p>
+                  <h3
+                    key={heroVideoIdx}
+                    className="relative z-10 text-white text-2xl font-bold mb-2 animate-fadeIn"
+                  >
+                    {videos[heroVideoIdx].label}
+                  </h3>
+                  <p
+                    key={`desc-${heroVideoIdx}`}
+                    className="relative z-10 text-blue-200/80 text-sm max-w-xs animate-fadeIn"
+                  >
+                    {videos[heroVideoIdx].description}
+                  </p>
+                  {/* Carousel dots */}
+                  <div className="relative z-10 flex gap-2 mt-6">
+                    {videos.map((_, i) => (
+                      <span
+                        key={i}
+                        className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${
+                          i === heroVideoIdx ? 'bg-white w-4' : 'bg-white/30'
+                        }`}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
               {/* Floating stat card */}
               <div className="absolute -left-6 top-8 bg-white rounded-xl shadow-xl p-4 flex items-center gap-3 animate-float">
                 <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -122,6 +189,15 @@ export default function Home() {
                 <div>
                   <p className="text-sm font-bold text-gray-900">94% Success</p>
                   <p className="text-xs text-gray-500">Placement rate</p>
+                </div>
+              </div>
+              {/* Entrepreneurship field indicator — bottom-left of right card */}
+              <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md rounded-full px-4 py-2 border border-white/10">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-white/80 text-xs font-medium uppercase tracking-wider">Entrepreneurship</span>
+                  <span className="text-white/40 mx-1">·</span>
+                  <span className="text-white text-sm font-semibold">{videos[heroVideoIdx].label}</span>
                 </div>
               </div>
             </div>

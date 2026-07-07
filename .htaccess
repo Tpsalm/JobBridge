@@ -1,0 +1,41 @@
+# Force HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# SPA fallback: serve index.html for all non-file, non-admin routes
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(?!admin/).* index.html [L]
+
+# HSTS (6 months)
+Header always set Strict-Transport-Security "max-age=15768000; includeSubDomains"
+
+# Security headers
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "DENY"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+
+# Block access to hidden files
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# Protect sensitive files (except manifest.json)
+<FilesMatch "\.(env|sql|log|bak|config|yml|yaml|lock)$">
+  Require all denied
+</FilesMatch>
+
+# Disable directory browsing
+Options -Indexes
+
+# Cache static assets (1 year)
+<FilesMatch "\.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$">
+  Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+
+# HTML cache (10 min)
+<FilesMatch "\.html?$">
+  Header set Cache-Control "public, max-age=600"
+</FilesMatch>

@@ -52,7 +52,13 @@
       "id": "payment_methods",
       "title": "Payment Methods",
       "keywords": ["payment", "pay", "how to pay", "card", "transfer", "bank transfer", "moniepoint", "checkout"],
-      "answer": "JobBridge accepts these payment methods:\n\n• Card: Visa, Mastercard, and Verve cards accepted. Pay securely via Paystack checkout.\n• Bank Transfer: Transfer to Moniepoint MFB — Account name: JobBridge Connect Africa, Account number: 9136171354.\n\nAfter payment, your subscription is activated automatically within minutes. If you used bank transfer, click 'I have paid' after making the transfer to complete activation. All payments are encrypted and secure."
+      "answer": "JobBridge accepts payment via KoraPay — the secure and instant payment gateway. You can pay using:
+
+• Debit/Credit Cards: Visa, Mastercard, and Verve cards accepted.
+• USSD: Pay directly from your bank account using USSD.
+• Bank Transfer: Instant transfer via KoraPay.
+
+After successful payment, your subscription is activated immediately. All payments are encrypted and secure."
     },
     {
       "id": "pricing_overview",
@@ -118,7 +124,7 @@
       "id": "premium_billing",
       "title": "Premium & Billing",
       "keywords": ["premium", "billing", "payment methods", "cancel subscription", "refund", "money back", "invoice"],
-      "answer": "Premium & Billing Information:\n\n• Payment Methods: JobBridge accepts Card (Visa, Mastercard, Verve via Paystack) and Bank Transfer (Moniepoint MFB — Account name: JobBridge Connect Africa, Account number: 9136171354).\n• Subscription Cancellation: You can cancel anytime from your billing settings. Your access continues until the end of your billing cycle.\n• Refunds: We offer a 30-day money-back guarantee if you're not satisfied with your subscription. Contact jobbridgesupport@gmail.com for refund requests.\n• Receipts: After successful payment, your receipt is sent to your registered email address.\n• Activation: Plans are activated immediately after successful payment verification.\n\nFor billing inquiries, please email jobbridgesupport@gmail.com or call 09136171354."
+      "answer": "Premium & Billing Information:\n\n• Payment Method: KoraPay — secure instant payment gateway (Card, USSD, Bank Transfer).\n• Subscription Cancellation: You can cancel anytime from your billing settings. Your access continues until the end of your billing cycle.\n• Refunds: We offer a 30-day money-back guarantee if you're not satisfied with your subscription. Contact jobbridgesupport@gmail.com for refund requests.\n• Receipts: After successful payment, your receipt is sent to your registered email address.\n• Activation: Plans are activated immediately after successful payment verification.\n\nFor billing inquiries, please email jobbridgesupport@gmail.com or call 09136171354."
     },
     {
       "id": "internship_opportunities",

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
@@ -33,6 +33,7 @@ import VideoPlayer from '../components/VideoPlayer';
 import { HERO_CAROUSELS, VIDEO } from '../lib/media';
 import { supabase } from '../lib/supabase';
 import { fetchApplications, updateApplicationStatus as updateAppStatus } from '../lib/supabaseQueries';
+import type { Job } from '../lib/supabase';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 
@@ -40,17 +41,48 @@ export default function Recruiter() {
   const { openModal } = useModal();
   const { openProtectedModal } = useAuthRequired();
   const { user, subscription } = useAuth();
+  const navigate = useNavigate();
   const [activeFilters, setActiveFilters] = useState({
-    experience: [] as string[],
     jobType: [] as string[],
     location: [] as string[],
   });
 
+  // Real jobs from database
+  const [myJobs, setMyJobs] = useState<Job[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+
+  async function fetchMyJobs() {
+    if (!user?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('recruiter_id', user.id)
+        .order('created_at', { ascending: false });
+      if (!error && data) setMyJobs(data);
+    } catch (e) {
+      console.error('fetch my jobs error', e);
+    } finally {
+      setJobsLoading(false);
+    }
+  }
+
+  useEffect(() => { fetchMyJobs(); }, [user?.id]);
+
+  // Refresh when jobs are posted
+  useEffect(() => {
+    const handler = () => fetchMyJobs();
+    window.addEventListener('jobs:updated', handler);
+    return () => window.removeEventListener('jobs:updated', handler);
+  }, [user?.id]);
+
+  const totalApplicants = myJobs.reduce((sum, j) => sum + (j.applications_count || 0), 0);
+
   const stats = [
-    { label: 'Active Jobs', value: '47', icon: Briefcase, color: 'bg-blue-50 text-blue-700' },
-    { label: 'Candidates', value: '234', icon: Users, color: 'bg-emerald-50 text-emerald-700' },
-    { label: 'Interviews', value: '12', icon: Calendar, color: 'bg-amber-50 text-amber-700' },
-    { label: 'Offers', value: '8', icon: Award, color: 'bg-rose-50 text-rose-700' },
+    { label: 'Active Jobs', value: String(myJobs.filter(j => j.is_active).length), icon: Briefcase, color: 'bg-blue-50 text-blue-700' },
+    { label: 'Candidates', value: String(totalApplicants), icon: Users, color: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Views', value: String(myJobs.reduce((sum, j) => sum + (j.views || 0), 0)), icon: Eye, color: 'bg-amber-50 text-amber-700' },
+    { label: 'Total Posts', value: String(myJobs.length), icon: Award, color: 'bg-rose-50 text-rose-700' },
   ];
 
   // AI JD Generator state
@@ -97,35 +129,17 @@ export default function Recruiter() {
     ? applications
     : applications.filter(a => a.status === statusFilter)
   ).filter(app => {
-    const expMatch = activeFilters.experience.length === 0 || activeFilters.experience.includes(mapExperience(parseInt(app.years_of_experience) || 0));
     const typeMatch = activeFilters.jobType.length === 0 || activeFilters.jobType.includes(app.work_type);
     const locMatch = activeFilters.location.length === 0 || activeFilters.location.includes(app.location);
-    return expMatch && typeMatch && locMatch;
+    return typeMatch && locMatch;
   });
 
-  const jobs = [
-    { title: 'Senior React Engineer', applicants: 42, matches: 8, type: 'Full-time', location: 'Remote', experience: 'Senior' },
-    { title: 'Product Manager', applicants: 31, matches: 5, type: 'Full-time', location: 'Hybrid', experience: 'Mid' },
-    { title: 'Data Scientist', applicants: 67, matches: 12, type: 'Full-time', location: 'On-site', experience: 'Senior' },
-    { title: 'Junior Frontend Developer', applicants: 18, matches: 6, type: 'Full-time', location: 'Remote', experience: 'Junior' },
-    { title: 'UX Design Intern', applicants: 24, matches: 4, type: 'Internship', location: 'Remote', experience: 'Internship' },
-    { title: 'Part-time Content Writer', applicants: 12, matches: 3, type: 'Part-time', location: 'Remote', experience: 'Mid' },
-  ];
-
-  function mapExperience(years: number): string {
-    if (years <= 1) return 'Internship';
-    if (years <= 3) return 'Junior';
-    if (years <= 5) return 'Mid';
-    return 'Senior';
-  }
-
-  const filteredJobs = activeFilters.experience.length === 0 && activeFilters.jobType.length === 0 && activeFilters.location.length === 0
-    ? jobs
-    : jobs.filter(job => {
-        const expMatch = activeFilters.experience.length === 0 || activeFilters.experience.includes(job.experience);
+  const filteredJobs = activeFilters.jobType.length === 0 && activeFilters.location.length === 0
+    ? myJobs
+    : myJobs.filter(job => {
         const typeMatch = activeFilters.jobType.length === 0 || activeFilters.jobType.includes(job.type);
         const locMatch = activeFilters.location.length === 0 || activeFilters.location.includes(job.location);
-        return expMatch && typeMatch && locMatch;
+        return typeMatch && locMatch;
       });
 
   const candidates = [
@@ -279,29 +293,12 @@ export default function Recruiter() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-20">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold text-gray-900">Quick Filters</h3>
-                {(activeFilters.experience.length > 0 || activeFilters.jobType.length > 0 || activeFilters.location.length > 0) && (
-                  <button onClick={() => setActiveFilters({ experience: [], jobType: [], location: [] })}
+                {(activeFilters.jobType.length > 0 || activeFilters.location.length > 0) && (
+                  <button onClick={() => setActiveFilters({ jobType: [], location: [] })}
                     className="text-xs text-blue-700 hover:underline font-medium">
                     Clear all
                   </button>
                 )}
-              </div>
-
-              <div className="mb-6">
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">Experience Level</h4>
-                <div className="space-y-2">
-                  {['Internship', 'Junior', 'Mid', 'Senior'].map((level) => (
-                    <label key={level} className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={activeFilters.experience.includes(level)}
-                        onChange={() => toggleFilter('experience', level)}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-700 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-600">{level}</span>
-                    </label>
-                  ))}
-                </div>
               </div>
 
               <div className="mb-6">
@@ -471,8 +468,8 @@ export default function Recruiter() {
             <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-900">Active Job Postings ({filteredJobs.length})</h2>
-                {(activeFilters.experience.length > 0 || activeFilters.jobType.length > 0 || activeFilters.location.length > 0) && (
-                  <button onClick={() => setActiveFilters({ experience: [], jobType: [], location: [] })}
+                {(activeFilters.jobType.length > 0 || activeFilters.location.length > 0) && (
+                  <button onClick={() => setActiveFilters({ jobType: [], location: [] })}
                     className="text-xs text-blue-700 hover:underline font-medium">
                     Clear filters
                   </button>
@@ -480,66 +477,58 @@ export default function Recruiter() {
               </div>
 
               <div className="space-y-4 stagger-children stagger-visible">
-                {filteredJobs.length === 0 ? (
+                {jobsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : filteredJobs.length === 0 ? (
                   <div className="text-center py-8">
                     <Briefcase className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                    <p className="text-gray-500 font-medium">No jobs match selected filters</p>
+                    <p className="text-gray-500 font-medium">No jobs posted yet</p>
+                    <p className="text-sm text-gray-400 mt-1">Click "Post New Job" to create your first listing.</p>
                   </div>
                 ) : filteredJobs.map((job) => (
                   <Card3D
-                    key={job.title}
+                    key={job.id}
                     className="border border-gray-100 rounded-xl p-5 hover:shadow-md transition-shadow"
                     strength={6}
                   >
                     <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{job.title}</h3>
-                        <div className="flex gap-6 mt-2 text-sm text-gray-500">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-gray-900">{job.title}</h3>
+                          {job.is_featured && <span className="px-2 py-0.5 bg-pink-100 text-pink-700 text-[10px] font-semibold rounded-full">Featured</span>}
+                          {!job.is_active && <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-semibold rounded-full">Inactive</span>}
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">{job.company} · {job.location}</p>
+                        <div className="flex gap-4 mt-2 text-sm text-gray-500">
                           <span className="flex items-center gap-1">
                             <Users className="w-4 h-4" />
-                            {job.applicants} applicants
+                            {job.applications_count || 0} applicant{(job.applications_count || 0) !== 1 ? 's' : ''}
                           </span>
                           <span className="flex items-center gap-1">
-                            <CheckCircle className="w-4 h-4 text-emerald-600" />
-                            <span className="text-emerald-700 font-medium">{job.matches} matches</span>
+                            <Eye className="w-4 h-4" />
+                            {job.views || 0} views
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            {job.type}
                           </span>
                         </div>
+                        {job.salary_range && (
+                          <p className="text-xs font-medium text-green-700 mt-1.5">{job.salary_range}</p>
+                        )}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 ml-3">
                         <button
-                          onClick={() => handleScoreCandidates(job.title)}
-                          disabled={scoringJob === job.title}
-                          className="flex items-center gap-1.5 text-purple-700 font-medium text-sm px-3 py-1.5 rounded-lg border border-purple-200 hover:bg-purple-50 transition-colors"
+                          onClick={() => navigate(`/jobs?id=${job.id}`)}
+                          className="flex items-center gap-1.5 text-blue-700 font-medium text-sm px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors"
                         >
-                          <Sparkles className="w-4 h-4" />
-                          {scoringJob === job.title ? 'Scoring...' : 'AI Rank'}
-                        </button>
-                        <button className="flex items-center gap-1.5 text-gray-600 font-medium text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                          <Edit className="w-4 h-4" />
-                          Edit
+                          <ExternalLink className="w-4 h-4" />
+                          View
                         </button>
                       </div>
                     </div>
-
-                    {/* Scored candidates for this job */}
-                    {scoredCandidates.length > 0 && scoringJob !== job.title && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        <p className="text-xs font-semibold text-gray-500 mb-2">AI-Ranked Candidates</p>
-                        <div className="space-y-1.5">
-                          {scoredCandidates.map((c: any, i: number) => (
-                            <div key={c.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-400 w-4">{i + 1}.</span>
-                                <span className="text-sm font-medium text-gray-700">{c.name}</span>
-                              </div>
-                              <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${getMatchColor(c.match_score)}`}>
-                                {c.match_score}% match
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </Card3D>
                 ))}
               </div>

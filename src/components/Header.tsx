@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import {
   Bell, Menu, X, Briefcase, Home, Users, Wrench, BarChart3, CreditCard,
-  ChevronDown, Bookmark, MessageSquare, UserCircle, Star, Settings, HelpCircle,
-  Shield, LogOut, Sparkles, Flame,
+  ChevronDown, Bookmark, MessageSquare, UserCircle, Settings, HelpCircle,
+  Shield, LogOut,
 } from 'lucide-react';
 import JobBridgeLogo from './JobBridgeLogo';
 
@@ -33,7 +33,6 @@ export default function Header() {
   const { user, profile, isAuthenticated, savedJobs, signOut } = useAuth();
   const { openModal } = useModal();
   const location = useLocation();
-  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);

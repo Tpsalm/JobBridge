@@ -129,7 +129,7 @@ export const IMG = {
   ],
 } as const;
 
-/** High-quality free stock videos (Pixabay CDN — allows hotlinking) */
+/** High-quality free stock videos (Pixabay CDN + Pexels — allows hotlinking) */
 export const VIDEO = {
   howItWorks: {
     src: 'https://cdn.pixabay.com/video/2020/06/12/41820-431406508_large.mp4',
@@ -145,6 +145,50 @@ export const VIDEO = {
   },
 } as const;
 
+/**
+ * HD entrepreneurship videos for the homepage hero background carousel.
+ * Each video showcases a different small business / trade skill,
+ * rotating every 30 seconds with a smooth crossfade transition.
+ */
+export const ENTREPRENEURSHIP_VIDEOS = [
+  {
+    src: 'https://videos.pexels.com/video-files/6460111/6460111-hd_1920_1080_25fps.mp4',
+    poster: pexel(3756679, 1280, 720),
+    label: 'Fashion Design',
+    description: 'Tailoring & creative fashion entrepreneurship',
+  },
+  {
+    src: 'https://videos.pexels.com/video-files/9890450/9890450-hd_1920_1080_30fps.mp4',
+    poster: pexel(7575322, 1280, 720),
+    label: 'Plumbing',
+    description: 'Skilled plumbing & pipe fitting business',
+  },
+  {
+    src: 'https://videos.pexels.com/video-files/6790693/6790693-hd_1920_1080_25fps.mp4',
+    poster: pexel(3194519, 1280, 720),
+    label: 'Woodworking',
+    description: 'Carpentry & custom furniture craftsmanship',
+  },
+  {
+    src: 'https://videos.pexels.com/video-files/4631348/4631348-hd_1920_1080_25fps.mp4',
+    poster: pexel(5668855, 1280, 720),
+    label: 'Barber & Hairdressing',
+    description: 'Professional grooming & salon business',
+  },
+  {
+    src: 'https://cdn.pixabay.com/video/2021/03/08/67354-521707462_large.mp4',
+    poster: pexel(927022, 1280, 720),
+    label: 'Small Business',
+    description: 'Entrepreneurship & startup management',
+  },
+  {
+    src: 'https://videos.pexels.com/video-files/856171/856171-hd_1920_1080_30fps.mp4',
+    poster: pexel(3952020, 1280, 720),
+    label: 'Chef & Bakery',
+    description: 'Culinary arts & bakery business',
+  },
+] as const;
+
 /** High-quality Pexels face photos for testimonials / profile cards */
 export const TESTIMONIAL_AVATARS = [
   pexelFaces(774909),
@@ -158,7 +202,7 @@ export const TESTIMONIAL_AVATARS = [
 const COMPANY_DOMAINS: Record<string, string> = {
   flutterwave: 'flutterwave.com',
   andela: 'andela.com',
-  paystack: 'paystack.com',
+  korapay: 'korapay.com',
   'kuda bank': 'kudabank.com',
   kuda: 'kudabank.com',
   'mtn nigeria': 'mtn.com',
