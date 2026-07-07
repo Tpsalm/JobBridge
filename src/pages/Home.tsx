@@ -65,7 +65,7 @@ function HeroVideoBackground({ activeIdx }: { activeIdx: number }) {
   const nextIdx = (activeIdx + 1) % videos.length;
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-black">
+    <div className="absolute inset-0 overflow-hidden bg-black z-0">
       {/* All videos rendered — only active is visible via CSS opacity transition */}
       {videos.map((video, i) => (
         <video
@@ -77,8 +77,10 @@ function HeroVideoBackground({ activeIdx }: { activeIdx: number }) {
           muted
           loop={i === activeIdx}
           playsInline
-          preload={i === activeIdx || i === nextIdx ? 'auto' : 'none'}
+          disablePictureInPicture
+          preload={i === activeIdx || i === nextIdx ? 'auto' : 'metadata'}
           poster={video.poster}
+          style={{ willChange: 'opacity' }}
         >
           <source src={video.src} type="video/mp4" />
         </video>
@@ -96,7 +98,7 @@ export default function Home() {
   useEffect(() => {
     const timer = setInterval(() => {
       setHeroVideoIdx(i => (i + 1) % videos.length);
-    }, 30000);
+    }, 10000);
     return () => clearInterval(timer);
   }, []); // empty deps — functional updater ensures we always get latest state
 

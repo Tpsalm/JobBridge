@@ -328,7 +328,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
-        const fullMsg = error?.message || error?.error_description || JSON.stringify(error) || 'Signup failed';
+        // Extract a meaningful message from various error shapes
+        let fullMsg = error?.message || error?.error_description || '';
+        if (!fullMsg) {
+          try {
+            const str = JSON.stringify(error);
+            fullMsg = str && str !== '{}' ? str : 'Signup failed. Please try again or use a different email.';
+          } catch {
+            fullMsg = 'Signup failed. Please try again.';
+          }
+        }
         console.error('[AuthContext signUp] Supabase error:', error);
         return { error: new Error(fullMsg) };
       }
@@ -343,10 +352,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // If not auto-signed-in (email confirmation on), sign in manually
-      if (!data?.session && authUser) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) throw signInError;
+      // If no session returned (email confirmation required), return success with a note
+      if (!data?.session) {
+        if (authUser) {
+          // Email confirmation is enabled - user needs to confirm their email
+          return { error: null };
+        }
+        return { error: new Error('Could not create account. Please try again.') };
       }
 
       return { error: null };
