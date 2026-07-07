@@ -142,6 +142,11 @@ export default function Payment() {
     setPaying(true);
     setError('');
 
+    // Send payment initiated notification
+    if (user?.email) {
+      sendEmail({ type: 'payment_initiated', email: user.email, name: user.full_name || 'there', plan: plan.name, amount: String(plan.price) });
+    }
+
     const reference = 'JB-KORA-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';

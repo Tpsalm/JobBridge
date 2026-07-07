@@ -3,6 +3,8 @@ import { supabase, Profile, SubscriptionInfo, AiSubscriptionInfo } from '../lib/
 import { fetchUserApplications } from '../lib/supabaseQueries';
 import { sendEmail } from '../lib/email';
 
+const ADMIN_EMAIL = 'jobbridgesupport@gmail.com';
+
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 export type UserRole = 'recruiter' | 'provider' | 'job_seeker' | 'admin' | null;
@@ -335,6 +337,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authUser) {
         await createProfileRecord(authUser, fullName, role || 'job_seeker', company);
         sendEmail({ type: 'welcome', email, name: fullName });
+        // Notify admin when a recruiter signs up
+        if (role === 'recruiter') {
+          sendEmail({ type: 'new_recruiter', email: ADMIN_EMAIL, name: fullName });
+        }
       }
 
       // If not auto-signed-in (email confirmation on), sign in manually

@@ -109,6 +109,116 @@ function recruiterNotificationTemplate(jobTitle: string, applicantName: string):
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:10px;padding:14px 36px;"><a href="https://jobbridge.com.ng/dashboard" target="_blank" style="color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;">View Applications</a></td></tr></table></td></tr></table>`;
 }
 
+function statusDisplay(status: string): string {
+  switch (status) {
+    case 'shortlisted': return '— You\'ve Been Shortlisted! ⭐';
+    case 'rejected': return '— Update on Your Application';
+    case 'hired': return '— Congratulations! You\'re Hired! 🎉';
+    case 'reviewed': return '— Application Reviewed';
+    default: return '— Status Updated';
+  }
+}
+
+function applicationStatusTemplate(name: string, jobTitle: string, company: string, status: string): string {
+  const jt = jobTitle || 'a position';
+  const co = company || 'the company';
+  const st = status || 'updated';
+
+  let statusEmoji = '📋';
+  let statusColor = '#3b82f6';
+  let statusBg = '#eff6ff';
+  let statusBorder = '#bfdbfe';
+  let message = '';
+
+  switch (st) {
+    case 'shortlisted':
+      statusEmoji = '⭐';
+      statusColor = '#059669';
+      statusBg = '#f0fdf4';
+      statusBorder = '#bbf7d0';
+      message = 'Congratulations! The recruiter has shortlisted you for this position. You may be contacted for an interview shortly.';
+      break;
+    case 'reviewed':
+      statusEmoji = '👀';
+      statusColor = '#2563eb';
+      statusBg = '#eff6ff';
+      statusBorder = '#bfdbfe';
+      message = 'Your application has been reviewed by the recruiter. They will reach out if you are a match.';
+      break;
+    case 'rejected':
+      statusEmoji = '💡';
+      statusColor = '#dc2626';
+      statusBg = '#fef2f2';
+      statusBorder = '#fecaca';
+      message = 'Unfortunately, the recruiter has decided to move forward with other candidates for this position. Don\'t be discouraged — keep applying to other opportunities on JobBridge!';
+      break;
+    case 'hired':
+      statusEmoji = '🎉';
+      statusColor = '#059669';
+      statusBg = '#f0fdf4';
+      statusBorder = '#bbf7d0';
+      message = 'Congratulations! The recruiter has selected you for this position. You will be contacted with next steps to finalize your offer.';
+      break;
+    default:
+      message = `Your application status has been updated to: ${st}`;
+  }
+
+  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
+<div style="background:${statusBg};border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid ${statusBorder};">
+<p style="font-size:15px;color:${statusColor};margin:0 0 4px;font-weight:600;">${statusEmoji} Application ${st === 'hired' ? 'Successful' : st === 'rejected' ? 'Not Successful' : 'Status Updated'}</p>
+<p style="font-size:20px;font-weight:700;color:#111827;margin:8px 0;">${jt}</p>
+<p style="font-size:15px;color:#4b5563;margin:0;">${co}</p>
+<div style="margin-top:16px;padding-top:16px;border-top:1px solid ${statusBorder};">
+<p style="font-size:15px;color:#374151;line-height:1.7;margin:0;">${message}</p>
+</div>
+</div>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:10px;padding:14px 36px;"><a href="https://jobbridge.com.ng/my-jobs" target="_blank" style="color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;">View My Applications</a></td></tr></table></td></tr></table>
+<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:20px 0 0;">Keep your JobBridge profile updated and continue exploring other opportunities.</p>`;
+}
+
+function paymentInitiatedTemplate(name: string, plan: string, amount: string): string {
+  const pn = plan || 'Plan';
+  const am = amount || '0';
+  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
+<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 24px;">You've initiated a payment for the following plan on JobBridge:</p>
+<div style="background:#fffbeb;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #fde68a;">
+<p style="font-size:15px;color:#92400e;margin:0 0 4px;font-weight:600;">💳 Payment Initiated</p>
+<p style="font-size:20px;font-weight:700;color:#111827;margin:8px 0;">${pn}</p>
+<p style="font-size:15px;color:#4b5563;margin:0;">Amount: <strong>NGN ${am}</strong></p>
+</div>
+<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Please complete the checkout process to activate your plan. If you did not initiate this payment, please contact us immediately at <a href="mailto:jobbridgesupport@gmail.com" style="color:#1d4ed8;text-decoration:underline;">jobbridgesupport@gmail.com</a>.</p>
+<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">This is an automated notification. No action is needed if you are already completing the payment.</p>`;
+}
+
+function newRecruiterTemplate(name: string, recruiterEmail: string): string {
+  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi Admin,</p>
+<div style="background:#fefce8;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #fde68a;">
+<p style="font-size:15px;color:#92400e;margin:0 0 4px;font-weight:600;">👤 New Recruiter Registration</p>
+<p style="font-size:18px;font-weight:700;color:#111827;margin:8px 0;">${name}</p>
+<p style="font-size:15px;color:#4b5563;margin:0;">Email: <strong>${recruiterEmail}</strong></p>
+</div>
+<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">A new recruiter has just signed up on JobBridge. You may want to review their account and reach out to assist them with getting started.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:10px;padding:14px 36px;"><a href="https://jobbridge.com.ng/admin" target="_blank" style="color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;">View Admin Dashboard</a></td></tr></table></td></tr></table>`;
+}
+
+function jobPostedTemplate(name: string, jobTitle: string, company: string): string {
+  const jt = jobTitle || 'a position';
+  const co = company || 'your company';
+  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
+<div style="background:#f0fdf4;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #bbf7d0;">
+<p style="font-size:15px;color:#166534;margin:0 0 4px;font-weight:600;">✅ Job Posted Successfully</p>
+<p style="font-size:20px;font-weight:700;color:#111827;margin:8px 0;">${jt}</p>
+<p style="font-size:15px;color:#4b5563;margin:0;">${co}</p>
+</div>
+<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Your job has been published on JobBridge and is now visible to thousands of job seekers.</p>
+<div style="background:#f8fafc;border-radius:12px;padding:24px;margin-bottom:24px;">
+<p style="font-size:14px;font-weight:600;color:#111827;margin:0 0 12px;">📊 What happens next</p>
+<p style="font-size:14px;color:#4b5563;margin:0;line-height:1.6;">• Candidates will start applying to your position<br>• You'll receive email notifications for new applications<br>• Review and shortlist candidates from your dashboard<br>• Use AI-powered candidate ranking to find the best match</p>
+</div>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:10px;padding:14px 36px;"><a href="https://jobbridge.com.ng/recruiter" target="_blank" style="color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;">Manage Job Postings</a></td></tr></table></td></tr></table>
+<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:20px 0 0;">Good luck finding the perfect candidate! 🎯</p>`;
+}
+
 function paymentTemplate(name: string, plan: string, amount: string): string {
   const pn = plan || 'Plan';
   const am = amount || '0';
@@ -145,7 +255,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid email format' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment'];
+    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted'];
     if (!VALID_TYPES.includes(type)) {
       return new Response(JSON.stringify({ error: `Unknown email type: ${type}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -173,6 +283,22 @@ serve(async (req) => {
       case 'payment':
         subject = `Payment Confirmed — ${sanitize(plan, MAX_STR_LENGTH) || 'Plan'} Activated 🎉`;
         htmlBody = paymentTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(plan, MAX_STR_LENGTH), sanitize(amount, MAX_STR_LENGTH));
+        break;
+      case 'payment_initiated':
+        subject = 'Payment Initiated — JobBridge';
+        htmlBody = paymentInitiatedTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(plan, MAX_STR_LENGTH), sanitize(amount, MAX_STR_LENGTH));
+        break;
+      case 'application_status':
+        subject = `Application Update: ${sanitize(jobTitle, MAX_STR_LENGTH) || 'Your Application'} ${statusDisplay(sanitize(status, MAX_STR_LENGTH))}`;
+        htmlBody = applicationStatusTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(jobTitle, MAX_STR_LENGTH), sanitize(company, MAX_STR_LENGTH), sanitize(status, MAX_STR_LENGTH));
+        break;
+      case 'new_recruiter':
+        subject = `New Recruiter Signup: ${sanitize(name, MAX_NAME_LENGTH)}`;
+        htmlBody = newRecruiterTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(email, MAX_EMAIL_LENGTH));
+        break;
+      case 'job_posted':
+        subject = `Job Posted Successfully: ${sanitize(jobTitle, MAX_STR_LENGTH) || 'Your Job'} 🎉`;
+        htmlBody = jobPostedTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(jobTitle, MAX_STR_LENGTH), sanitize(company, MAX_STR_LENGTH));
         break;
     }
 

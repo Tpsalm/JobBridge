@@ -2,6 +2,7 @@ import { useModal } from '../contexts/ModalContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { createJob, createApplication, decrementCredits } from '../lib/supabaseQueries';
+import { sendEmail } from '../lib/email';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building, Wrench, ArrowRight, BadgeCheck, Loader2, CheckCircle, Mail, Eye, EyeOff } from 'lucide-react';
@@ -197,6 +198,10 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
                   }
                   try { window.dispatchEvent(new CustomEvent('jobs:updated')); } catch (e) { console.warn('Failed to dispatch jobs:updated event', e); }
                   await fetchSubscription();
+                  // Send job posted confirmation email
+                  if (user?.email) {
+                    sendEmail({ type: 'job_posted', email: user.email, name: profile?.full_name || 'there', jobTitle: form.title, company: form.company });
+                  }
                   setSubmitted(true);
                 } catch (err) {
                   console.error('Post job error', err);

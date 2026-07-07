@@ -33,6 +33,7 @@ import VideoPlayer from '../components/VideoPlayer';
 import { HERO_CAROUSELS, VIDEO } from '../lib/media';
 import { supabase } from '../lib/supabase';
 import { fetchApplications, updateApplicationStatus as updateAppStatus } from '../lib/supabaseQueries';
+import { sendEmail } from '../lib/email';
 import type { Job } from '../lib/supabase';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
@@ -120,6 +121,18 @@ export default function Recruiter() {
       await updateAppStatus(appId, status);
       setApplications(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
       if (selectedApp?.id === appId) setSelectedApp({ ...selectedApp, status });
+      // Send status update email to applicant
+      const app = applications.find(a => a.id === appId);
+      if (app?.applicant?.email) {
+        sendEmail({
+          type: 'application_status',
+          email: app.applicant.email,
+          name: app.applicant.full_name || 'there',
+          jobTitle: app.job?.title,
+          company: app.job?.company,
+          status,
+        });
+      }
     } catch (e) {
       console.error('update status error', e);
     }
