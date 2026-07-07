@@ -339,6 +339,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
+        // 🐛 DEBUG: Log the raw error shape to identify what's actually coming back
+        console.log('[AuthContext signUp] RAW ERROR:', error);
+        console.log('[AuthContext signUp] typeof error:', typeof error);
+        console.log('[AuthContext signUp] error.constructor.name:', (error as any)?.constructor?.name);
+        console.log('[AuthContext signUp] error keys:', Object.keys(error as object));
+        console.log('[AuthContext signUp] error.message:', (error as any)?.message);
+        console.log('[AuthContext signUp] JSON.stringify:', JSON.stringify(error));
+        console.log('[AuthContext signUp] error.name:', (error as any)?.name);
+        console.log('[AuthContext signUp] error.status:', (error as any)?.status);
+        console.log('[AuthContext signUp] error.code:', (error as any)?.code);
+        console.log('[AuthContext signUp] error.__isAuthError:', (error as any)?.__isAuthError);
+
         // Extract a meaningful message — Supabase AuthApiError is a class instance,
         // JSON.stringify() returns '{}' on class instances. Always use .message first.
         let fullMsg = '';
@@ -352,6 +364,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fullMsg = String((error as any).msg);
         } else if ((error as any)?.status) {
           fullMsg = `Signup failed (status ${(error as any).status}). Please try again.`;
+        } else if (typeof error === 'object' && error !== null) {
+          // Last resort: try to stringify to debug unexpected error shapes
+          try {
+            const serialized = JSON.stringify(error);
+            if (serialized && serialized !== '{}') {
+              fullMsg = serialized;
+            } else {
+              fullMsg = 'Signup failed. Please try again or use a different email.';
+            }
+          } catch {
+            fullMsg = 'Signup failed. Please try again or use a different email.';
+          }
         } else {
           fullMsg = 'Signup failed. Please try again or use a different email.';
         }
@@ -402,6 +426,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         msg = error.message;
       } else if (typeof error === 'string') {
         msg = error;
+      } else if (typeof error === 'object' && error !== null) {
+        // Last resort: try to stringify the error object to see what it contains
+        try {
+          const serialized = JSON.stringify(error);
+          if (serialized && serialized !== '{}') {
+            msg = serialized;
+          } else {
+            msg = 'Failed to create account. Please try again.';
+          }
+        } catch {
+          msg = 'Failed to create account. Please try again.';
+        }
       } else {
         msg = 'Failed to create account. Please try again.';
       }

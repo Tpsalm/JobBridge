@@ -1188,7 +1188,7 @@ function SignupModal({ data, onClose }: { data: { pendingAction?: string; requir
             </div>
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {error}
+                {typeof error === 'string' ? error : "An error occurred. Please try again."}
               </div>
             )}
             <button

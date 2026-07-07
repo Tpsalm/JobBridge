@@ -71,6 +71,15 @@ export default function Signup() {
             msg = errObj.error_description.trim();
           } else if (typeof errObj === 'string' && errObj.trim()) {
             msg = errObj.trim();
+          } else if (typeof errObj === 'object' && errObj !== null) {
+            try {
+              const serialized = JSON.stringify(errObj);
+              if (serialized && serialized !== '{}') {
+                msg = serialized;
+              }
+            } catch {
+              // fall through to default
+            }
           }
           
           console.error("[Signup Error]", signupErr);
@@ -122,6 +131,15 @@ export default function Signup() {
           errorMessage = errObj.error_description.trim();
         } else if (typeof errObj === 'string' && errObj.trim()) {
           errorMessage = errObj.trim();
+        } else if (typeof errObj === 'object' && errObj !== null) {
+          try {
+            const serialized = JSON.stringify(errObj);
+            if (serialized && serialized !== '{}') {
+              errorMessage = serialized;
+            }
+          } catch {
+            // fall through to default
+          }
         }
         
         setError(errorMessage);
