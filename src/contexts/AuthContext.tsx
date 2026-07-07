@@ -339,73 +339,139 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
-        // 🐛 DEBUG: Log the raw error shape to identify what's actually coming back
-        console.log('[AuthContext signUp] RAW ERROR:', error);
-        console.log('[AuthContext signUp] typeof error:', typeof error);
-        console.log('[AuthContext signUp] error.constructor.name:', (error as any)?.constructor?.name);
-        console.log('[AuthContext signUp] error keys:', Object.keys(error as object));
-        console.log('[AuthContext signUp] error.message:', (error as any)?.message);
-        console.log('[AuthContext signUp] error.message.length:', (error as any)?.message?.length);
-        console.log('[AuthContext signUp] error.message type:', typeof (error as any)?.message);
-        console.log('[AuthContext signUp] JSON.stringify:', JSON.stringify(error));
-        console.log('[AuthContext signUp] error.name:', (error as any)?.name);
-        console.log('[AuthContext signUp] error.status:', (error as any)?.status);
-        console.log('[AuthContext signUp] error.code:', (error as any)?.code);
-        console.log('[AuthContext signUp] error.__isAuthError:', (error as any)?.__isAuthError);
+        // Debug: capture full error shape for diagnostics
+        console.log('[Auth signUp] name:', (error as any)?.name);
+        console.log('[Auth signUp] message:', (error as any)?.message);
+        console.log('[Auth signUp] status:', (error as any)?.status);
+        console.log('[Auth signUp] code:', (error as any)?.code);
+        console.log('[Auth signUp] __isAuthError:', (error as any)?.__isAuthError);
 
-        // Extract a meaningful message — Supabase AuthApiError is a class instance,
-        // JSON.stringify() returns '{}' on class instances. Always use .message first.
         let fullMsg = '';
+        const errName = (error as any)?.name || '';
+        const errMessage: string = (error as any)?.message ?? '';
+        const errStatus = (error as any)?.status;
+        const errCode = (error as any)?.code;
+        const strMessage = typeof errMessage === 'string' ? errMessage : '';
 
-        // Specific error types first
-        const errorName = (error as any)?.name || (error as any)?.constructor?.name || '';
-        const errorStatus = (error as any)?.status;
+        // ── Handle by error type (class name) ──
 
-        if (errorName === 'AuthRetryableFetchError') {
-          fullMsg = 'Network error. Please check your internet connection and try again.';
-        } else if (error?.message !== undefined && error?.message !== null && typeof error.message === 'string' && error.message.trim()) {
-          fullMsg = error.message.trim();
-        } else if (error?.message !== undefined && error?.message !== null && typeof error.message === 'string' && !error.message.trim()) {
-          // Message is an empty string — use the error name for context
-          if (errorName && errorName !== 'Error') {
-            fullMsg = 'Signup service unavailable. Please try again later.';
+        // AuthRetryableFetchError: network failure, DNS, timeout, CORS
+        // Has empty .message and status=0 when network is down
+        if (errName === 'AuthRetryableFetchError') {
+          if (errStatus === 0 || errStatus === undefined) {
+            fullMsg = 'Unable to reach the authentication service. Please check your internet connection and try again.';
+          } else if (errStatus === 429) {
+            fullMsg = 'Too many signup attempts. Please wait a few minutes and try again.';
           } else {
-            fullMsg = 'Signup failed. Please try again or use a different email.';
+            fullMsg = 'Authentication service temporarily unavailable. Please try again later.';
           }
-        } else if ((error as any)?.error_description) {
-          fullMsg = String((error as any).error_description);
-        } else if ((error as any)?.msg) {
-          fullMsg = String((error as any).msg);
-        } else if (errorStatus !== undefined && errorStatus !== null) {
-          fullMsg = `Signup failed (status ${errorStatus}). Please try again.`;
-        } else if (typeof error === 'object' && error !== null) {
-          // Last resort: try to stringify to debug unexpected error shapes
-          try {
-            const serialized = JSON.stringify(error);
-            if (serialized && serialized !== '{}') {
-              fullMsg = serialized;
-            } else {
-              fullMsg = 'Signup failed. Please try again or use a different email.';
-            }
-          } catch {
-            fullMsg = 'Signup failed. Please try again or use a different email.';
+
+        // AuthWeakPasswordError: password didn't meet requirements
+        // Has .message, .status (400), and .reasons array
+        } else if (errName === 'AuthWeakPasswordError') {
+          const reasons = (error as any)?.reasons;
+          if (Array.isArray(reasons) && reasons.length > 0) {
+            fullMsg = 'Password is too weak: ' + reasons.join(', ') + '.';
+          } else if (strMessage.trim()) {
+            fullMsg = strMessage.trim();
+          } else {
+            fullMsg = 'Password does not meet the minimum requirements. Please choose a stronger password.';
           }
-        } else {
+
+        // AuthInvalidCredentialsError: wrong email or password format
+        } else if (errName === 'AuthInvalidCredentialsError') {
+          fullMsg = strMessage.trim() || 'Invalid email or password format.';
+
+        // AuthSessionMissingError: no session found
+        } else if (errName === 'AuthSessionMissingError') {
+          fullMsg = 'Your session has expired. Please sign in again.';
+
+        // AuthInvalidJwtError: JWT token is invalid
+        } else if (errName === 'AuthInvalidJwtError') {
+          fullMsg = 'Authentication token is invalid. Please sign in again.';
+
+        // AuthInvalidTokenResponseError: invalid token response from server
+        } else if (errName === 'AuthInvalidTokenResponseError') {
+          fullMsg = 'Invalid response from authentication server. Please try again.';
+
+        // AuthImplicitGrantRedirectError / AuthPKCEGrantCodeExchangeError:
+        // OAuth / PKCE flow errors (not used in email/password signup but handled for completeness)
+        } else if (errName === 'AuthImplicitGrantRedirectError' || errName === 'AuthPKCEGrantCodeExchangeError') {
+          fullMsg = 'Authentication flow error. Please try signing up again.';
+
+        // AuthUnknownError: unexpected errors (has .originalError property)
+        } else if (errName === 'AuthUnknownError') {
+          fullMsg = 'An unexpected authentication error occurred. Please try again.';
+
+        // AuthApiError: error returned by the Supabase Auth API
+        // Has .message, .status (HTTP code), and .code (error code string)
+        } else if (errName === 'AuthApiError' || (error as any)?.__isAuthError) {
+          // Use the message from the API
+          if (strMessage.trim()) {
+            fullMsg = strMessage.trim();
+          } else if (errStatus) {
+            fullMsg = `Signup failed (status ${errStatus}). Please try again.`;
+          }
+
+        }
+
+        // ── Fallback: try common error shapes ──
+        if (!fullMsg) {
+          if (strMessage.trim()) {
+            fullMsg = strMessage.trim();
+          } else if ((error as any)?.error_description) {
+            fullMsg = String((error as any).error_description);
+          } else if ((error as any)?.msg) {
+            fullMsg = String((error as any).msg);
+          } else if (errStatus !== undefined && errStatus !== null) {
+            fullMsg = `Signup failed (status ${errStatus}). Please try again.`;
+          } else if (typeof error === 'object' && error !== null) {
+            try {
+              const serialized = JSON.stringify(error);
+              if (serialized && serialized !== '{}') {
+                fullMsg = serialized;
+              }
+            } catch { /* fall through */ }
+          }
+        }
+
+        // ── Last resort: never show empty/raw object ──
+        if (!fullMsg || fullMsg === '{}' || fullMsg === '[object Object]') {
           fullMsg = 'Signup failed. Please try again or use a different email.';
         }
 
-        // Make common Supabase error codes human-readable
+        // ── Human-friendly message overrides (keyword-based) ──
         const lowerMsg = fullMsg.toLowerCase();
         if (lowerMsg.includes('user already registered') || lowerMsg.includes('already been registered')) {
           fullMsg = 'An account with this email already exists. Please sign in instead.';
         } else if (lowerMsg.includes('invalid email')) {
           fullMsg = 'Please enter a valid email address.';
-        } else if (lowerMsg.includes('password should be at least')) {
-          fullMsg = 'Password must be at least 6 characters long.';
+        } else if (lowerMsg.includes('password should be at least') || lowerMsg.includes('password is too weak') || lowerMsg.includes('weak password')) {
+          fullMsg = 'Password must be at least 6 characters long and meet the requirements.';
         } else if (lowerMsg.includes('signup is disabled') || lowerMsg.includes('signups not allowed')) {
           fullMsg = 'New account registration is temporarily disabled. Please contact support.';
         } else if (lowerMsg.includes('email rate limit') || lowerMsg.includes('too many requests')) {
           fullMsg = 'Too many signup attempts. Please wait a few minutes and try again.';
+        } else if (lowerMsg.includes('network') || lowerMsg.includes('fetch') || lowerMsg.includes('connection') || lowerMsg.includes('unreachable')) {
+          fullMsg = 'Unable to connect to the authentication service. Please check your internet connection and try again.';
+        }
+
+        // ── Error code-based overrides (Supabase API error codes) ──
+        if (errCode && typeof errCode === 'string') {
+          const codeMap: Record<string, string> = {
+            email_exists: 'An account with this email already exists. Please sign in instead.',
+            user_already_exists: 'An account with this email already exists. Please sign in instead.',
+            over_email_send_rate_limit: 'Too many email verification attempts. Please wait a few minutes.',
+            over_request_rate_limit: 'Too many attempts. Please wait a few minutes and try again.',
+            signups_disabled: 'New account registration is temporarily disabled. Please contact support.',
+            validation_error: 'Please check your input and try again.',
+            invalid_credentials: 'Invalid email or password format.',
+            bad_json: 'There was a problem with the signup request. Please try again.',
+          };
+          const codeKey = errCode.toLowerCase();
+          if (codeMap[codeKey]) {
+            fullMsg = codeMap[codeKey];
+          }
         }
 
         console.error('[AuthContext signUp] Supabase error:', error);
