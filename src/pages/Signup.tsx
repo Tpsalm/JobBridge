@@ -61,10 +61,19 @@ export default function Signup() {
           formData.company,
         );
         if (signupErr) {
-          const msg =
-            signupErr?.message && typeof signupErr.message === 'string' && signupErr.message.trim()
-              ? signupErr.message.trim()
-              : 'Failed to create account. Please try again.';
+          let msg = 'Failed to create account. Please try again.';
+          
+          // Extract meaningful error message
+          if (signupErr && typeof signupErr === 'object') {
+            if (typeof signupErr.message === 'string' && signupErr.message.trim()) {
+              msg = signupErr.message.trim();
+            } else if (typeof signupErr.error_description === 'string' && signupErr.error_description.trim()) {
+              msg = signupErr.error_description.trim();
+            }
+          } else if (typeof signupErr === 'string' && signupErr.trim()) {
+            msg = signupErr.trim();
+          }
+          
           console.error("[Signup Error]", signupErr);
           setError(msg);
           window.dispatchEvent(
@@ -103,7 +112,20 @@ export default function Signup() {
         }
       } catch (e: any) {
         console.error("[Signup Exception]", e);
-        setError(e?.message || String(e) || "An unexpected error occurred");
+        let errorMessage = "An unexpected error occurred";
+        
+        // Extract meaningful error message
+        if (e && typeof e === 'object') {
+          if (typeof e.message === 'string' && e.message.trim()) {
+            errorMessage = e.message.trim();
+          } else if (typeof e.error_description === 'string' && e.error_description.trim()) {
+            errorMessage = e.error_description.trim();
+          }
+        } else if (typeof e === 'string' && e.trim()) {
+          errorMessage = e.trim();
+        }
+        
+        setError(errorMessage);
         setLoading(false);
       }
     })();
@@ -533,7 +555,7 @@ export default function Signup() {
 
               {error !== null && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  {error || "An error occurred. Please try again."}
+                  {typeof error === 'string' ? error : "An error occurred. Please try again."}
                 </div>
               )}
 
