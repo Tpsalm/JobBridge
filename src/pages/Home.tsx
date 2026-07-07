@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
@@ -59,26 +59,39 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
   );
 }
 
-/** Rotating HD video background for the hero section — all videos rendered with CSS crossfade */
+/** Rotating HD video background for the hero section — all videos with ref-based programmatic playback */
 function HeroVideoBackground({ activeIdx }: { activeIdx: number }) {
   const videos = ENTREPRENEURSHIP_VIDEOS;
-  const nextIdx = (activeIdx + 1) % videos.length;
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+
+  // Programmatically play active video, pause others
+  useEffect(() => {
+    videoRefs.current.forEach((video, i) => {
+      if (!video) return;
+      if (i === activeIdx) {
+        video.currentTime = 0;
+        video.play().catch(() => {
+          // Autoplay may be blocked on first visit; user interaction will unblock
+        });
+      } else {
+        video.pause();
+      }
+    });
+  }, [activeIdx]);
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black z-0">
-      {/* All videos rendered — only active is visible via CSS opacity transition */}
       {videos.map((video, i) => (
         <video
           key={i}
+          ref={el => { videoRefs.current[i] = el; }}
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
             i === activeIdx ? 'opacity-100' : 'opacity-0'
           }`}
-          autoPlay={i === activeIdx}
           muted
-          loop={i === activeIdx}
           playsInline
           disablePictureInPicture
-          preload={i === activeIdx || i === nextIdx ? 'auto' : 'metadata'}
+          preload={i === activeIdx ? 'auto' : 'metadata'}
           poster={video.poster}
           style={{ willChange: 'opacity' }}
         >

@@ -24,7 +24,15 @@ export default function Login() {
     const { error } = await signIn(email, password);
     setLoading(false);
     if (error) {
-      window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: error.message || 'Sign in failed', type: 'error' } }));
+      const msg = error.message?.toLowerCase?.() || '';
+      let displayMsg = error.message || 'Sign in failed';
+      // Make email confirmation errors clearer
+      if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
+        displayMsg = 'Please confirm your email first. Check your inbox for the confirmation link, then try signing in.';
+      } else if (msg.includes('invalid login credentials')) {
+        displayMsg = 'Invalid email or password. Please check and try again.';
+      }
+      window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: displayMsg, type: 'error' } }));
       return;
     }
     window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Signed in', type: 'success' } }));

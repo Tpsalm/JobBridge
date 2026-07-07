@@ -11,12 +11,13 @@ import {
   EyeOff,
   User,
   Lock,
+  Mail,
 } from "lucide-react";
 import JobBridgeLogo from "../components/JobBridgeLogo";
 import { checkRateLimit } from "../lib/security";
 
 export default function Signup() {
-  const { signUp } = useAuth();
+  const { signUp, session } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState<"role" | "form">("role");
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
@@ -31,6 +32,7 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setStep("form");
@@ -51,17 +53,17 @@ export default function Signup() {
       setLoading(true);
       setError(null);
       try {
-        const { error } = await signUp(
+        const { error: signupErr, session: newSession } = await signUp(
           formData.email,
           formData.password,
           formData.name,
           selectedRole,
           formData.company,
         );
-        if (error) {
+        if (signupErr) {
           const msg =
-            error?.message || String(error) || "Failed to create account";
-          console.error("[Signup Error]", error);
+            signupErr?.message || String(signupErr) || "Failed to create account";
+          console.error("[Signup Error]", signupErr);
           setError(msg);
           window.dispatchEvent(
             new CustomEvent("jobbridge:toast", {
@@ -71,15 +73,32 @@ export default function Signup() {
           setLoading(false);
           return;
         }
-        navigate("/profile");
-        window.dispatchEvent(
-          new CustomEvent("jobbridge:toast", {
-            detail: {
-              message: "Account created! Complete your profile to get started.",
-              type: "success",
-            },
-          }),
-        );
+
+        // Check if session exists (email confirmation may be required)
+        if (newSession || session) {
+          // User is signed in — redirect to profile
+          navigate("/profile");
+          window.dispatchEvent(
+            new CustomEvent("jobbridge:toast", {
+              detail: {
+                message: "Account created! Complete your profile to get started.",
+                type: "success",
+              },
+            }),
+          );
+        } else {
+          // Email confirmation required — show check-email message
+          setEmailSent(true);
+          setLoading(false);
+          window.dispatchEvent(
+            new CustomEvent("jobbridge:toast", {
+              detail: {
+                message: "Account created! Check your email for the confirmation link.",
+                type: "success",
+              },
+            }),
+          );
+        }
       } catch (e: any) {
         console.error("[Signup Exception]", e);
         setError(e?.message || String(e) || "An unexpected error occurred");
@@ -268,6 +287,50 @@ export default function Signup() {
                 <Lock className="w-3 h-3" /> Admin access
               </button>
             </div>
+          </div>
+        ) : emailSent ? (
+          /* Email Confirmation View */
+          <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-10 text-center">
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Mail className="w-10 h-10 text-blue-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+            <p className="text-gray-500 mb-2">
+              We sent a confirmation link to
+            </p>
+            <p className="font-semibold text-gray-900 mb-6">{formData.email}</p>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-left">
+              <h3 className="font-semibold text-sm text-blue-800 mb-2">What happens next?</h3>
+              <ol className="space-y-2 text-sm text-blue-700">
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">1.</span>
+                  <span>Open the email we just sent you</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">2.</span>
+                  <span>Click the <strong>Confirm your email</strong> button in the email</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold">3.</span>
+                  <span>Return here and <strong>Sign in</strong> with your password</span>
+                </li>
+              </ol>
+            </div>
+            <p className="text-xs text-gray-400 mb-6">
+              Didn't receive the email? Check your spam folder or try a different email address.
+            </p>
+            <button
+              onClick={() => navigate("/login")}
+              className="w-full bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition mb-3"
+            >
+              Go to Sign In
+            </button>
+            <button
+              onClick={() => { setEmailSent(false); setStep("form"); }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700"
+            >
+              Use a different email
+            </button>
           </div>
         ) : (
           /* Signup Form */

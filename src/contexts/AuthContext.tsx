@@ -23,7 +23,7 @@ interface AuthContextType {
   appliedJobs: string[];
   toggleSaveJob: (jobId: string) => void;
   markApplied: (jobId: string) => void;
-  signUp: (email: string, password: string, fullName: string, role: UserRole, company?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, role: UserRole, company?: string) => Promise<{ error: Error | null; session: any | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -42,7 +42,7 @@ const AuthContext = createContext<AuthContextType>({
   appliedJobs: [],
   toggleSaveJob: () => {},
   markApplied: () => {},
-  signUp: async () => ({ error: null }),
+  signUp: async () => ({ error: null, session: null }),
   signIn: async () => ({ error: null }),
   signOut: async () => {},
 });
@@ -339,10 +339,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         console.error('[AuthContext signUp] Supabase error:', error);
-        return { error: new Error(fullMsg) };
+        return { error: new Error(fullMsg), session: null };
       }
 
       const authUser = data?.user;
+      const newSession = data?.session || null;
+
       if (authUser) {
         await createProfileRecord(authUser, fullName, role || 'job_seeker', company);
         sendEmail({ type: 'welcome', email, name: fullName });
@@ -352,19 +354,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // If no session returned (email confirmation required), return success with a note
-      if (!data?.session) {
+      // If no session returned (email confirmation required), return success with null session
+      if (!newSession) {
         if (authUser) {
-          // Email confirmation is enabled - user needs to confirm their email
-          return { error: null };
+          return { error: null, session: null };
         }
-        return { error: new Error('Could not create account. Please try again.') };
+        return { error: new Error('Could not create account. Please try again.'), session: null };
       }
 
-      return { error: null };
+      return { error: null, session: newSession };
     } catch (error: any) {
       const msg = error?.message || error?.error_description || error?.toString() || 'Failed to create account. Please try again.';
-      return { error: new Error(msg) };
+      return { error: new Error(msg), session: null };
     }
   };
 
