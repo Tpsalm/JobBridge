@@ -345,6 +345,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('[AuthContext signUp] error.constructor.name:', (error as any)?.constructor?.name);
         console.log('[AuthContext signUp] error keys:', Object.keys(error as object));
         console.log('[AuthContext signUp] error.message:', (error as any)?.message);
+        console.log('[AuthContext signUp] error.message.length:', (error as any)?.message?.length);
+        console.log('[AuthContext signUp] error.message type:', typeof (error as any)?.message);
         console.log('[AuthContext signUp] JSON.stringify:', JSON.stringify(error));
         console.log('[AuthContext signUp] error.name:', (error as any)?.name);
         console.log('[AuthContext signUp] error.status:', (error as any)?.status);
@@ -355,15 +357,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // JSON.stringify() returns '{}' on class instances. Always use .message first.
         let fullMsg = '';
 
-        // Supabase AuthApiError always has a .message string
-        if (error?.message && typeof error.message === 'string' && error.message.trim()) {
+        // Specific error types first
+        const errorName = (error as any)?.name || (error as any)?.constructor?.name || '';
+        const errorStatus = (error as any)?.status;
+
+        if (errorName === 'AuthRetryableFetchError') {
+          fullMsg = 'Network error. Please check your internet connection and try again.';
+        } else if (error?.message !== undefined && error?.message !== null && typeof error.message === 'string' && error.message.trim()) {
           fullMsg = error.message.trim();
+        } else if (error?.message !== undefined && error?.message !== null && typeof error.message === 'string' && !error.message.trim()) {
+          // Message is an empty string — use the error name for context
+          if (errorName && errorName !== 'Error') {
+            fullMsg = 'Signup service unavailable. Please try again later.';
+          } else {
+            fullMsg = 'Signup failed. Please try again or use a different email.';
+          }
         } else if ((error as any)?.error_description) {
           fullMsg = String((error as any).error_description);
         } else if ((error as any)?.msg) {
           fullMsg = String((error as any).msg);
-        } else if ((error as any)?.status) {
-          fullMsg = `Signup failed (status ${(error as any).status}). Please try again.`;
+        } else if (errorStatus !== undefined && errorStatus !== null) {
+          fullMsg = `Signup failed (status ${errorStatus}). Please try again.`;
         } else if (typeof error === 'object' && error !== null) {
           // Last resort: try to stringify to debug unexpected error shapes
           try {
