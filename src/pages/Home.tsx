@@ -111,43 +111,26 @@ export default function Home() {
               </div>
             </div>
             <div className="hidden lg:block relative">
-              {/* Entrepreneurship showcase card — updates with active video */}
+              {/* Professional showcase card */}
               <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 hover:shadow-blue-500/20 transition-shadow duration-500" style={{ transform: 'rotateY(-2deg) rotateX(2deg)', transformStyle: 'preserve-3d' }}>
                 <div className="relative h-[420px] bg-gradient-to-br from-blue-900/60 via-blue-800/40 to-transparent flex flex-col items-center justify-center p-8 text-center">
                   {/* Decorative background pattern */}
                   <div className="absolute inset-0 opacity-5">
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-white blur-3xl" />
                   </div>
-                  {/* Field icon */}
+                  {/* Professional icon */}
                   <div className="relative z-10 mb-6">
                     <div className="w-20 h-20 mx-auto rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center">
                       <span className="text-3xl">💼</span>
                     </div>
                   </div>
-                  <p className="relative z-10 text-white/60 text-xs uppercase tracking-[0.2em] mb-2">Now Showing</p>
-                  <h3
-                    key={heroVideoIdx}
-                    className="relative z-10 text-white text-2xl font-bold mb-2 animate-fadeIn"
-                  >
-                    {videos[heroVideoIdx].label}
+                  <p className="relative z-10 text-white/60 text-xs uppercase tracking-[0.2em] mb-2">Your Career Bridge</p>
+                  <h3 className="relative z-10 text-white text-2xl font-bold mb-2">
+                    Professional Growth
                   </h3>
-                  <p
-                    key={`desc-${heroVideoIdx}`}
-                    className="relative z-10 text-blue-200/80 text-sm max-w-xs animate-fadeIn"
-                  >
-                    {videos[heroVideoIdx].description}
+                  <p className="relative z-10 text-blue-200/80 text-sm max-w-xs">
+                    Connect with top employers and discover opportunities that match your skills
                   </p>
-                  {/* Carousel dots */}
-                  <div className="relative z-10 flex gap-2 mt-6">
-                    {videos.map((_, i) => (
-                      <span
-                        key={i}
-                        className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${
-                          i === heroVideoIdx ? 'bg-white w-4' : 'bg-white/30'
-                        }`}
-                      />
-                    ))}
-                  </div>
                 </div>
               </div>
               {/* Floating stat card */}
@@ -158,15 +141,6 @@ export default function Home() {
                 <div>
                   <p className="text-sm font-bold text-gray-900">94% Success</p>
                   <p className="text-xs text-gray-500">Placement rate</p>
-                </div>
-              </div>
-              {/* Entrepreneurship field indicator — bottom-left of right card */}
-              <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md rounded-full px-4 py-2 border border-white/10">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-white/80 text-xs font-medium uppercase tracking-wider">Entrepreneurship</span>
-                  <span className="text-white/40 mx-1">·</span>
-                  <span className="text-white text-sm font-semibold">{videos[heroVideoIdx].label}</span>
                 </div>
               </div>
             </div>
