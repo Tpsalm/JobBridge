@@ -176,7 +176,7 @@ export const ENTREPRENEURSHIP_VIDEOS = [
     description: 'Professional grooming & salon business',
   },
   {
-    src: 'https://cdn.pixabay.com/video/2021/03/08/67354-521707462_large.mp4',
+    src: 'https://videos.pexels.com/video-files/6773475/6773475-hd_1920_1080_30fps.mp4',
     poster: pexel(927022, 1280, 720),
     label: 'Small Business',
     description: 'Entrepreneurship & startup management',
