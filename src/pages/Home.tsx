@@ -67,15 +67,27 @@ export default function Home() {
     <div className="min-h-screen bg-stone-50">
       <Header />
 
-      {/* Hero — Static Background */}
+      {/* Hero — Professional Video Background */}
       <section className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 min-h-[560px]" style={{ perspective: '1000px' }}>
-        {/* Static background image */}
+        {/* Professional background video */}
         <div className="absolute inset-0 bg-black z-0">
-          <img
-            src="https://images.pexels.com/photos/3194519/pexels-photo-3194519.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&dpr=2"
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover opacity-20"
-          />
+          <video
+            className="absolute inset-0 w-full h-full object-cover opacity-30"
+            autoPlay
+            muted
+            loop
+            playsInline
+            disablePictureInPicture
+            poster="https://images.pexels.com/photos/3194519/pexels-photo-3194519.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&dpr=2"
+          >
+            <source src="https://cdn.pixabay.com/video/2020/06/12/41820-431406508_large.mp4" type="video/mp4" />
+            {/* Fallback image if video fails */}
+            <img
+              src="https://images.pexels.com/photos/3194519/pexels-photo-3194519.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&dpr=2"
+              alt="Professional workspace"
+              className="absolute inset-0 w-full h-full object-cover opacity-30"
+            />
+          </video>
         </div>
 
         {/* Gradient overlay for text readability */}
