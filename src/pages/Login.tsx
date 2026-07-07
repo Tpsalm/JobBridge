@@ -24,18 +24,23 @@ export default function Login() {
     const { error } = await signIn(email, password);
     setLoading(false);
     if (error) {
-      const msg = error.message?.toLowerCase?.() || '';
-      let displayMsg = error.message || 'Sign in failed';
+      const rawMsg = error.message || '';
+      const msg = String(rawMsg).toLowerCase();
+      let displayMsg = String(rawMsg) || 'Sign in failed. Please check your credentials and try again.';
       // Make email confirmation errors clearer
       if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
-        displayMsg = 'Please confirm your email first. Check your inbox for the confirmation link, then try signing in.';
+        displayMsg = 'Please confirm your email first. Check your inbox (and spam folder) for the confirmation link, then try signing in.';
       } else if (msg.includes('invalid login credentials')) {
         displayMsg = 'Invalid email or password. Please check and try again.';
+      } else if (msg.includes('user already registered')) {
+        displayMsg = 'An account with this email already exists. Try signing in or reset your password.';
+      } else if (msg.includes('email rate limit') || msg.includes('too many requests')) {
+        displayMsg = 'Too many login attempts. Please wait a moment and try again.';
       }
       window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: displayMsg, type: 'error' } }));
       return;
     }
-    window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Signed in', type: 'success' } }));
+    window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Signed in successfully!', type: 'success' } }));
     navigate('/');
   };
 

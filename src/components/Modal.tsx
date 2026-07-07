@@ -932,7 +932,7 @@ function InfoModal({ data, onClose }: { data: { title?: string; content?: string
 }
 
 function SignupModal({ data, onClose }: { data: { pendingAction?: string; requiredRole?: 'recruiter' | 'provider' }; onClose?: () => void }) {
-  const { signUp } = useAuth();
+  const { signUp, session } = useAuth();
   const navigate = useNavigate();
   const { closeModal: closeCurrentModal, openModal } = useModal();
   const [selectedRole, setSelectedRole] = useState<'recruiter' | 'provider' | null>(data.requiredRole || null);
@@ -953,7 +953,7 @@ function SignupModal({ data, onClose }: { data: { pendingAction?: string; requir
     setLoading(true);
     setError(null);
 
-    const { error: signupError } = await signUp(formData.email, formData.password, formData.name, selectedRole);
+    const { error: signupError, session: newSession } = await signUp(formData.email, formData.password, formData.name, selectedRole);
 
     if (signupError) {
       setError(signupError.message);
@@ -962,10 +962,19 @@ function SignupModal({ data, onClose }: { data: { pendingAction?: string; requir
     }
 
     setLoading(false);
-    // Show success popup for recruiters and providers
+
+    // If user is now signed in (session returned — no email confirmation required), redirect
+    if (newSession || session) {
+      closeCurrentModal();
+      window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created!', type: 'success' } }));
+      navigate('/profile');
+      return;
+    }
+
+    // Show success popup for recruiters and providers (email confirmation required)
     if (selectedRole === 'recruiter' || selectedRole === 'provider') {
       setShowSuccess(true);
-      window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created successfully!', type: 'success' } }));
+      window.dispatchEvent(new CustomEvent('jobbridge:toast', { detail: { message: 'Account created successfully! Check your email.', type: 'success' } }));
       return;
     }
 

@@ -63,15 +63,14 @@ export default function Signup() {
         if (signupErr) {
           let msg = 'Failed to create account. Please try again.';
           
-          // Extract meaningful error message
-          if (signupErr && typeof signupErr === 'object') {
-            if (typeof signupErr.message === 'string' && signupErr.message.trim()) {
-              msg = signupErr.message.trim();
-            } else if (typeof signupErr.error_description === 'string' && signupErr.error_description.trim()) {
-              msg = signupErr.error_description.trim();
-            }
-          } else if (typeof signupErr === 'string' && signupErr.trim()) {
-            msg = signupErr.trim();
+          // Extract meaningful error message (errors can be various shapes)
+          const errObj: any = signupErr;
+          if (typeof errObj.message === 'string' && errObj.message.trim()) {
+            msg = errObj.message.trim();
+          } else if (typeof errObj.error_description === 'string' && errObj.error_description.trim()) {
+            msg = errObj.error_description.trim();
+          } else if (typeof errObj === 'string' && errObj.trim()) {
+            msg = errObj.trim();
           }
           
           console.error("[Signup Error]", signupErr);
@@ -88,6 +87,7 @@ export default function Signup() {
         // Check if session exists (email confirmation may be required)
         if (newSession || session) {
           // User is signed in — redirect to profile
+          setLoading(false);
           navigate("/profile");
           window.dispatchEvent(
             new CustomEvent("jobbridge:toast", {
@@ -114,15 +114,14 @@ export default function Signup() {
         console.error("[Signup Exception]", e);
         let errorMessage = "An unexpected error occurred";
         
-        // Extract meaningful error message
-        if (e && typeof e === 'object') {
-          if (typeof e.message === 'string' && e.message.trim()) {
-            errorMessage = e.message.trim();
-          } else if (typeof e.error_description === 'string' && e.error_description.trim()) {
-            errorMessage = e.error_description.trim();
-          }
-        } else if (typeof e === 'string' && e.trim()) {
-          errorMessage = e.trim();
+        // Extract meaningful error message (errors can be various shapes)
+        const errObj: any = e;
+        if (typeof errObj.message === 'string' && errObj.message.trim()) {
+          errorMessage = errObj.message.trim();
+        } else if (typeof errObj.error_description === 'string' && errObj.error_description.trim()) {
+          errorMessage = errObj.error_description.trim();
+        } else if (typeof errObj === 'string' && errObj.trim()) {
+          errorMessage = errObj.trim();
         }
         
         setError(errorMessage);

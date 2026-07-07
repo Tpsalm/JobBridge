@@ -90,7 +90,6 @@ export default function Header() {
   const handleSignOut = async () => {
     setProfileOpen(false);
     await signOut();
-    openModal('signup', { pendingAction: 'signout' });
   };
 
   const displayName = profile?.full_name || user?.email || 'User';

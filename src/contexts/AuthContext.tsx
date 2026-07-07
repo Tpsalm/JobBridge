@@ -61,8 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { return JSON.parse(localStorage.getItem('jobbridge_applied_jobs') || '[]'); } catch { return []; }
   });
 
+  // Stable ref to track current user without triggering effect re-runs
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
+
   const fetchSubscription = useCallback(async (userId?: string) => {
-    const uid = userId || user?.id;
+    const uid = userId || userRef.current?.id;
     if (!uid) {
       setSubscription({ tier: null, status: 'inactive', expires_at: null, credits: 0 });
       return;
@@ -100,10 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       setSubscription({ tier: null, status: 'inactive', expires_at: null, credits: 0 });
     }
-  }, [user?.id]);
+  }, []);
 
   const fetchAiSubscription = useCallback(async (userId?: string) => {
-    const uid = userId || user?.id;
+    const uid = userId || userRef.current?.id;
     if (!uid) {
       setAiSubscription({ ai_tier: null, ai_status: 'inactive', ai_expires_at: null });
       return;
@@ -141,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       setAiSubscription({ ai_tier: null, ai_status: 'inactive', ai_expires_at: null });
     }
-  }, [user?.id]);
+  }, []);
 
   const toggleSaveJob = (jobId: string) => {
     setSavedJobs(prev => {
@@ -215,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Auth listener effect — only depends on stable buildProfile, never re-runs
   useEffect(() => {
     let cancelled = false;
     let initialised = false;
@@ -227,12 +232,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(sess);
         setUser(sess?.user ?? null);
         if (sess?.user) {
-          buildProfile(sess.user).then(async p => {
+          // Use sess.user.id explicitly so the callback doesn't need to close over user
+          (async () => {
+            const p = await buildProfile(sess.user);
             if (!cancelled) { setProfile(p); setLoading(false); }
-            // Fetch subscription data after profile loads
             await fetchSubscription(sess.user.id);
             await fetchAiSubscription(sess.user.id);
-          });
+          })();
           fetchUserApplications(sess.user.id).then(apps => {
             if (cancelled) return;
             const validIds = apps.map((a: any) => a.job_id).filter(Boolean);
@@ -261,7 +267,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Re-fetch subscription when user returns to the page (e.g., after admin verifies payment)
+    return () => {
+      cancelled = true;
+      authSub.unsubscribe();
+    };
+  }, [buildProfile]);
+
+  // Separate effect for visibility/focus — re-runs when user changes
+  useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user?.id) {
         fetchSubscription(user.id);
@@ -278,12 +291,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('focus', handleFocus);
 
     return () => {
-      cancelled = true;
-      authSub.unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [buildProfile, user?.id]);
+  }, [user?.id, fetchSubscription, fetchAiSubscription]);
 
   // Inactivity auto-logout timer
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
