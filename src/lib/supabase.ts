@@ -1,41 +1,62 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-function createErrorClient(message: string) {
-  const error = () => { throw new Error(message); };
+function createErrorClient(message: string): SupabaseClient {
+  const error = () => {
+    throw new Error(message);
+  };
   return {
     auth: {
       getSession: error,
       signUp: error,
       signInWithPassword: error,
       signOut: error,
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      onAuthStateChange: () => ({
+        data: { subscription: { unsubscribe: () => {} } },
+      }),
       verifyOtp: error,
     },
-    from: () => ({ select: error, insert: error, update: error, delete: error, upsert: error }),
-    storage: { from: () => ({ upload: error, getPublicUrl: error, download: error, list: error, remove: error }) },
-  } as any;
+    from: () => ({
+      select: error,
+      insert: error,
+      update: error,
+      delete: error,
+      upsert: error,
+    }),
+    storage: {
+      from: () => ({
+        upload: error,
+        getPublicUrl: error,
+        download: error,
+        list: error,
+        remove: error,
+      }),
+    },
+  } as unknown as SupabaseClient;
 }
 
-export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : createErrorClient('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set in your environment. Add them as GitHub Actions secrets or create a .env.production file.');
+export const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : createErrorClient(
+        "VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set in your environment. Add them as GitHub Actions secrets or create a .env.production file.",
+      );
 
 // All features now use Supabase directly. VITE_LOCAL_API_URL is no longer needed.
 
 // Database types
 export type SubscriptionInfo = {
   tier: string | null;
-  status: 'active' | 'inactive' | 'expired';
+  status: "active" | "inactive" | "expired";
   expires_at: string | null;
   credits: number;
 };
 
 export type AiSubscriptionInfo = {
   ai_tier: string | null;
-  ai_status: 'active' | 'inactive' | 'expired';
+  ai_status: "active" | "inactive" | "expired";
   ai_expires_at: string | null;
 };
 
@@ -43,7 +64,7 @@ export type Profile = {
   id: string;
   email: string;
   full_name: string;
-  role: 'recruiter' | 'provider' | 'job_seeker';
+  role: "recruiter" | "provider" | "job_seeker";
   company?: string;
   phone?: string;
   avatar_url?: string;
@@ -84,7 +105,7 @@ export type Job = {
   company: string;
   description: string;
   location: string;
-  type: 'Full-time' | 'Part-time' | 'Contract' | 'Freelance' | 'Internship';
+  type: "Full-time" | "Part-time" | "Contract" | "Freelance" | "Internship";
   salary_range?: string;
   category: string;
   requirements: string[];
@@ -104,7 +125,8 @@ export type JobApplication = {
   applicant_id: string;
   cover_letter?: string;
   resume_url?: string;
-  status: 'pending' | 'reviewed' | 'shortlisted' | 'rejected' | 'hired' | 'withdrawn';
+  status:
+    "pending" | "reviewed" | "shortlisted" | "rejected" | "hired" | "withdrawn";
   recruiter_notes?: string;
   created_at: string;
   updated_at: string;
@@ -122,7 +144,7 @@ export type ServiceProvider = {
   phone?: string;
   email?: string;
   website?: string;
-  tier: 'basic' | 'verified' | 'featured';
+  tier: "basic" | "verified" | "featured";
   is_verified: boolean;
   is_active: boolean;
   rating: number;
@@ -166,14 +188,14 @@ export type Advertisement = {
   phone?: string;
   email?: string;
   location?: string;
-  package: 'weekly' | 'monthly' | 'featured';
+  package: "weekly" | "monthly" | "featured";
   is_featured: boolean;
-  status: 'pending' | 'active' | 'paused' | 'expired' | 'rejected';
+  status: "pending" | "active" | "paused" | "expired" | "rejected";
   views: number;
   clicks: number;
   starts_at?: string;
   expires_at?: string;
-  payment_status: 'pending' | 'paid' | 'refunded';
+  payment_status: "pending" | "paid" | "refunded";
   amount_paid: number;
   admin_notes?: string;
   created_at: string;
@@ -183,11 +205,28 @@ export type Advertisement = {
 export type Notification = {
   id: string;
   user_id: string;
-  type: 'job_application' | 'message' | 'interview' | 'review' | 'system' | 'payment' | 'advert';
+  type:
+    | "job_application"
+    | "message"
+    | "interview"
+    | "review"
+    | "system"
+    | "payment"
+    | "advert";
   title: string;
   content?: string;
   data: Record<string, unknown>;
   is_read: boolean;
   read_at?: string;
   created_at: string;
+};
+
+export type JobAlert = {
+  id: string;
+  user_id: string;
+  query: string;
+  location: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
 };

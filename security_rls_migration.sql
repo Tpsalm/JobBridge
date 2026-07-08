@@ -19,17 +19,19 @@ CREATE TABLE IF NOT EXISTS public.admin_events (
 
 ALTER TABLE public.admin_events ENABLE ROW LEVEL SECURITY;
 
--- Anyone with the anon key can INSERT (needed for admin dashboard which uses anon key)
+-- Admin audit logs must never be public.
+-- Backend jobs can still write using the service role, which bypasses RLS.
 DROP POLICY IF EXISTS "Public can insert admin events" ON public.admin_events;
-CREATE POLICY "Public can insert admin events"
+DROP POLICY IF EXISTS "Admins can insert admin events" ON public.admin_events;
+CREATE POLICY "Admins can insert admin events"
   ON public.admin_events FOR INSERT
-  WITH CHECK (true);
+  WITH CHECK (public.is_admin());
 
--- Anyone with the anon key can SELECT (needed for admin dashboard)
 DROP POLICY IF EXISTS "Public can read admin events" ON public.admin_events;
-CREATE POLICY "Public can read admin events"
+DROP POLICY IF EXISTS "Admins can read admin events" ON public.admin_events;
+CREATE POLICY "Admins can read admin events"
   ON public.admin_events FOR SELECT
-  USING (true);
+  USING (public.is_admin());
 
 -- Index for performance
 CREATE INDEX IF NOT EXISTS idx_admin_events_created_at ON public.admin_events(created_at DESC);

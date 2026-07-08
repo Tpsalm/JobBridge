@@ -1,37 +1,51 @@
-import { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { useModal } from '../contexts/ModalContext';
+import { useState, useRef, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { supabase } from "../lib/supabase";
+import { fetchUnreadNotificationCount } from "../lib/supabaseQueries";
 import {
-  Bell, Menu, X, Briefcase, Home, Users, Wrench, BarChart3, CreditCard,
-  ChevronDown, Bookmark, MessageSquare, UserCircle, Settings, HelpCircle,
-  Shield, LogOut,
-} from 'lucide-react';
-import JobBridgeLogo from './JobBridgeLogo';
+  Bell,
+  Menu,
+  X,
+  Briefcase,
+  Home,
+  Users,
+  Wrench,
+  BarChart3,
+  CreditCard,
+  ChevronDown,
+  Bookmark,
+  MessageSquare,
+  UserCircle,
+  Settings,
+  HelpCircle,
+  Shield,
+  LogOut,
+} from "lucide-react";
+import JobBridgeLogo from "./JobBridgeLogo";
 
 const navLinks = [
-  { label: 'Home', path: '/', icon: Home },
-  { label: 'Jobs', path: '/jobs', icon: Briefcase },
-  { label: 'Providers', path: '/providers', icon: Users },
-  { label: 'Business', path: '/business', icon: BarChart3 },
-  { label: 'Pricing', path: '/pricing', icon: Wrench },
-  { label: 'Payment', path: '/payment', icon: CreditCard },
+  { label: "Home", path: "/", icon: Home },
+  { label: "Jobs", path: "/jobs", icon: Briefcase },
+  { label: "Providers", path: "/providers", icon: Users },
+  { label: "Business", path: "/business", icon: BarChart3 },
+  { label: "Pricing", path: "/pricing", icon: Wrench },
+  { label: "Payment", path: "/payment", icon: CreditCard },
 ];
 
 const moreLinks = [
-  { label: 'Recruiter', path: '/recruiter' },
-  { label: 'AI Resume Studio', path: '/ai-resume' },
-  { label: 'Support', path: '/support' },
-  { label: 'Blog', path: '/blog' },
-  { label: 'About', path: '/about' },
-  { label: 'Career', path: '/career' },
-  { label: 'Games', path: '/games' },
-  { label: 'CEO Vision', path: '/ceo' },
+  { label: "Recruiter", path: "/recruiter" },
+  { label: "AI Resume Studio", path: "/ai-resume" },
+  { label: "Support", path: "/support" },
+  { label: "Blog", path: "/blog" },
+  { label: "About", path: "/about" },
+  { label: "Career", path: "/career" },
+  { label: "Games", path: "/games" },
+  { label: "CEO Vision", path: "/ceo" },
 ];
 
 export default function Header() {
   const { user, profile, isAuthenticated, savedJobs, signOut } = useAuth();
-  const { openModal } = useModal();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -40,51 +54,70 @@ export default function Header() {
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const update = () => {
+    if (!user?.id) {
+      setNotifCount(0);
+      return;
+    }
+
+    let active = true;
+
+    const refreshCount = async () => {
       try {
-        const raw = localStorage.getItem('jobbridge_notifications');
-        if (raw) {
-          const items = JSON.parse(raw);
-          setNotifCount(items.filter((n: any) => !n.isRead).length);
-        } else {
-          // Seed initial notifications for new users so the badge shows
-          const INITIAL: Array<{ id: string; isRead: boolean }> = [
-            { id: 'n1', isRead: false },
-            { id: 'n2', isRead: false },
-            { id: 'n3', isRead: false },
-            { id: 'n4', isRead: true },
-            { id: 'n5', isRead: true },
-            { id: 'n6', isRead: true },
-            { id: 'n7', isRead: true },
-            { id: 'n8', isRead: true },
-          ];
-          setNotifCount(INITIAL.filter(n => !n.isRead).length);
-        }
-      } catch { setNotifCount(0); }
+        const count = await fetchUnreadNotificationCount(user.id);
+        if (active) setNotifCount(count);
+      } catch {
+        if (active) setNotifCount(0);
+      }
     };
-    update();
-    window.addEventListener('storage', update);
-    window.addEventListener('focus', update);
-    const interval = setInterval(update, 3000);
+
+    refreshCount();
+
+    const channel = supabase
+      .channel(`header-notifications:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          refreshCount();
+        },
+      )
+      .subscribe();
+
+    const onFocus = () => {
+      refreshCount();
+    };
+
+    window.addEventListener("focus", onFocus);
+
     return () => {
-      window.removeEventListener('storage', update);
-      window.removeEventListener('focus', update);
-      clearInterval(interval);
+      active = false;
+      window.removeEventListener("focus", onFocus);
+      supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user?.id]);
 
   const isActive = (path: string) =>
-    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
+    path === "/"
+      ? location.pathname === "/"
+      : location.pathname.startsWith(path);
 
   // Close profile dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(e.target as Node)
+      ) {
         setProfileOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSignOut = async () => {
@@ -92,19 +125,22 @@ export default function Header() {
     await signOut();
   };
 
-  const displayName = profile?.full_name || user?.email || 'User';
-  const displayEmail = user?.email || profile?.email || '';
-  const initials = displayName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+  const displayName = profile?.full_name || user?.email || "User";
+  const displayEmail = user?.email || profile?.email || "";
+  const initials = displayName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   const profileMenuItems = [
-    { label: 'My Profile', path: '/profile', icon: UserCircle },
-    { label: 'My Jobs', path: '/my-jobs', icon: Bookmark },
-    { label: 'Account Settings', path: '/profile', icon: Settings },
-    { label: 'Help', path: '/support', icon: HelpCircle },
-    { label: 'Privacy Center', path: '/privacy', icon: Shield },
+    { label: "My Profile", path: "/profile", icon: UserCircle },
+    { label: "My Jobs", path: "/my-jobs", icon: Bookmark },
+    { label: "Account Settings", path: "/profile", icon: Settings },
+    { label: "Help", path: "/support", icon: HelpCircle },
+    { label: "Privacy Center", path: "/privacy", icon: Shield },
   ];
-
-
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
@@ -123,8 +159,8 @@ export default function Header() {
                 to={path}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive(path)
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 }`}
               >
                 {label}
@@ -137,7 +173,10 @@ export default function Header() {
                 onClick={() => setMoreOpen(!moreOpen)}
                 className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
               >
-                More <ChevronDown className={`w-3 h-3 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+                More{" "}
+                <ChevronDown
+                  className={`w-3 h-3 transition-transform ${moreOpen ? "rotate-180" : ""}`}
+                />
               </button>
               {moreOpen && (
                 <div
@@ -151,8 +190,8 @@ export default function Header() {
                       onClick={() => setMoreOpen(false)}
                       className={`block px-4 py-2 text-sm transition-colors ${
                         isActive(path)
-                          ? 'text-blue-700 bg-blue-50'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                          ? "text-blue-700 bg-blue-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                       }`}
                     >
                       {label}
@@ -169,9 +208,9 @@ export default function Header() {
             <Link
               to="/my-jobs"
               className={`relative p-2 rounded-lg transition-colors ${
-                isActive('/my-jobs')
-                  ? 'text-blue-700 bg-blue-50'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                isActive("/my-jobs")
+                  ? "text-blue-700 bg-blue-50"
+                  : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
               }`}
               aria-label="Saved jobs"
               title="My Jobs"
@@ -188,9 +227,9 @@ export default function Header() {
             <Link
               to="/messages"
               className={`p-2 rounded-lg transition-colors ${
-                isActive('/messages')
-                  ? 'text-blue-700 bg-blue-50'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                isActive("/messages")
+                  ? "text-blue-700 bg-blue-50"
+                  : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
               }`}
               aria-label="Messages"
               title="Messages"
@@ -202,9 +241,9 @@ export default function Header() {
             <Link
               to="/notifications"
               className={`relative p-2 rounded-lg transition-colors ${
-                isActive('/notifications')
-                  ? 'text-blue-700 bg-blue-50'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                isActive("/notifications")
+                  ? "text-blue-700 bg-blue-50"
+                  : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
               }`}
               aria-label="Notifications"
               title="Notifications"
@@ -212,7 +251,7 @@ export default function Header() {
               <Bell className="w-5 h-5" />
               {notifCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow">
-                  {notifCount > 9 ? '9+' : notifCount}
+                  {notifCount > 9 ? "9+" : notifCount}
                 </span>
               )}
             </Link>
@@ -225,37 +264,46 @@ export default function Header() {
                   className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-gray-50 transition-colors ml-1"
                 >
                   {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                    <img
+                      src={profile.avatar_url}
+                      alt=""
+                      className="w-7 h-7 rounded-full object-cover"
+                    />
                   ) : (
                     <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold">
-                      {initials || 'U'}
+                      {initials || "U"}
                     </div>
                   )}
-                  <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform hidden sm:block ${profileOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-3 h-3 text-gray-500 transition-transform hidden sm:block ${profileOpen ? "rotate-180" : ""}`}
+                  />
                 </button>
 
                 {profileOpen && (
                   <div className="absolute top-full right-0 mt-1 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50">
                     {/* User info */}
                     <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        {displayName}
+                      </p>
                       {displayEmail && (
-                        <p className="text-xs text-gray-500 truncate mt-0.5">{displayEmail}</p>
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                          {displayEmail}
+                        </p>
                       )}
                     </div>
 
                     {/* Menu items */}
                     <div className="py-1">
-  
-                    {profileMenuItems.map(({ label, path, icon: Icon }) => (
+                      {profileMenuItems.map(({ label, path, icon: Icon }) => (
                         <Link
                           key={label}
                           to={path}
                           onClick={() => setProfileOpen(false)}
                           className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                            isActive(path) && label !== 'Profile'
-                              ? 'text-blue-700 bg-blue-50'
-                              : 'text-gray-700 hover:bg-gray-50'
+                            isActive(path) && label !== "Profile"
+                              ? "text-blue-700 bg-blue-50"
+                              : "text-gray-700 hover:bg-gray-50"
                           }`}
                         >
                           <Icon className="w-4 h-4 text-gray-500" />
@@ -300,7 +348,11 @@ export default function Header() {
               className="md:hidden p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
               aria-label="Menu"
             >
-              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileOpen ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
             </button>
           </div>
         </div>
@@ -317,8 +369,8 @@ export default function Header() {
                 onClick={() => setMobileOpen(false)}
                 className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive(path)
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 }`}
               >
                 {label}
@@ -360,16 +412,23 @@ export default function Header() {
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
                   >
                     {profile?.avatar_url ? (
-                      <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                      <img
+                        src={profile.avatar_url}
+                        alt=""
+                        className="w-7 h-7 rounded-full object-cover"
+                      />
                     ) : (
                       <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold">
-                        {initials || 'U'}
+                        {initials || "U"}
                       </div>
                     )}
                     {displayName}
                   </Link>
                   <button
-                    onClick={() => { setMobileOpen(false); handleSignOut(); }}
+                    onClick={() => {
+                      setMobileOpen(false);
+                      handleSignOut();
+                    }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
                   >
                     <LogOut className="w-4 h-4" /> Sign out

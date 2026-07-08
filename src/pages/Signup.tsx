@@ -61,27 +61,30 @@ export default function Signup() {
           formData.company,
         );
         if (signupErr) {
-          let msg = 'Failed to create account. Please try again.';
-          
+          let msg = "Failed to create account. Please try again.";
+
           // Extract meaningful error message (errors can be various shapes)
           const errObj: any = signupErr;
-          if (typeof errObj.message === 'string' && errObj.message.trim()) {
+          if (typeof errObj.message === "string" && errObj.message.trim()) {
             msg = errObj.message.trim();
-          } else if (typeof errObj.error_description === 'string' && errObj.error_description.trim()) {
+          } else if (
+            typeof errObj.error_description === "string" &&
+            errObj.error_description.trim()
+          ) {
             msg = errObj.error_description.trim();
-          } else if (typeof errObj === 'string' && errObj.trim()) {
+          } else if (typeof errObj === "string" && errObj.trim()) {
             msg = errObj.trim();
-          } else if (typeof errObj === 'object' && errObj !== null) {
+          } else if (typeof errObj === "object" && errObj !== null) {
             try {
               const serialized = JSON.stringify(errObj);
-              if (serialized && serialized !== '{}') {
+              if (serialized && serialized !== "{}") {
                 msg = serialized;
               }
             } catch {
               // fall through to default
             }
           }
-          
+
           console.error("[Signup Error]", signupErr);
           setError(msg);
           window.dispatchEvent(
@@ -101,7 +104,8 @@ export default function Signup() {
           window.dispatchEvent(
             new CustomEvent("jobbridge:toast", {
               detail: {
-                message: "Account created! Complete your profile to get started.",
+                message:
+                  "Account created! Complete your profile to get started.",
                 type: "success",
               },
             }),
@@ -113,7 +117,8 @@ export default function Signup() {
           window.dispatchEvent(
             new CustomEvent("jobbridge:toast", {
               detail: {
-                message: "Account created! Check your email for the confirmation link.",
+                message:
+                  "Account created! Check your email for the confirmation link.",
                 type: "success",
               },
             }),
@@ -122,26 +127,29 @@ export default function Signup() {
       } catch (e: any) {
         console.error("[Signup Exception]", e);
         let errorMessage = "An unexpected error occurred";
-        
+
         // Extract meaningful error message (errors can be various shapes)
         const errObj: any = e;
-        if (typeof errObj.message === 'string' && errObj.message.trim()) {
+        if (typeof errObj.message === "string" && errObj.message.trim()) {
           errorMessage = errObj.message.trim();
-        } else if (typeof errObj.error_description === 'string' && errObj.error_description.trim()) {
+        } else if (
+          typeof errObj.error_description === "string" &&
+          errObj.error_description.trim()
+        ) {
           errorMessage = errObj.error_description.trim();
-        } else if (typeof errObj === 'string' && errObj.trim()) {
+        } else if (typeof errObj === "string" && errObj.trim()) {
           errorMessage = errObj.trim();
-        } else if (typeof errObj === 'object' && errObj !== null) {
+        } else if (typeof errObj === "object" && errObj !== null) {
           try {
             const serialized = JSON.stringify(errObj);
-            if (serialized && serialized !== '{}') {
+            if (serialized && serialized !== "{}") {
               errorMessage = serialized;
             }
           } catch {
             // fall through to default
           }
         }
-        
+
         setError(errorMessage);
         setLoading(false);
       }
@@ -321,12 +329,10 @@ export default function Signup() {
                   Sign in
                 </button>
               </p>
-              <button
-                onClick={() => handleRoleSelect("admin")}
-                className="mt-3 text-xs text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1 mx-auto"
-              >
-                <Lock className="w-3 h-3" /> Admin access
-              </button>
+              <p className="mt-3 text-xs text-gray-400 flex items-center justify-center gap-1 mx-auto">
+                <Lock className="w-3 h-3" /> Admin accounts are provisioned
+                internally
+              </p>
             </div>
           </div>
         ) : emailSent ? (
@@ -335,13 +341,15 @@ export default function Signup() {
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <Mail className="w-10 h-10 text-blue-600" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
-            <p className="text-gray-500 mb-2">
-              We sent a confirmation link to
-            </p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Check Your Email
+            </h2>
+            <p className="text-gray-500 mb-2">We sent a confirmation link to</p>
             <p className="font-semibold text-gray-900 mb-6">{formData.email}</p>
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-left">
-              <h3 className="font-semibold text-sm text-blue-800 mb-2">What happens next?</h3>
+              <h3 className="font-semibold text-sm text-blue-800 mb-2">
+                What happens next?
+              </h3>
               <ol className="space-y-2 text-sm text-blue-700">
                 <li className="flex items-start gap-2">
                   <span className="font-bold">1.</span>
@@ -349,16 +357,22 @@ export default function Signup() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="font-bold">2.</span>
-                  <span>Click the <strong>Confirm your email</strong> button in the email</span>
+                  <span>
+                    Click the <strong>Confirm your email</strong> button in the
+                    email
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="font-bold">3.</span>
-                  <span>Return here and <strong>Sign in</strong> with your password</span>
+                  <span>
+                    Return here and <strong>Sign in</strong> with your password
+                  </span>
                 </li>
               </ol>
             </div>
             <p className="text-xs text-gray-400 mb-6">
-              Didn't receive the email? Check your spam folder or try a different email address.
+              Didn't receive the email? Check your spam folder or try a
+              different email address.
             </p>
             <button
               onClick={() => navigate("/login")}
@@ -367,7 +381,10 @@ export default function Signup() {
               Go to Sign In
             </button>
             <button
-              onClick={() => { setEmailSent(false); setStep("form"); }}
+              onClick={() => {
+                setEmailSent(false);
+                setStep("form");
+              }}
               className="w-full text-sm text-gray-500 hover:text-gray-700"
             >
               Use a different email
@@ -572,7 +589,9 @@ export default function Signup() {
 
               {error !== null && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  {typeof error === 'string' ? error : "An error occurred. Please try again."}
+                  {typeof error === "string"
+                    ? error
+                    : "An error occurred. Please try again."}
                 </div>
               )}
 

@@ -5,8 +5,15 @@
 -- =========================================================================
 
 -- =========================
--- 1) Relax payments status CHECK to include 'verified'
+-- 1) Harden payments table for webhook-authoritative reconciliation
 -- =========================
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'NGN',
+  ADD COLUMN IF NOT EXISTS provider TEXT DEFAULT 'korapay',
+  ADD COLUMN IF NOT EXISTS provider_reference TEXT,
+  ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
 ALTER TABLE public.payments
   DROP CONSTRAINT IF EXISTS payments_status_check;
 

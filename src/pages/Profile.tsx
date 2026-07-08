@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useCallback,
   type ComponentType,
 } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +12,15 @@ import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
 import { updateProfile, fetchProfile } from "../lib/supabaseQueries";
 import { supabase } from "../lib/supabase";
+import {
+  GENDER_OPTIONS,
+  formatPhoneInput,
+  sanitizeProfileText,
+  validateDateOfBirth,
+  validateGender,
+  validatePhoneNumber,
+  normalizeGender,
+} from "../lib/profileValidation";
 import {
   Camera,
   Check,
@@ -245,8 +255,17 @@ export default function Profile() {
   const [hoveredNav, setHoveredNav] = useState<string | null>(null);
   const [avatarHover, setAvatarHover] = useState(false);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const [pendingFieldFocus, setPendingFieldFocus] = useState<string | null>(
+    null,
+  );
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const profRef = useRef<HTMLDivElement>(null);
+  const fieldRefs = useRef<
+    Record<
+      string,
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null
+    >
+  >({});
 
   const getErrorMessage = (err: unknown, fallback: string) => {
     if (err instanceof Error && err.message) return err.message;
@@ -297,6 +316,11 @@ export default function Profile() {
             const val = freshRecord[key];
             if (key === "skills" && Array.isArray(val)) {
               fields[key] = val.join(", ");
+            } else if (key === "phone") {
+              fields[key] = val == null ? "" : formatPhoneInput(String(val));
+            } else if (key === "gender") {
+              fields[key] =
+                val == null ? "" : normalizeGender(String(val)) || "";
             } else {
               fields[key] = val == null ? "" : String(val);
             }
@@ -364,33 +388,119 @@ export default function Profile() {
     return totalWeight > 0 ? Math.round((filled / totalWeight) * 100) : 0;
   }, [form, activeFields]);
 
-  const updateField = (field: string, value: string) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const focusField = useCallback((field: string) => {
+    const element = fieldRefs.current[field];
+    if (!element) return;
+    element.focus();
+    if (
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement
+    ) {
+      element.select();
+    }
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
+  useEffect(() => {
+    if (!pendingFieldFocus) return;
+    const timeout = window.setTimeout(() => {
+      focusField(pendingFieldFocus);
+      setPendingFieldFocus(null);
+    }, 120);
+
+    return () => window.clearTimeout(timeout);
+  }, [activeSection, pendingFieldFocus, focusField]);
+
+  const updateField = (field: string, value: string) => {
+    let nextValue = value;
+
+    if (field === "phone") {
+      nextValue = formatPhoneInput(value);
+    } else if (field === "gender") {
+      nextValue = normalizeGender(value) || "";
+    } else if (field !== "date_of_birth" && field !== "email") {
+      nextValue = sanitizeProfileText(value);
+    }
+
+    setForm((prev) => ({ ...prev, [field]: nextValue }));
+  };
 
   const handleSave = async () => {
     if (!user) return;
     setSaveError("");
     setSaving(true);
+
     try {
+      const phoneCheck = validatePhoneNumber(form.phone || "");
+      if (!phoneCheck.ok) {
+        setActiveSection("personal");
+        setPendingFieldFocus("phone");
+        throw new Error(phoneCheck.message);
+      }
+
+      const dobCheck = validateDateOfBirth(form.date_of_birth || "");
+      if (!dobCheck.ok) {
+        setActiveSection("personal");
+        setPendingFieldFocus("date_of_birth");
+        throw new Error(dobCheck.message);
+      }
+
+      const genderCheck = validateGender(form.gender || "");
+      if (!genderCheck.ok) {
+        setActiveSection("personal");
+        setPendingFieldFocus("gender");
+        throw new Error(genderCheck.message);
+      }
+
       const updates: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
+
       activeFields.forEach(([key]) => {
         if (key === "skills") {
           updates[key] = (form[key] || "")
             .split(",")
-            .map((s: string) => s.trim())
+            .map((skill: string) => sanitizeProfileText(skill))
             .filter(Boolean);
-        } else {
-          updates[key] = form[key] || null;
+          return;
         }
+
+        if (key === "phone") {
+          updates[key] = phoneCheck.normalized;
+          return;
+        }
+
+        if (key === "date_of_birth") {
+          updates[key] = dobCheck.iso;
+          return;
+        }
+
+        if (key === "gender") {
+          updates[key] = genderCheck.normalized;
+          return;
+        }
+
+        const rawValue = form[key] || "";
+        updates[key] = rawValue ? sanitizeProfileText(rawValue) : null;
       });
+
       if ("avatar_url" in form && form.avatar_url) {
         updates.avatar_url = form.avatar_url;
       } else if ("avatar_url" in form && !form.avatar_url) {
         updates.avatar_url = null;
       }
+
       await updateProfile(user.id, updates);
+
+      setForm((prev) => ({
+        ...prev,
+        phone: phoneCheck.normalized
+          ? formatPhoneInput(phoneCheck.normalized)
+          : "",
+        date_of_birth: dobCheck.iso || "",
+        gender: genderCheck.normalized || "",
+      }));
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
       setTimeout(
@@ -547,9 +657,15 @@ export default function Profile() {
     field: (typeof PROFILE_FIELDS)[keyof typeof PROFILE_FIELDS],
   ) => {
     const Icon = field.icon;
-    const selectFields: Record<string, string[]> = {
-      gender: ["Male", "Female", "Non-binary", "Prefer not to say"],
-      work_type: ["Remote", "On-site", "Hybrid", "Freelance"],
+    const selectFields: Record<
+      string,
+      Array<{ value: string; label: string }>
+    > = {
+      gender: [...GENDER_OPTIONS],
+      work_type: ["Remote", "On-site", "Hybrid", "Freelance"].map((value) => ({
+        value,
+        label: value,
+      })),
       highest_qualification: [
         "High School",
         "Associate Degree",
@@ -557,14 +673,14 @@ export default function Profile() {
         "Master's",
         "PhD",
         "Other",
-      ],
+      ].map((value) => ({ value, label: value })),
       availability: [
         "Immediately",
         "Within 2 weeks",
         "Within 1 month",
         "Within 3 months",
         "Not looking",
-      ],
+      ].map((value) => ({ value, label: value })),
       function: [
         "Tech",
         "Finance",
@@ -574,9 +690,15 @@ export default function Profile() {
         "Engineering",
         "Design",
         "Other",
-      ],
-      is_disabled: ["No", "Yes", "Prefer not to say"],
-      is_displaced: ["No", "Yes", "Prefer not to say"],
+      ].map((value) => ({ value, label: value })),
+      is_disabled: ["No", "Yes", "Prefer not to say"].map((value) => ({
+        value,
+        label: value,
+      })),
+      is_displaced: ["No", "Yes", "Prefer not to say"].map((value) => ({
+        value,
+        label: value,
+      })),
       specialty: [
         "Data Science",
         "Software Engineering",
@@ -585,7 +707,7 @@ export default function Profile() {
         "DevOps",
         "Consulting",
         "Other",
-      ],
+      ].map((value) => ({ value, label: value })),
     };
 
     const isSelect = key in selectFields;
@@ -599,6 +721,9 @@ export default function Profile() {
         </label>
         {isTextarea ? (
           <textarea
+            ref={(element) => {
+              fieldRefs.current[key] = element;
+            }}
             value={form[key] || ""}
             onChange={(e) => updateField(key, e.target.value)}
             rows={3}
@@ -608,14 +733,17 @@ export default function Profile() {
         ) : isSelect ? (
           <div className="relative">
             <select
+              ref={(element) => {
+                fieldRefs.current[key] = element;
+              }}
               value={form[key] || ""}
               onChange={(e) => updateField(key, e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm transition-all duration-200 appearance-none cursor-pointer"
             >
               <option value="">Select...</option>
-              {selectFields[key].map((o) => (
-                <option key={o} value={o}>
-                  {o}
+              {selectFields[key].map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -623,6 +751,9 @@ export default function Profile() {
           </div>
         ) : (
           <input
+            ref={(element) => {
+              fieldRefs.current[key] = element;
+            }}
             type={
               key === "date_of_birth"
                 ? "date"
@@ -638,6 +769,12 @@ export default function Profile() {
             onChange={(e) => updateField(key, e.target.value)}
             placeholder={`Enter your ${field.label.toLowerCase()}...`}
             readOnly={key === "email"}
+            inputMode={key === "phone" ? "tel" : undefined}
+            max={
+              key === "date_of_birth"
+                ? new Date().toISOString().slice(0, 10)
+                : undefined
+            }
             className={`w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm transition-all duration-200 ${key === "email" ? "text-gray-400 cursor-not-allowed" : ""}`}
           />
         )}
@@ -647,7 +784,6 @@ export default function Profile() {
 
   const missingFields = activeFields
     .filter(([key]) => !form[key]?.trim())
-    .filter(([key]) => !['phone', 'date_of_birth', 'gender'].includes(key))
     .slice(0, 3);
 
   return (
@@ -748,7 +884,10 @@ export default function Profile() {
                       {missingFields.map(([key, field]) => (
                         <button
                           key={key}
-                          onClick={() => setActiveSection(field.section)}
+                          onClick={() => {
+                            setActiveSection(field.section);
+                            setPendingFieldFocus(key);
+                          }}
                           className="w-full text-left text-xs text-primary hover:text-primary-container bg-surface rounded-lg px-2.5 py-1.5 flex items-center gap-2 hover:bg-surface-container-low transition-colors"
                         >
                           <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
