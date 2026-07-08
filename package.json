@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/copy-admin-assets.cjs",
     "ai:start": "node scripts/ai_server.js",
     "ai:index": "node scripts/index_embeddings.js",
     "ai:train": "node scripts/train_and_test.js",
