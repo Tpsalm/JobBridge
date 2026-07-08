@@ -243,12 +243,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // Build a Profile from either the profiles table or auth user_metadata
+  const createProfileRecord = useCallback(
+    async (
+      authUser: any,
+      fullName?: string,
+      role?: string,
+      company?: string,
+    ) => {
+      const meta = authUser?.user_metadata || {};
+      const payload = {
+        id: authUser.id,
+        email: authUser.email || null,
+        full_name: fullName || meta.full_name || "",
+        role: role || meta.role || "job_seeker",
+        company: company ?? meta.company ?? null,
+        created_at: authUser.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      try {
+        const { error } = await supabase.from("profiles").upsert(payload, {
+          onConflict: "id",
+        });
+
+        if (error) {
+          console.error(
+            "[AuthContext createProfileRecord] upsert failed:",
+            error,
+          );
+          return { error };
+        }
+
+        return { error: null };
+      } catch (error) {
+        console.error(
+          "[AuthContext createProfileRecord] unexpected exception:",
+          error,
+        );
+        return { error: error as Error };
+      }
+    },
+    [],
+  );
+
+  // Build a Profile from either the profiles table or auth user_metadata.
+  // If the row is missing (for example: email confirmation flow with no session
+  // at signup time), try to create/heal it once the user becomes authenticated.
   const buildProfile = useCallback(
     async (authUser: any): Promise<Profile | null> => {
       if (!authUser) return null;
 
-      // Try to fetch from profiles table first
+      const meta = authUser.user_metadata || {};
+      const fallbackProfile = {
+        id: authUser.id,
+        email: authUser.email || "",
+        full_name: meta.full_name || "",
+        role: meta.role || "job_seeker",
+        company: meta.company || undefined,
+        created_at: authUser.created_at || new Date().toISOString(),
+        updated_at: authUser.updated_at || new Date().toISOString(),
+      } as Profile;
+
       try {
         const { data, error } = await supabase
           .from("profiles")
@@ -259,50 +314,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data && !error) {
           return data as Profile;
         }
-      } catch {
-        // profiles table may not exist yet — fall through to metadata
-      }
-
-      // Fall back to user_metadata
-      const meta = authUser.user_metadata || {};
-      return {
-        id: authUser.id,
-        email: authUser.email || "",
-        full_name: meta.full_name || "",
-        role: meta.role || "job_seeker",
-        company: meta.company || undefined,
-        created_at: authUser.created_at || new Date().toISOString(),
-        updated_at: authUser.updated_at || new Date().toISOString(),
-      } as Profile;
-    },
-    [],
-  );
-
-  // Create a profile record in the profiles table after signup
-  const createProfileRecord = useCallback(
-    async (authUser: any, fullName: string, role: string, company?: string) => {
-      try {
-        const { error } = await supabase.from("profiles").upsert(
-          {
-            id: authUser.id,
-            email: authUser.email,
-            full_name: fullName,
-            role: role || "job_seeker",
-            company: company || null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" },
-        );
 
         if (error) {
-          // Table may not exist — that's ok, metadata is sufficient
+          console.error(
+            "[AuthContext buildProfile] initial fetch failed:",
+            error,
+          );
         }
-      } catch {
-        // Silently handle — metadata fallback works
+
+        const { error: createError } = await createProfileRecord(
+          authUser,
+          meta.full_name,
+          meta.role,
+          meta.company,
+        );
+
+        if (!createError) {
+          const { data: repairedProfile, error: refetchError } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", authUser.id)
+            .maybeSingle();
+
+          if (repairedProfile && !refetchError) {
+            return repairedProfile as Profile;
+          }
+
+          if (refetchError) {
+            console.error(
+              "[AuthContext buildProfile] refetch after repair failed:",
+              refetchError,
+            );
+          }
+        }
+      } catch (error) {
+        console.error("[AuthContext buildProfile] exception:", error);
       }
+
+      return fallbackProfile;
     },
-    [],
+    [createProfileRecord],
   );
 
   // Auth listener effect — only depends on stable buildProfile, never re-runs
@@ -641,12 +692,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const newSession = data?.session || null;
 
       if (authUser) {
-        await createProfileRecord(
+        const { error: profileWriteError } = await createProfileRecord(
           authUser,
           fullName,
           role || "job_seeker",
           company,
         );
+
+        if (profileWriteError) {
+          console.error(
+            "[AuthContext signUp] profile write failed after auth signup:",
+            profileWriteError,
+          );
+        }
+
         sendEmail({ type: "welcome", email, name: fullName });
         // Notify admin when a recruiter signs up
         if (role === "recruiter") {
