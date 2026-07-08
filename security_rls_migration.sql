@@ -91,50 +91,56 @@ CREATE POLICY "Admins can delete payments"
   ON public.payments FOR DELETE
   USING (public.is_admin());
 
--- Service providers: Admins can UPDATE (verify) and DELETE
-DROP POLICY IF EXISTS "Admins can update providers" ON public.service_providers;
-CREATE POLICY "Admins can update providers"
-  ON public.service_providers FOR UPDATE
-  USING (public.is_admin());
+-- Service providers policies (conditional on table existence)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'service_providers') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can update providers" ON public.service_providers';
+    EXECUTE 'CREATE POLICY "Admins can update providers" ON public.service_providers FOR UPDATE USING (public.is_admin())';
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can delete providers" ON public.service_providers';
+    EXECUTE 'CREATE POLICY "Admins can delete providers" ON public.service_providers FOR DELETE USING (public.is_admin())';
+  END IF;
+END $$;
 
-DROP POLICY IF EXISTS "Admins can delete providers" ON public.service_providers;
-CREATE POLICY "Admins can delete providers"
-  ON public.service_providers FOR DELETE
-  USING (public.is_admin());
+-- Advertisements policies (conditional on table existence)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'advertisements') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can update ads" ON public.advertisements';
+    EXECUTE 'CREATE POLICY "Admins can update ads" ON public.advertisements FOR UPDATE USING (public.is_admin())';
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can delete ads" ON public.advertisements';
+    EXECUTE 'CREATE POLICY "Admins can delete ads" ON public.advertisements FOR DELETE USING (public.is_admin())';
+  END IF;
+END $$;
 
--- Advertisements: Admins can UPDATE and DELETE
-DROP POLICY IF EXISTS "Admins can update ads" ON public.advertisements;
-CREATE POLICY "Admins can update ads"
-  ON public.advertisements FOR UPDATE
-  USING (public.is_admin());
+-- Notifications policies (conditional on table existence)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'notifications') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can insert notifications" ON public.notifications';
+    EXECUTE 'CREATE POLICY "Admins can insert notifications" ON public.notifications FOR INSERT WITH CHECK (public.is_admin())';
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can delete notifications" ON public.notifications';
+    EXECUTE 'CREATE POLICY "Admins can delete notifications" ON public.notifications FOR DELETE USING (public.is_admin())';
+  END IF;
+END $$;
 
-DROP POLICY IF EXISTS "Admins can delete ads" ON public.advertisements;
-CREATE POLICY "Admins can delete ads"
-  ON public.advertisements FOR DELETE
-  USING (public.is_admin());
+-- Blog subscribers policies (conditional on table existence)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'blog_subscribers') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can delete subscribers" ON public.blog_subscribers';
+    EXECUTE 'CREATE POLICY "Admins can delete subscribers" ON public.blog_subscribers FOR DELETE USING (public.is_admin())';
+  END IF;
+END $$;
 
--- Notifications: Admins can INSERT, DELETE
-DROP POLICY IF EXISTS "Admins can insert notifications" ON public.notifications;
-CREATE POLICY "Admins can insert notifications"
-  ON public.notifications FOR INSERT
-  WITH CHECK (public.is_admin());
-
-DROP POLICY IF EXISTS "Admins can delete notifications" ON public.notifications;
-CREATE POLICY "Admins can delete notifications"
-  ON public.notifications FOR DELETE
-  USING (public.is_admin());
-
--- Blog subscribers: Admins can DELETE
-DROP POLICY IF EXISTS "Admins can delete subscribers" ON public.blog_subscribers;
-CREATE POLICY "Admins can delete subscribers"
-  ON public.blog_subscribers FOR DELETE
-  USING (public.is_admin());
-
--- Conversations: Admins can DELETE (for moderation)
-DROP POLICY IF EXISTS "Admins can delete conversations" ON public.conversations;
-CREATE POLICY "Admins can delete conversations"
-  ON public.conversations FOR DELETE
-  USING (public.is_admin());
+-- Conversations policies (conditional on table existence)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'conversations') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can delete conversations" ON public.conversations';
+    EXECUTE 'CREATE POLICY "Admins can delete conversations" ON public.conversations FOR DELETE USING (public.is_admin())';
+  END IF;
+END $$;
 
 -- ═════════════════════════════════════════════════════════════════════════
 -- 4) Rate limiting: Function to check failed login attempts
@@ -176,8 +182,22 @@ CREATE INDEX IF NOT EXISTS idx_applications_job_id ON public.applications(job_id
 CREATE INDEX IF NOT EXISTS idx_applications_applicant_id ON public.applications(applicant_id);
 CREATE INDEX IF NOT EXISTS idx_applications_status ON public.applications(status);
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON public.payments(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_conversations_participants ON public.conversations(participant1_id, participant2_id);
+
+-- Notifications index (conditional on table existence)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'notifications') THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id)';
+  END IF;
+END $$;
+
+-- Conversations index (conditional on table existence)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'conversations') THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_conversations_participants ON public.conversations(participant1_id, participant2_id)';
+  END IF;
+END $$;
 
 -- ═════════════════════════════════════════════════════════════════════════
 -- 6) Storage bucket for profile images with proper policies
