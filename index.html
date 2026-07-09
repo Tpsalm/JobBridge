@@ -13,10 +13,10 @@
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://korablobstorage.blob.core.windows.net;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-      connect-src 'self' https://*.supabase.co https://api.openai.com https://api.paystack.co https://api.korapay.com https://fonts.googleapis.com https://fonts.gstatic.com;
-      img-src 'self' data: blob: https://images.pexels.com https://logo.clearbit.com https://*.supabase.co;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.paystack.co https://api.korapay.com https://korablobstorage.blob.core.windows.net https://fonts.googleapis.com https://fonts.gstatic.com;
+      img-src 'self' data: blob: https://images.pexels.com https://logo.clearbit.com https://*.supabase.co https://korablobstorage.blob.core.windows.net;
       media-src 'self' https://cdn.pixabay.com;
-      font-src 'self' https://fonts.gstatic.com;
+      font-src 'self' https://fonts.gstatic.com https://korablobstorage.blob.core.windows.net;
       frame-src https://checkout.paystack.com https://korablobstorage.blob.core.windows.net;
       base-uri 'self';
       form-action 'self';

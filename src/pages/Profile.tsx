@@ -431,21 +431,25 @@ export default function Profile() {
     setSaving(true);
 
     try {
-      const phoneCheck = validatePhoneNumber(form.phone || "");
+      const phoneValue = form.phone || "";
+      const dobValue = form.date_of_birth || "";
+      const genderValue = form.gender || "";
+
+      const phoneCheck = phoneValue ? validatePhoneNumber(phoneValue) : { ok: true, normalized: "" };
       if (!phoneCheck.ok) {
         setActiveSection("personal");
         setPendingFieldFocus("phone");
         throw new Error(phoneCheck.message);
       }
 
-      const dobCheck = validateDateOfBirth(form.date_of_birth || "");
+      const dobCheck = dobValue ? validateDateOfBirth(dobValue) : { ok: true, iso: "" };
       if (!dobCheck.ok) {
         setActiveSection("personal");
         setPendingFieldFocus("date_of_birth");
         throw new Error(dobCheck.message);
       }
 
-      const genderCheck = validateGender(form.gender || "");
+      const genderCheck = genderValue ? validateGender(genderValue) : { ok: true, normalized: "" };
       if (!genderCheck.ok) {
         setActiveSection("personal");
         setPendingFieldFocus("gender");
@@ -466,17 +470,17 @@ export default function Profile() {
         }
 
         if (key === "phone") {
-          updates[key] = phoneCheck.normalized;
+          updates[key] = phoneCheck.normalized || null;
           return;
         }
 
         if (key === "date_of_birth") {
-          updates[key] = dobCheck.iso;
+          updates[key] = dobCheck.iso || null;
           return;
         }
 
         if (key === "gender") {
-          updates[key] = genderCheck.normalized;
+          updates[key] = genderCheck.normalized || null;
           return;
         }
 
@@ -783,7 +787,11 @@ export default function Profile() {
   };
 
   const missingFields = activeFields
-    .filter(([key]) => !form[key]?.trim())
+    .filter(
+      ([key]) =>
+        !form[key]?.trim() &&
+        !["phone", "date_of_birth", "gender"].includes(key),
+    )
     .slice(0, 3);
 
   return (

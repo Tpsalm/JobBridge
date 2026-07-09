@@ -83,6 +83,7 @@ export type Profile = {
   availability?: string;
   salary_expectation?: string;
   specialty?: string;
+  service_category?: string;
   hourly_rate?: number;
   skills?: string[];
   is_verified?: boolean;

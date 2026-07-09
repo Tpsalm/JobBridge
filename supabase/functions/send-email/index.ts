@@ -219,20 +219,19 @@ function jobPostedTemplate(name: string, jobTitle: string, company: string): str
 <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:20px 0 0;">Good luck finding the perfect candidate! 🎯</p>`;
 }
 
-function paymentTemplate(name: string, plan: string, amount: string): string {
-  const pn = plan || 'Plan';
-  const am = amount || '0';
-  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
-<div style="background:#f0fdf4;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #bbf7d0;">
-<p style="font-size:15px;color:#166534;margin:0 0 4px;font-weight:600;">🎉 Payment Successful!</p>
-<p style="font-size:22px;font-weight:700;color:#111827;margin:8px 0;">${pn}</p>
-<p style="font-size:15px;color:#4b5563;margin:0;">Amount: <strong>NGN ${am}</strong></p>
+function dailyDigestTemplate(name: string, summary: string): string {
+  const displayName = name || 'there';
+  const summaryText = summary || 'Here is your daily briefing from JobBridge.';
+  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${displayName}</strong>,</p>
+<div style="background:#eff6ff;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #bfdbfe;">
+<p style="font-size:17px;font-weight:700;color:#1e40af;margin:0 0 12px;">Your Daily JobBridge Update</p>
+<p style="font-size:15px;color:#374151;line-height:1.7;margin:0;">${summaryText}</p>
 </div>
-<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Thank you for your purchase! Your plan is now active and you can start using all the features immediately.</p>
-<p style="font-size:15px;color:#374151;line-height:1.7;margin:0;">Need help? Contact us at <a href="mailto:jobbridgesupport@gmail.com" style="color:#1d4ed8;text-decoration:underline;">jobbridgesupport@gmail.com</a>.</p>`;
+<p style="font-size:15px;color:#4b5563;line-height:1.7;margin:0 0 16px;">Keep checking JobBridge for new job matches, recruiter messages, and important account notifications.</p>
+<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">You can manage your notification settings in your JobBridge account.</p>`;
 }
 
-serve(async (req) => {
+function paymentTemplate(name: string, plan: string, amount: string): string {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
   const corsResponse = handleCors(req);
@@ -244,7 +243,7 @@ serve(async (req) => {
   }
 
   try {
-    const { type, email, name, jobTitle, company, plan, amount, applicantName } = await req.json();
+    const { type, email, name, jobTitle, company, plan, amount, applicantName, summary } = await req.json();
 
     if (!email || !type) {
       return new Response(JSON.stringify({ error: 'Email and type are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -255,7 +254,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid email format' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted'];
+    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'daily_digest'];
     if (!VALID_TYPES.includes(type)) {
       return new Response(JSON.stringify({ error: `Unknown email type: ${type}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -299,6 +298,10 @@ serve(async (req) => {
       case 'job_posted':
         subject = `Job Posted Successfully: ${sanitize(jobTitle, MAX_STR_LENGTH) || 'Your Job'} 🎉`;
         htmlBody = jobPostedTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(jobTitle, MAX_STR_LENGTH), sanitize(company, MAX_STR_LENGTH));
+        break;
+      case 'daily_digest':
+        subject = 'Your JobBridge Daily Update';
+        htmlBody = dailyDigestTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(summary, MAX_STR_LENGTH));
         break;
     }
 

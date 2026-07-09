@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useToasts } from "../contexts/ToastContext";
 import { supabase } from "../lib/supabase";
 import { fetchUnreadNotificationCount } from "../lib/supabaseQueries";
 import {
@@ -51,6 +52,7 @@ export default function Header() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
+  const { push } = useToasts();
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,7 +79,41 @@ export default function Header() {
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const next = payload.new as unknown as {
+            title: string;
+            content?: string;
+          };
+          refreshCount();
+          if (next?.title) {
+            push({
+              message: `${next.title}${next.content ? ` — ${next.content}` : ""}`,
+              type: "info",
+            });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          refreshCount();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
           schema: "public",
           table: "notifications",
           filter: `user_id=eq.${user.id}`,

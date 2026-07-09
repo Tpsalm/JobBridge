@@ -247,6 +247,29 @@ export default function Recruiter() {
         imageAlt="Recruiter reviewing candidate profiles"
       />
 
+      <AnimatedSection direction="up" className="mb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="rounded-3xl bg-gradient-to-r from-blue-600 to-cyan-600 p-6 shadow-xl text-white border border-white/10">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-xs uppercase tracking-[0.24em] text-sky-200 font-semibold mb-2">
+                  Recruiter offer
+                </p>
+                <h2 className="text-2xl sm:text-3xl font-bold">
+                  Recruiter subscription is free for the first month.
+                </h2>
+                <p className="mt-3 text-sm sm:text-base text-sky-100/90 leading-7">
+                  Start posting jobs now and pay only from month two. You’ll receive daily JobBridge updates, email alerts, and live notification pop-ups for recruiter activity.
+                </p>
+              </div>
+              <div className="rounded-3xl bg-white/10 px-5 py-4 text-sm sm:text-base font-semibold text-white border border-white/15 shadow-inner">
+                No recruiter fee for month one.
+              </div>
+            </div>
+          </div>
+        </div>
+      </AnimatedSection>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Stats Row */}
         <AnimatedSection direction="up">
@@ -270,26 +293,21 @@ export default function Recruiter() {
         {/* Subscription Status */}
         <AnimatedSection direction="up" className="mb-6">
           {subscription.status === 'active' ? (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 text-sm">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm text-emerald-800 flex-wrap">
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
-                <span className="text-emerald-800 font-medium">{subscription.credits} job post credit{subscription.credits !== 1 ? 's' : ''} remaining</span>
+                <span className="font-medium">{subscription.credits} job post credit{subscription.credits !== 1 ? 's' : ''} remaining</span>
                 {subscription.tier && (
                   <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded capitalize">{subscription.tier} plan</span>
                 )}
               </div>
-              <button
-                onClick={() => openModal('premium')}
-                className="text-xs text-blue-700 hover:underline font-medium"
-              >
-                Get more credits
-              </button>
+              <div className="text-xs text-emerald-700">First month is free for recruiters on new subscriptions.</div>
             </div>
           ) : (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 text-sm">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm text-amber-800 flex-wrap">
                 <CreditCard className="w-4 h-4 text-amber-600" />
-                <span className="text-amber-800 font-medium">No active plan</span>
+                <span className="font-medium">No active plan</span>
                 <span className="text-xs text-amber-600">Subscribe to post jobs</span>
               </div>
               <Link to="/pricing" className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-amber-700 transition-colors inline-flex items-center">
