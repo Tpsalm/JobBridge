@@ -7,6 +7,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const KORA_API_BASE = "https://api.korapay.com/merchant/api/v1";
+const KORA_ALLOW_SIMULATED_VERIFICATION =
+  (Deno.env.get("KORA_ALLOW_SIMULATED_VERIFICATION") || "").toLowerCase() ===
+    "true";
 
 const ALLOWED_EVENTS = new Set(["charge.success", "charge.failed"]);
 
@@ -113,6 +116,59 @@ async function insertNotification(
   }
 }
 
+async function sendPaymentConfirmationEmail(
+  supabase: ReturnType<typeof createClient>,
+  payment: PaymentRow,
+  reference: string,
+): Promise<void> {
+  try {
+    const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
+      payment.user_id,
+    );
+
+    if (userError || !userData?.user?.email) {
+      console.warn(
+        "[Kora Webhook] Could not resolve user email for payment confirmation email:",
+        userError?.message || "No email",
+      );
+      return;
+    }
+
+    const emailPayload = {
+      type: "payment",
+      email: userData.user.email,
+      name: userData.user.user_metadata?.full_name || userData.user.email,
+      plan: payment.plan,
+      amount: String(payment.amount),
+    };
+
+    const emailUrl = `${SUPABASE_URL}/functions/v1/send-email`;
+    const emailResponse = await fetch(emailUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(emailPayload),
+    });
+
+    const emailText = await emailResponse.text();
+    if (!emailResponse.ok) {
+      console.error(
+        "[Kora Webhook] Payment confirmation email failed:",
+        emailResponse.status,
+        emailText,
+      );
+      return;
+    }
+
+    console.log(
+      `[Kora Webhook] Payment confirmation email queued for ${reference} to ${userData.user.email}`,
+    );
+  } catch (error) {
+    console.error("[Kora Webhook] Error sending payment confirmation email:", error);
+  }
+}
+
 async function verifySignature(
   payload: KoraWebhookPayload,
   signature: string | null,
@@ -145,8 +201,39 @@ async function verifySignature(
 
 async function verifyCharge(
   reference: string,
+  payload: KoraWebhookPayload,
 ): Promise<KoraChargeVerificationResponse> {
+  const shouldSimulate =
+    KORA_ALLOW_SIMULATED_VERIFICATION &&
+    Boolean(payload.data?.simulate_verification || payload.data?.test_mode);
+
+  if (shouldSimulate) {
+    console.log(
+      "[Kora Webhook] Simulating charge verification for reference:",
+      reference,
+    );
+    return {
+      status: true,
+      message: "Simulated verification",
+      data: {
+        reference,
+        payment_reference:
+          payload.data.payment_reference || payload.data.transaction_reference ||
+          reference,
+        transaction_reference:
+          payload.data.transaction_reference ||
+          payload.data.payment_reference ||
+          reference,
+        status: "success",
+        amount: payload.data.amount_paid ?? payload.data.amount_expected ?? payload.data.amount,
+        amount_paid: payload.data.amount_paid ?? payload.data.amount_expected ?? payload.data.amount,
+        currency: payload.data.currency || "NGN",
+      },
+    };
+  }
+
   console.log("[Kora Webhook] Verifying charge for reference:", reference);
+  console.log("[Kora Webhook] Verification payload:", JSON.stringify(payload.data));
   const response = await fetch(
     `${KORA_API_BASE}/charges/${encodeURIComponent(reference)}`,
     {
@@ -335,7 +422,7 @@ serve(async (req: Request) => {
 
     let verification: KoraChargeVerificationResponse;
     try {
-      verification = await verifyCharge(reference);
+      verification = await verifyCharge(reference, payload);
     } catch (verifyError) {
       console.error("[Kora Webhook] Charge verification failed:", verifyError);
       return new Response(
@@ -470,6 +557,8 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    await sendPaymentConfirmationEmail(supabase, payment, reference);
 
     await insertNotification(supabase, {
       userId: payment.user_id,

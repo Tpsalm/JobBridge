@@ -2,6 +2,7 @@ const functionsBaseUrl =
   import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
   `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const FUNC_URL = `${functionsBaseUrl.replace(/\/+$/, '')}/send-email`;
+const FALLBACK_FROM_EMAIL = 'JobBridge <onboarding@resend.dev>';
 
 interface EmailPayload {
   type: 'welcome' | 'subscription' | 'application' | 'recruiter_notification' | 'payment' | 'payment_initiated' | 'application_status' | 'new_recruiter' | 'job_posted' | 'daily_digest';
@@ -31,7 +32,10 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${anonKey}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        from: payload.from || FALLBACK_FROM_EMAIL,
+      }),
     });
 
     if (!response.ok) {

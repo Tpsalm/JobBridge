@@ -2,7 +2,14 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
-const FROM_EMAIL = 'JobBridge <onboarding@resend.dev>';
+const FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') || 'JobBridge <onboarding@resend.dev>';
+const BRAND_PRIMARY = '#1d4ed8';
+const BRAND_SECONDARY = '#0f766e';
+const BRAND_ACCENT = '#38bdf8';
+const BRAND_BG = '#f4f7fb';
+const BRAND_CARD = '#ffffff';
+const BRAND_TEXT = '#0f172a';
+const BRAND_MUTED = '#64748b';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MAX_EMAIL_LENGTH = 320;
@@ -30,43 +37,61 @@ function sanitize(val: string | undefined | null, maxLen: number): string {
   return val.replace(/[<>]/g, '').slice(0, maxLen).trim();
 }
 
-function wrapHtml(body: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>JobBridge</title></head>
-<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f9;"><tr><td align="center" style="padding:40px 16px;">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-<tr><td style="background:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 100%);border-radius:16px 16px 0 0;padding:40px 40px 32px;text-align:center;">
-<img src="https://ppramomuckkjzssrfghi.supabase.co/storage/v1/object/public/assets/jobbridge-logo-white.png" alt="JobBridge" width="180" style="max-width:180px;height:auto;margin-bottom:8px;" onerror="this.style.display='none'">
-<div style="font-size:28px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;margin-top:8px;">JobBridge</div>
-<div style="width:60px;height:3px;background:#3b82f6;border-radius:2px;margin:16px auto 0;"></div>
-</td></tr>
-<tr><td style="background:#ffffff;padding:40px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">${body}</td></tr>
-<tr><td style="background:#f8fafc;border-radius:0 0 16px 16px;border:1px solid #e5e7eb;border-top:none;padding:24px 40px;text-align:center;">
-<p style="font-size:13px;color:#9ca3af;line-height:1.6;margin:0;">JobBridge Connect Africa<br>Democratizing opportunity across Africa.</p>
-<p style="font-size:12px;color:#d1d5db;margin:12px 0 0;">You received this email because of your activity on JobBridge.<br><a href="https://jobbridge.com.ng" style="color:#6b7280;text-decoration:underline;">Visit JobBridge</a></p>
-</td></tr>
-</table></td></tr></table></body></html>`;
+function wrapHtml(body: string, title = 'JobBridge'): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${title}</title></head>
+<body style="margin:0;padding:0;background:${BRAND_BG};font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;color:${BRAND_TEXT};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND_BG};padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:${BRAND_CARD};border-radius:24px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 18px 45px rgba(15,23,42,0.08);">
+        <tr>
+          <td style="background:linear-gradient(135deg,${BRAND_PRIMARY} 0%,${BRAND_SECONDARY} 100%);padding:32px 32px 24px;text-align:center;">
+            <div style="display:inline-block;padding:10px 14px;border-radius:999px;background:rgba(255,255,255,0.16);margin-bottom:14px;font-size:12px;font-weight:700;letter-spacing:0.18em;color:#f8fafc;text-transform:uppercase;">JobBridge</div>
+            <div style="font-size:30px;font-weight:800;color:#ffffff;letter-spacing:-0.4px;">Modern hiring, smarter careers</div>
+            <div style="margin-top:10px;font-size:14px;color:#e2e8f0;line-height:1.6;">Professional tools for ambitious professionals and growing teams.</div>
+          </td>
+        </tr>
+        <tr><td style="padding:36px 32px 24px;">${body}</td></tr>
+        <tr>
+          <td style="padding:0 32px 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(90deg,rgba(29,78,216,0.06),rgba(15,118,110,0.06));border:1px solid #dbeafe;border-radius:16px;padding:16px;">
+              <tr><td style="font-size:14px;color:${BRAND_MUTED};line-height:1.7;">Need help? Reach us at <a href="mailto:jobbridgesupport@gmail.com" style="color:${BRAND_PRIMARY};text-decoration:none;font-weight:600;">jobbridgesupport@gmail.com</a>.</td></tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;">
+            <div style="font-size:13px;color:${BRAND_MUTED};line-height:1.7;">JobBridge Connect Africa<br>Democratizing opportunity across Africa.</div>
+            <div style="margin-top:10px;font-size:12px;color:#94a3b8;">You received this email because of your activity on JobBridge. <a href="https://jobbridge.com.ng" style="color:${BRAND_PRIMARY};text-decoration:none;">Visit JobBridge</a></div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
 }
 
 const T = (s: TemplateStringsArray, ...vals: string[]) =>
   s.reduce((acc, str, i) => acc + str + (vals[i] ? vals[i].replace(/[&"'<>]/g, c => ({ '&': '&amp;', '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;' })[c] || c) : ''), '');
 
+function heroCard(title: string, body: string, ctaText?: string, ctaHref?: string): string {
+  return `
+    <div style="background:linear-gradient(135deg,rgba(29,78,216,0.08),rgba(15,118,110,0.08));border:1px solid #dbeafe;border-radius:18px;padding:24px 22px;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND_PRIMARY};margin-bottom:8px;">${title}</div>
+      <div style="font-size:16px;line-height:1.7;color:${BRAND_TEXT};margin-bottom:14px;">${body}</div>
+      ${ctaText && ctaHref ? `<a href="${ctaHref}" style="display:inline-block;background:linear-gradient(135deg,${BRAND_PRIMARY},${BRAND_SECONDARY});color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-weight:700;font-size:14px;">${ctaText}</a>` : ''}
+    </div>`;
+}
+
 function welcomeTemplate(name: string): string {
   const n = name || 'there';
-  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${n}</strong>,</p>
-<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 24px;">Welcome to <strong style="color:#1d4ed8;">JobBridge</strong> — Nigeria's #1 professional network. We're excited to have you on board!</p>
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:12px;padding:24px;margin-bottom:28px;"><tr><td>
-<div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:16px;">🚀 Get started in 3 steps</div>
-<table cellpadding="0" cellspacing="0" style="width:100%;">
-<tr><td style="padding-bottom:14px;vertical-align:top;width:32px;"><table cellpadding="0" cellspacing="0" style="width:28px;height:28px;background:#1d4ed8;border-radius:50%;"><tr><td align="center" style="font-size:14px;font-weight:700;color:#ffffff;">1</td></tr></table></td><td style="padding-bottom:14px;font-size:14px;color:#4b5563;line-height:1.6;"><strong style="color:#111827;">Complete your profile</strong> — Add your experience, skills, and preferences so recruiters can find you.</td></tr>
-<tr><td style="padding-bottom:14px;vertical-align:top;"><table cellpadding="0" cellspacing="0" style="width:28px;height:28px;background:#1d4ed8;border-radius:50%;"><tr><td align="center" style="font-size:14px;font-weight:700;color:#ffffff;">2</td></tr></table></td><td style="padding-bottom:14px;font-size:14px;color:#4b5563;line-height:1.6;"><strong style="color:#111827;">Browse jobs</strong> — Explore thousands of verified opportunities from top employers.</td></tr>
-<tr><td style="vertical-align:top;"><table cellpadding="0" cellspacing="0" style="width:28px;height:28px;background:#1d4ed8;border-radius:50%;"><tr><td align="center" style="font-size:14px;font-weight:700;color:#ffffff;">3</td></tr></table></td><td style="font-size:14px;color:#4b5563;line-height:1.6;"><strong style="color:#111827;">Build your AI resume</strong> — Use our AI-powered tools to create a standout CV.</td></tr>
-</table></td></tr></table>
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-bottom:28px;"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:10px;padding:14px 36px;"><a href="https://jobbridge.com.ng/profile" target="_blank" style="color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;letter-spacing:0.3px;">Complete Your Profile</a></td></tr></table></td></tr></table>
-<div style="height:1px;background:#e5e7eb;margin-bottom:24px;"></div>
-<p style="font-size:15px;font-weight:700;color:#111827;margin:0 0 14px;">What you can do on JobBridge</p>
-${['Apply to jobs with one click', 'Get AI-powered resume and cover letter tools', 'Receive personalized job recommendations', 'Chat with our AI assistant for instant help'].map(f => `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;"><tr><td style="padding:6px 0;font-size:14px;color:#4b5563;vertical-align:top;width:24px;">✓</td><td style="padding:6px 0;font-size:14px;color:#4b5563;line-height:1.5;">${f}</td></tr></table>`).join('')}
-<p style="font-size:15px;color:#374151;line-height:1.7;margin:20px 0 0;">Need help? Our AI assistant is available on every page, or reach out at <a href="mailto:jobbridgesupport@gmail.com" style="color:#1d4ed8;text-decoration:underline;">jobbridgesupport@gmail.com</a>.</p>`;
+  return T`<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 18px;">Hi <strong style="color:#111827;">${n}</strong>,</p>
+<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Welcome to <strong style="color:${BRAND_PRIMARY};">JobBridge</strong> — the modern professional network built for opportunity, growth, and smarter hiring across Africa.</p>
+${heroCard('Start here', 'Complete your profile, unlock visibility, and start connecting with the right opportunities.', 'Complete Your Profile', 'https://jobbridge.com.ng/profile')}
+<div style="margin:18px 0 20px;padding:18px 20px;border:1px solid #e2e8f0;border-radius:16px;background:#ffffff;">
+  <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:12px;">What you can do next</div>
+  <div style="font-size:14px;color:${BRAND_MUTED};line-height:1.7;">• Build a standout profile<br>• Discover curated jobs and opportunities<br>• Access AI-powered career tools<br>• Stay on top of applications and alerts</div>
+</div>
+<p style="font-size:14px;color:${BRAND_MUTED};line-height:1.7;margin:0;">Need help? Our AI assistant is available on every page, or reach out at <a href="mailto:jobbridgesupport@gmail.com" style="color:${BRAND_PRIMARY};text-decoration:none;font-weight:600;">jobbridgesupport@gmail.com</a>.</p>`;
 }
 
 function subscriptionTemplate(name: string): string {
@@ -305,7 +330,7 @@ serve(async (req) => {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: FROM_EMAIL, to: cleanEmail, subject, html: wrapHtml(htmlBody) }),
+      body: JSON.stringify({ from: FROM_EMAIL, to: cleanEmail, subject, html: wrapHtml(htmlBody, subject) }),
     });
 
     if (!res.ok) {

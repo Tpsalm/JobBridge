@@ -548,14 +548,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
         }
 
-        sendEmail({ type: "welcome", email, name: fullName });
+        const welcomeSent = await sendEmail({ type: "welcome", email, name: fullName });
+        if (!welcomeSent) {
+          console.warn("[AuthContext signUp] welcome email send failed");
+        }
         // Notify admin when a recruiter signs up
         if (role === "recruiter") {
-          sendEmail({
+          const recruiterNoticeSent = await sendEmail({
             type: "new_recruiter",
             email: ADMIN_EMAIL,
             name: fullName,
           });
+          if (!recruiterNoticeSent) {
+            console.warn("[AuthContext signUp] recruiter notification email send failed");
+          }
         }
       }
 
