@@ -375,9 +375,11 @@ export default function Payment() {
 
     const reference =
       "JB-KORA-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
-    const notificationUrl = supabaseUrl
-      ? `${supabaseUrl}/functions/v1/kora-webhook`
+    const functionsBaseUrl =
+      import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+    const notificationUrl = functionsBaseUrl
+      ? `${functionsBaseUrl.replace(/\/+$/, '')}/kora-webhook`
       : undefined;
 
     setPaying(true);
