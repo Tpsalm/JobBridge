@@ -111,11 +111,16 @@ function recruiterNotificationTemplate(jobTitle: string, applicantName: string):
 
 function statusDisplay(status: string): string {
   switch (status) {
-    case 'shortlisted': return '— You\'ve Been Shortlisted! ⭐';
-    case 'rejected': return '— Update on Your Application';
-    case 'hired': return '— Congratulations! You\'re Hired! 🎉';
-    case 'reviewed': return '— Application Reviewed';
-    default: return '— Status Updated';
+    case 'shortlisted':
+      return '— You\'ve Been Shortlisted! ⭐';
+    case 'rejected':
+      return '— Update on Your Application';
+    case 'hired':
+      return '— Congratulations! You\'re Hired! 🎉';
+    case 'reviewed':
+      return '— Application Reviewed';
+    default:
+      return '— Status Updated';
   }
 }
 
@@ -219,31 +224,15 @@ function jobPostedTemplate(name: string, jobTitle: string, company: string): str
 <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:20px 0 0;">Good luck finding the perfect candidate! 🎯</p>`;
 }
 
-function dailyDigestTemplate(name: string, summary: string): string {
-  const displayName = name || 'there';
-  const summaryText = summary || 'Here is your daily briefing from JobBridge.';
-  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${displayName}</strong>,</p>
-<div style="background:#eff6ff;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #bfdbfe;">
-<p style="font-size:17px;font-weight:700;color:#1e40af;margin:0 0 12px;">Your Daily JobBridge Update</p>
-<p style="font-size:15px;color:#374151;line-height:1.7;margin:0;">${summaryText}</p>
-</div>
-<p style="font-size:15px;color:#4b5563;line-height:1.7;margin:0 0 16px;">Keep checking JobBridge for new job matches, recruiter messages, and important account notifications.</p>
-<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">You can manage your notification settings in your JobBridge account.</p>`;
-}
-
-function paymentTemplate(name: string, plan: string, amount: string): string {
+serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
+
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!checkRateLimit(ip)) {
-    return new Response(JSON.stringify({ error: 'Too many requests. Try again later.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
-
   try {
-    const { type, email, name, jobTitle, company, plan, amount, applicantName, summary } = await req.json();
+    const { type, email, name, jobTitle, company, plan, amount, applicantName, summary, status } = await req.json();
 
     if (!email || !type) {
       return new Response(JSON.stringify({ error: 'Email and type are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

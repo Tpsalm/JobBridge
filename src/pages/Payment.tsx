@@ -15,6 +15,7 @@ import {
 import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
+import { useToasts } from "../contexts/ToastContext";
 import { fetchPaymentByReference, recordPayment } from "../lib/supabaseQueries";
 import { sendEmail } from "../lib/email";
 
@@ -110,6 +111,9 @@ const PLANS: Record<
 
 type CheckoutStep = "kora-checkout" | "processing" | "success";
 
+const KORA_SCRIPT_SRC =
+  "https://korablobstorage.blob.core.windows.net/modal-bucket/korapay-collections.min.js";
+const MAX_KORA_SCRIPT_LOAD_RETRIES = 3;
 const PENDING_PAYMENT_STORAGE_KEY = "jobbridge_pending_payment_ref";
 
 function getSuccessTarget(plan: (typeof PLANS)[string]): string {
@@ -125,16 +129,20 @@ function formatNaira(n: number): string {
 export default function Payment() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, fetchSubscription, fetchAiSubscription } = useAuth();
+  const { user, fetchSubscription, fetchAiSubscription, isAuthenticated } = useAuth();
+  const { push } = useToasts();
 
   const planKey = searchParams.get("plan") || "basic";
   const plan = PLANS[planKey] || PLANS.basic;
+  const loginRedirect = `/login?redirect=${encodeURIComponent(`/payment?plan=${planKey}`)}`;
 
   const [step, setStep] = useState<CheckoutStep>("kora-checkout");
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
   const [error, setError] = useState<ReactNode>("");
   const [koraReady, setKoraReady] = useState(false);
+  const [koraLoading, setKoraLoading] = useState(false);
+  const koraRetryCountRef = useRef(0);
   const [paymentReference, setPaymentReference] = useState<string>(() => {
     try {
       return sessionStorage.getItem(PENDING_PAYMENT_STORAGE_KEY) || "";
@@ -165,19 +173,74 @@ export default function Payment() {
     setPaymentReference("");
   };
 
-  useEffect(() => {
-    if (document.getElementById("kora-script")) {
+  const loadKoraScript = () => {
+    if (typeof window === "undefined") return;
+    if (window.Korapay) {
       setKoraReady(true);
+      setKoraLoading(false);
+      setError("");
       return;
     }
 
-    const s = document.createElement("script");
-    s.id = "kora-script";
-    s.src =
-      "https://korablobstorage.blob.core.windows.net/modal-bucket/korapay-collections.min.js";
-    s.onload = () => setKoraReady(true);
-    s.onerror = () => console.error("[Kora] Failed to load");
-    document.body.appendChild(s);
+    if (document.getElementById("kora-script")) {
+      setKoraLoading(true);
+      return;
+    }
+
+    setKoraLoading(true);
+    const script = document.createElement("script");
+    script.id = "kora-script";
+    script.src = KORA_SCRIPT_SRC;
+    script.async = true;
+    script.defer = true;
+    script.crossOrigin = "anonymous";
+    const finalizeLoad = () => {
+      if (window.Korapay) {
+        setKoraReady(true);
+        setKoraLoading(false);
+        setError("");
+        return;
+      }
+      koraRetryCountRef.current += 1;
+      const shouldRetry = koraRetryCountRef.current < MAX_KORA_SCRIPT_LOAD_RETRIES;
+      if (shouldRetry) {
+        const existing = document.getElementById("kora-script");
+        existing?.remove();
+        setTimeout(loadKoraScript, 1200);
+        return;
+      }
+
+      setKoraLoading(false);
+      console.error("[Kora] Script loaded but Korapay global is missing");
+      setError(
+        "Unable to initialize the payment gateway right now. Please refresh this page or try again in a few moments.",
+      );
+    };
+
+    script.onload = () => {
+      window.setTimeout(finalizeLoad, 600);
+    };
+    script.onerror = () => {
+      koraRetryCountRef.current += 1;
+      const shouldRetry = koraRetryCountRef.current < MAX_KORA_SCRIPT_LOAD_RETRIES;
+      if (shouldRetry) {
+        const existing = document.getElementById("kora-script");
+        existing?.remove();
+        setTimeout(loadKoraScript, 1200);
+        return;
+      }
+
+      setKoraLoading(false);
+      console.error("[Kora] Failed to load script after retries");
+      setError(
+        "Unable to load the payment gateway right now. Please refresh this page or try again in a few moments.",
+      );
+    };
+    document.body.appendChild(script);
+  };
+
+  useEffect(() => {
+    loadKoraScript();
   }, []);
 
   useEffect(() => {
@@ -283,12 +346,13 @@ export default function Payment() {
 
   const handlePayWithKora = async () => {
     if (!user?.id) {
-      setError("Please log in first.");
+      navigate(loginRedirect);
       return;
     }
 
     if (!koraReady || typeof window.Korapay === "undefined") {
-      setError("Kora gateway loading. Please wait.");
+      setError("Loading secure payment gateway. Please wait a moment.");
+      loadKoraScript();
       return;
     }
 
@@ -342,6 +406,10 @@ export default function Payment() {
         // ignore storage failures
       }
       setPaymentReference(reference);
+      push({
+        message: `KoraPay checkout initialized. Complete your payment to activate ${plan.name}.`,
+        type: "info",
+      });
 
       if (user.email) {
         sendEmail({
@@ -390,6 +458,10 @@ export default function Payment() {
         setError(
           `Payment received. Verifying securely with KoraPay${nextReference ? ` (ref: ${nextReference})` : ""}...`,
         );
+        push({
+          message: "Payment submitted successfully. Verifying securely now.",
+          type: "success",
+        });
       },
       onFailed: (data) => {
         koraCompletedRef.current = true;
@@ -398,8 +470,12 @@ export default function Payment() {
         setStep("processing");
         setPaying(true);
         setError(
-          `KoraPay reported a failed payment. Waiting for backend confirmation for ref: ${failedReference}`,
+          `KoraPay reported a failed payment. We are verifying it now. Ref: ${failedReference}`,
         );
+        push({
+          message: "KoraPay reported a failed payment. We are verifying it now.",
+          type: "error",
+        });
       },
       onPending: () => {
         koraCompletedRef.current = true;
@@ -408,6 +484,10 @@ export default function Payment() {
         setError(
           `Payment submitted. Waiting for secure verification for ref: ${reference}`,
         );
+        push({
+          message: "Payment is pending. We are verifying it in the background.",
+          type: "info",
+        });
       },
       onClose: () => {
         if (!koraCompletedRef.current) {
@@ -421,6 +501,32 @@ export default function Payment() {
   };
 
   function renderKoraCheckoutScreen() {
+    if (!isAuthenticated) {
+      return (
+        <div className="max-w-[420px] mx-auto text-center">
+          <div className="mb-8">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 mb-4">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+              Please log in to continue
+            </h1>
+            <p className="text-sm text-gray-500 mt-2">
+              You must be logged in to complete payment. Sign in now to finish checkout.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              window.location.href = loginRedirect;
+            }}
+            className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base transition-all duration-200 hover:bg-[#1A4BCE]/90"
+          >
+            Login to continue
+          </button>
+        </div>
+      );
+    }
+
     const isProcessing = step === "processing";
 
     return (
@@ -516,7 +622,7 @@ export default function Payment() {
 
         <button
           onClick={handlePayWithKora}
-          disabled={paying || !koraReady || isProcessing}
+          disabled={paying || (!koraReady && koraLoading) || isProcessing}
           className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base
                      transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
                      shadow-lg shadow-[#1A4BCE]/25 hover:shadow-xl hover:shadow-[#1A4BCE]/30
@@ -530,7 +636,7 @@ export default function Payment() {
           ) : !koraReady ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin" />
-              Loading...
+              {koraLoading ? "Loading payment gateway..." : "Retrying gateway setup..."}
             </span>
           ) : (
             <span className="inline-flex items-center gap-2">
@@ -651,6 +757,41 @@ export default function Payment() {
         className={`min-h-screen bg-white pb-24 ${paid ? "opacity-20 pointer-events-none select-none" : ""}`}
       >
         <Header />
+
+        <div className="max-w-7xl mx-auto px-4 mt-6 mb-6">
+          <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 shadow-2xl">
+            <div className="absolute -top-10 -right-10 w-64 h-64 rounded-full bg-cyan-400/10 blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 w-72 h-72 rounded-full bg-white/5 blur-3xl" />
+            <div className="relative px-6 py-10 sm:px-12 sm:py-14 text-white">
+              <p className="text-sm uppercase tracking-[0.24em] text-cyan-300 font-semibold">
+                Secure payment
+              </p>
+              <h2 className="mt-3 text-3xl sm:text-4xl font-bold leading-tight max-w-3xl">
+                Pay for your plan with KoraPay and complete checkout securely.
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm sm:text-base text-cyan-100/90 leading-7">
+                Use card, USSD or bank transfer and get fast verification from our secure payment gateway.
+              </p>
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                {[
+                  { label: "Fast verification", icon: "⚡" },
+                  { label: "Card, USSD, Bank Transfer", icon: "💳" },
+                  { label: "Encrypted checkout", icon: "🔒" },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm"
+                  >
+                    <div className="text-2xl">{item.icon}</div>
+                    <p className="mt-3 text-sm font-semibold text-white">
+                      {item.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="bg-[#1A4BCE] relative overflow-hidden">
           <div className="absolute inset-0 opacity-10">

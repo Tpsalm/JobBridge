@@ -80,7 +80,7 @@ export default function Home() {
             disablePictureInPicture
             poster="https://images.pexels.com/photos/3194519/pexels-photo-3194519.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&dpr=2"
           >
-            <source src="https://cdn.pixabay.com/video/2020/06/12/41820-431406508_large.mp4" type="video/mp4" />
+            <source src="https://content.pexels.com/aigc-bundle/videos/bc0ecd53-9e7a-483f-ada2-e1c5e1b5a5d6.mp4" type="video/mp4" />
             {/* Fallback image if video fails */}
             <img
               src="https://images.pexels.com/photos/3194519/pexels-photo-3194519.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&dpr=2"

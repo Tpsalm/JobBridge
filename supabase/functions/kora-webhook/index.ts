@@ -146,6 +146,7 @@ async function verifySignature(
 async function verifyCharge(
   reference: string,
 ): Promise<KoraChargeVerificationResponse> {
+  console.log("[Kora Webhook] Verifying charge for reference:", reference);
   const response = await fetch(
     `${KORA_API_BASE}/charges/${encodeURIComponent(reference)}`,
     {
@@ -158,6 +159,8 @@ async function verifyCharge(
   );
 
   const bodyText = await response.text();
+  console.log("[Kora Webhook] Verify charge response status:", response.status);
+  console.log("[Kora Webhook] Verify charge response body:", bodyText);
   let body: KoraChargeVerificationResponse | null = null;
 
   try {
@@ -197,7 +200,18 @@ serve(async (req: Request) => {
 
   try {
     const signature = req.headers.get("x-korapay-signature");
-    const payload: KoraWebhookPayload = await req.json();
+    const rawBody = await req.text();
+    let payload: KoraWebhookPayload;
+
+    try {
+      payload = rawBody ? JSON.parse(rawBody) : { event: "", data: {} };
+    } catch (parseError) {
+      console.error("[Kora Webhook] Failed to parse payload:", parseError);
+      return new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     console.log(
       "[Kora Webhook] Received event:",
@@ -205,6 +219,8 @@ serve(async (req: Request) => {
       "ref:",
       payload.data?.reference,
     );
+    console.log("[Kora Webhook] Signature header:", signature || "<missing>");
+    console.log("[Kora Webhook] Raw payload:", rawBody);
 
     if (!ALLOWED_EVENTS.has(payload.event)) {
       console.log(`[Kora Webhook] Ignoring event type: ${payload.event}`);
@@ -212,9 +228,17 @@ serve(async (req: Request) => {
     }
 
     const isValid = await verifySignature(payload, signature);
+    console.log("[Kora Webhook] Signature check result:", isValid);
     if (!isValid) {
       console.error("[Kora Webhook] Invalid signature — ignoring request");
-      return new Response("ok", { status: 200, headers: corsHeaders });
+      return new Response(
+        JSON.stringify({
+          error: "Invalid signature",
+          reference: payload.data?.reference || null,
+          signature: signature || null,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const reference =
