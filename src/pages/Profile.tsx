@@ -76,6 +76,8 @@ export default function Profile() {
   const { user, profile: userProfile } = useAuth();
   const { push } = useToasts();
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [savedBadgeVisible, setSavedBadgeVisible] = useState(false);
+  const [savedBadgeMounted, setSavedBadgeMounted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -235,6 +237,19 @@ export default function Profile() {
     setForm((prev) => ({ ...prev, [field]: nextValue }));
   };
 
+  useEffect(() => {
+    if (!savedBadgeVisible) return;
+    setSavedBadgeMounted(true);
+    const hideTimer = window.setTimeout(() => setSavedBadgeVisible(false), 3200);
+    return () => window.clearTimeout(hideTimer);
+  }, [savedBadgeVisible]);
+
+  useEffect(() => {
+    if (!savedBadgeMounted || savedBadgeVisible) return;
+    const cleanupTimer = window.setTimeout(() => setSavedBadgeMounted(false), 300);
+    return () => window.clearTimeout(cleanupTimer);
+  }, [savedBadgeMounted, savedBadgeVisible]);
+
   const handleReset = () => {
     if (initialFormRef.current) {
       setForm({ ...initialFormRef.current });
@@ -282,6 +297,7 @@ export default function Profile() {
       setForm(updatedForm);
       initialFormRef.current = updatedForm;
       setSaveSuccess(true);
+      setSavedBadgeVisible(true);
       push({ message: "Editing saved — your profile is updated.", type: "success" });
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
@@ -529,8 +545,12 @@ export default function Profile() {
                   <div className="rounded-3xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                     Edit your profile directly in the fields below and save when ready.
                   </div>
-                  {saveSuccess && (
-                    <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
+                  {savedBadgeMounted && (
+                    <span
+                      className={`inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100 transition-all duration-300 ${
+                        savedBadgeVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'
+                      }`}
+                    >
                       <Check className="h-3.5 w-3.5" /> Saved
                     </span>
                   )}
