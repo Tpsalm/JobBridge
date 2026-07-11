@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
@@ -73,22 +74,19 @@ function ProfileCompletionRing({ percentage }: { percentage: number }) {
 }
 
 export default function Profile() {
-  const { user, profile: userProfile } = useAuth();
+  const { user, profile: userProfile, updatePassword } = useAuth();
   const { push } = useToasts();
+  const navigate = useNavigate();
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [savedBadgeVisible, setSavedBadgeVisible] = useState(false);
   const [savedBadgeMounted, setSavedBadgeMounted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [avatarUploading, setAvatarUploading] = useState(false);
-
-  const saveButtonClass = `inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
-    saving
-      ? 'bg-blue-200 text-blue-800 cursor-wait'
-      : saveSuccess
-      ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20 transform scale-105'
-      : 'bg-blue-600 text-white hover:bg-blue-700'
-  }`;
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [profileLoading, setProfileLoading] = useState(true);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
@@ -257,6 +255,61 @@ export default function Profile() {
     const cleanupTimer = window.setTimeout(() => setSavedBadgeMounted(false), 300);
     return () => window.clearTimeout(cleanupTimer);
   }, [savedBadgeMounted, savedBadgeVisible]);
+
+  const saveButtonClass = `inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+    saving
+      ? 'bg-blue-200 text-blue-800 cursor-wait'
+      : savedBadgeVisible
+      ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20 transform scale-105 animate-pulse'
+      : 'bg-blue-600 text-white hover:bg-blue-700'
+  }`;
+
+  const handleConnect = () => {
+    navigate('/providers');
+    push({ message: 'Browse providers and connect with service professionals.', type: 'success' });
+  };
+
+  const handleMessage = () => {
+    navigate('/support');
+    push({ message: 'Message support or explore help options.', type: 'info' });
+  };
+
+  const handleMore = () => {
+    navigate('/about');
+    push({ message: 'Explore more JobBridge resources and tools.', type: 'info' });
+  };
+
+  const handlePasswordChange = async () => {
+    if (!user) return;
+    setPasswordError("");
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      setPasswordError('Please enter and confirm your new password.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const { error } = await updatePassword(newPassword.trim());
+      if (error) throw error;
+      push({ message: 'Password updated successfully.', type: 'success' });
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: unknown) {
+      const message = err instanceof Error && err.message ? err.message : 'Failed to update password. Please try again.';
+      setPasswordError(message);
+      push({ message, type: 'error' });
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
 
   const handleReset = () => {
     if (initialFormRef.current) {
@@ -471,18 +524,21 @@ export default function Profile() {
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <button
                     type="button"
+                    onClick={handleConnect}
                     className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:w-auto"
                   >
                     Connect
                   </button>
                   <button
                     type="button"
+                    onClick={handleMessage}
                     className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
                   >
                     Message
                   </button>
                   <button
                     type="button"
+                    onClick={handleMore}
                     className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
                   >
                     More
@@ -660,13 +716,15 @@ export default function Profile() {
                       <button
                         onClick={handleSave}
                         disabled={saving}
-                        className={`inline-flex items-center justify-center rounded-2xl px-6 py-3 text-sm font-semibold transition ${
-                          saving ? 'bg-blue-200 text-blue-800 cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
+                        className={saveButtonClass}
                       >
                         {saving ? (
                           <>
                             <Loader className="w-4 h-4 animate-spin" /> Saving...
+                          </>
+                        ) : saveSuccess ? (
+                          <>
+                            <Check className="w-4 h-4" /> Saved
                           </>
                         ) : (
                           'Save profile'
@@ -676,6 +734,67 @@ export default function Profile() {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">Change password</h3>
+                  <p className="mt-1 text-sm text-slate-600">Update your account password securely from this page.</p>
+                </div>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+                  Secure
+                </span>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                {passwordError && (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {passwordError}
+                  </div>
+                )}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">New password</label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">Confirm password</label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-slate-500">Use a strong password of at least 8 characters.</p>
+                  <button
+                    type="button"
+                    onClick={handlePasswordChange}
+                    disabled={passwordSaving}
+                    className={`inline-flex items-center justify-center rounded-2xl px-6 py-3 text-sm font-semibold transition ${
+                      passwordSaving ? 'bg-blue-200 text-blue-800 cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {passwordSaving ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" /> Updating...
+                      </>
+                    ) : (
+                      'Change password'
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
@@ -689,6 +808,7 @@ export default function Profile() {
                   </div>
                 </div>
               </div>
+
               <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
                 <h3 className="text-base font-semibold text-slate-900">Skills</h3>
                 <div className="mt-4 space-y-3">
@@ -703,6 +823,7 @@ export default function Profile() {
                   ))}
                 </div>
               </div>
+
               <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
                 <h3 className="text-base font-semibold text-slate-900">Honors & awards</h3>
                 <div className="mt-4 space-y-4 text-sm text-slate-600">
@@ -713,6 +834,7 @@ export default function Profile() {
                   </div>
                 </div>
               </div>
+
               <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
                 <h3 className="text-base font-semibold text-slate-900">Languages</h3>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
