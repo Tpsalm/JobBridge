@@ -209,7 +209,7 @@ export async function upsertProfile(profile: {
 // ─── Blog Subscriptions ────────────────────────────────────────────────────
 
 export async function subscribeToBlog(email: string) {
-  const { error } = await supabase.from("blog_subscribers").insert([{ email }]);
+  const { error } = await supabase.from("blog_subscribers").upsert([{ email }], { onConflict: "email" });
   if (error) throw error;
 }
 
