@@ -618,12 +618,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) throw error;
 
+      const signedInUserEmail = data?.user?.email || email;
+      const signedInUserName =
+        data?.user?.user_metadata?.full_name ||
+        data?.user?.email ||
+        email;
+
       // If user does NOT want to be remembered, store preference so we can
       // sign out when the tab closes (best-effort via sessionStorage flag).
       if (!rememberMe && data?.session) {
         sessionStorage.setItem("jb_session_only", "1");
       } else {
         sessionStorage.removeItem("jb_session_only");
+      }
+
+      if (signedInUserEmail) {
+        void sendEmail({
+          type: "sign_in",
+          email: signedInUserEmail,
+          name: signedInUserName,
+        });
       }
 
       return { error: null };
@@ -634,8 +648,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    const currentEmail = user?.email || profile?.email || null;
+    const currentName = profile?.full_name || user?.user_metadata?.full_name || currentEmail || "there";
+
     sessionStorage.removeItem("jb_session_only");
     await supabase.auth.signOut();
+
+    if (currentEmail) {
+      void sendEmail({
+        type: "sign_out",
+        email: currentEmail,
+        name: currentName,
+      });
+    }
   };
 
   /**

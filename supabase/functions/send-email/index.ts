@@ -2,7 +2,6 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
-const FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') || 'JobBridge <onboarding@resend.dev>';
 const BRAND_PRIMARY = '#1d4ed8';
 const BRAND_SECONDARY = '#0f766e';
 const BRAND_ACCENT = '#38bdf8';
@@ -35,6 +34,21 @@ function checkRateLimit(ip: string): boolean {
 function sanitize(val: string | undefined | null, maxLen: number): string {
   if (!val) return '';
   return val.replace(/[<>]/g, '').slice(0, maxLen).trim();
+}
+
+function resolveFromEmail(rawFrom: string | undefined | null): string {
+  const candidate = (rawFrom || '').trim();
+  if (!candidate) {
+    return 'JobBridge <onboarding@resend.dev>';
+  }
+
+  const normalized = candidate.toLowerCase();
+  if (normalized.includes('@jobbridge.com.ng') || normalized.includes('@www.jobbridge.com.ng')) {
+    console.warn('[Send Email] Using safe resend.dev sender instead of unverified jobbridge.com.ng address');
+    return 'JobBridge <onboarding@resend.dev>';
+  }
+
+  return candidate;
 }
 
 function wrapHtml(body: string, title = 'JobBridge'): string {
@@ -220,6 +234,20 @@ function paymentInitiatedTemplate(name: string, plan: string, amount: string): s
 <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">This is an automated notification. No action is needed if you are already completing the payment.</p>`;
 }
 
+function signInTemplate(name: string): string {
+  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
+<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 24px;">We detected a successful sign-in to your JobBridge account. If this was you, no further action is required.</p>
+${heroCard('Security update', 'If you do not recognize this activity, change your password right away and contact support so we can secure your account.', 'Secure My Account', 'https://jobbridge.com.ng/profile')}
+<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">This email confirms a recent sign-in to JobBridge. Keep your password safe and never share your login details.</p>`;
+}
+
+function signOutTemplate(name: string): string {
+  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
+<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 24px;">You have successfully signed out of JobBridge. We hope to see you again soon.</p>
+${heroCard('Signed out', 'If you were not expecting this sign-out, your account may have been accessed elsewhere. Review your account security and sign in again if needed.', 'Review Security', 'https://jobbridge.com.ng/profile')}
+<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">Thank you for using JobBridge. We’re here to help whenever you need support.</p>`;
+}
+
 function newRecruiterTemplate(name: string, recruiterEmail: string): string {
   return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi Admin,</p>
 <div style="background:#fefce8;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #fde68a;">
@@ -257,7 +285,7 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
-    const { type, email, name, jobTitle, company, plan, amount, applicantName, summary, status } = await req.json();
+    const { type, email, name, jobTitle, company, plan, amount, applicantName, summary, status, from } = await req.json();
 
     if (!email || !type) {
       return new Response(JSON.stringify({ error: 'Email and type are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -268,7 +296,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid email format' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'daily_digest'];
+    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'daily_digest', 'sign_in', 'sign_out'];
     if (!VALID_TYPES.includes(type)) {
       return new Response(JSON.stringify({ error: `Unknown email type: ${type}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -301,6 +329,14 @@ serve(async (req) => {
         subject = 'Payment Initiated — JobBridge';
         htmlBody = paymentInitiatedTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(plan, MAX_STR_LENGTH), sanitize(amount, MAX_STR_LENGTH));
         break;
+      case 'sign_in':
+        subject = 'New sign-in to your JobBridge account 🔐';
+        htmlBody = signInTemplate(sanitize(name, MAX_NAME_LENGTH));
+        break;
+      case 'sign_out':
+        subject = 'You signed out of JobBridge 👋';
+        htmlBody = signOutTemplate(sanitize(name, MAX_NAME_LENGTH));
+        break;
       case 'application_status':
         subject = `Application Update: ${sanitize(jobTitle, MAX_STR_LENGTH) || 'Your Application'} ${statusDisplay(sanitize(status, MAX_STR_LENGTH))}`;
         htmlBody = applicationStatusTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(jobTitle, MAX_STR_LENGTH), sanitize(company, MAX_STR_LENGTH), sanitize(status, MAX_STR_LENGTH));
@@ -327,10 +363,12 @@ serve(async (req) => {
       });
     }
 
+    const senderEmail = resolveFromEmail(from);
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: FROM_EMAIL, to: cleanEmail, subject, html: wrapHtml(htmlBody, subject) }),
+      body: JSON.stringify({ from: senderEmail, to: cleanEmail, subject, html: wrapHtml(htmlBody, subject) }),
     });
 
     if (!res.ok) {
