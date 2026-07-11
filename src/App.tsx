@@ -4,6 +4,7 @@ import { ModalProvider } from "./contexts/ModalContext";
 import { ModalRenderer } from "./components/Modal";
 import AIAssistantWidget from "./components/AIAssistantWidget";
 import SwipeNavigator from "./components/SwipeNavigator";
+import AudioExperience from "./components/AudioExperience";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
@@ -40,6 +41,7 @@ export default function App() {
       <AuthProvider>
         <ModalProvider>
           <SwipeNavigator />
+          <AudioExperience />
           <Routes>
             {/* Auth pages */}
             <Route path="/signup" element={<Signup />} />
