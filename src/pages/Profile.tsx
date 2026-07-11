@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
+import { useToasts } from "../contexts/ToastContext";
 import { updateProfile, fetchProfile } from "../lib/supabaseQueries";
 import { supabase } from "../lib/supabase";
 import {
@@ -73,6 +74,7 @@ function ProfileCompletionRing({ percentage }: { percentage: number }) {
 
 export default function Profile() {
   const { user, profile: userProfile } = useAuth();
+  const { push } = useToasts();
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -280,10 +282,12 @@ export default function Profile() {
       setForm(updatedForm);
       initialFormRef.current = updatedForm;
       setSaveSuccess(true);
+      push({ message: "Editing saved — your profile is updated.", type: "success" });
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
       const message = err instanceof Error && err.message ? err.message : "Failed to save profile. Please try again.";
       setSaveError(message);
+      push({ message, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -513,12 +517,40 @@ export default function Profile() {
                   <h2 className="mt-2 text-3xl font-bold text-slate-900">Keep your profile polished</h2>
                   <p className="mt-2 text-sm text-slate-600">Update your details to improve visibility with recruiters and clients.</p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <ProfileCompletionRing percentage={completionPct} />
-                  <div className="text-sm text-slate-500">
-                    <p>{filledFieldsCount}/{activeFields.length} fields completed</p>
-                    <p className="mt-1">{completionPct}% complete</p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                  <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700">
+                    {filledFieldsCount}/{activeFields.length} fields • {completionPct}% complete
                   </div>
+                  <ProfileCompletionRing percentage={completionPct} />
+                </div>
+              </div>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="rounded-3xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  Edit your profile directly in the fields below and save when ready.
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={handleReset}
+                    disabled={saving}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                      saving ? 'bg-blue-200 text-blue-800 cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {saving ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" /> Saving...
+                      </>
+                    ) : (
+                      'Save changes'
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
