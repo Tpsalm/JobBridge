@@ -8,6 +8,7 @@ import { useAuthRequired } from '../hooks/useAuthRequired';
 import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight } from 'lucide-react';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
+import FloatingDecorations from '../components/FloatingDecorations';
 import { pexel } from '../lib/media';
 
 const stats = [
@@ -69,6 +70,7 @@ export default function Home() {
 
       {/* Hero — Professional Video Background */}
       <section className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 min-h-[560px]" style={{ perspective: '1000px' }}>
+        <FloatingDecorations className="opacity-70" />
         {/* Professional background video */}
         <div className="absolute inset-0 bg-black z-0">
           <video

@@ -6,6 +6,7 @@ import { Check, Star, Zap, Briefcase, Users, Award, MessageCircle, CreditCard, E
 import { Link, useNavigate } from 'react-router-dom';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
+import FloatingDecorations from '../components/FloatingDecorations';
 
 export default function Pricing() {
   const { openModal } = useModal();
@@ -23,6 +24,7 @@ export default function Pricing() {
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Hero */}
         <div className="bg-gradient-to-r from-blue-700 to-blue-800 rounded-2xl p-6 mb-6 text-white relative overflow-hidden">
+          <FloatingDecorations className="opacity-65" />
           <img
             src="https://images.pexels.com/photos/3756679/pexels-photo-3756679.jpeg?auto=compress&cs=tinysrgb&w=800&h=300&dpr=2"
             alt=""

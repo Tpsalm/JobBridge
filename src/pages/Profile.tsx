@@ -9,6 +9,7 @@ import {
   sanitizeProfileText,
   validatePhoneNumber,
 } from "../lib/profileValidation";
+import FloatingDecorations from '../components/FloatingDecorations';
 import {
   Camera,
   Check,
@@ -80,6 +81,7 @@ export default function Profile() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const initialFormRef = useRef<Record<string, string> | null>(null);
 
   const normalizeAvatarUrl = (raw?: string) => {
     const value = (raw || "").trim();
@@ -129,8 +131,9 @@ export default function Profile() {
           fields.avatar_url = String(freshRecord.avatar_url || "");
           fields.email = fresh.email || user?.email || "";
           setForm(fields);
+          initialFormRef.current = fields;
         } else {
-          setForm({
+          const fallbackFields = {
             full_name: user.user_metadata?.full_name || "",
             email: user.email || "",
             phone: "",
@@ -142,7 +145,9 @@ export default function Profile() {
             hourly_rate: "",
             skills: "",
             avatar_url: "",
-          });
+          };
+          setForm(fallbackFields);
+          initialFormRef.current = fallbackFields;
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -178,6 +183,37 @@ export default function Profile() {
     return totalWeight > 0 ? Math.round((filled / totalWeight) * 100) : 0;
   }, [form, activeFields]);
 
+  const profileStatus = useMemo(() => {
+    if (completionPct >= 85) return "Excellent";
+    if (completionPct >= 60) return "Strong";
+    if (completionPct >= 35) return "Fair";
+    return "Needs improvement";
+  }, [completionPct]);
+
+  const roleLabel = useMemo(() => {
+    if (userProfile?.role === "provider") return "Service Provider";
+    if (userProfile?.role === "recruiter") return "Recruiter";
+    return "Job Seeker";
+  }, [userProfile?.role]);
+
+  const filledFieldsCount = useMemo(
+    () => activeFields.filter(([key]) => !!form[key]?.trim()).length,
+    [activeFields, form],
+  );
+
+  const topSkills = useMemo(() => {
+    if (!form.skills) return [];
+    return form.skills
+      .split(",")
+      .map((skill) => skill.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+  }, [form.skills]);
+
+  const primaryLocation = form.location?.trim() || "Not set";
+
+  const profileHeadline = form.professional_headline || "Add a strong headline so employers notice you.";
+
   const sectionGroups = useMemo(() => {
     const groups: Record<string, typeof activeFields> = {};
     activeFields.forEach(([key, field]) => {
@@ -195,6 +231,14 @@ export default function Profile() {
       nextValue = sanitizeProfileText(value);
     }
     setForm((prev) => ({ ...prev, [field]: nextValue }));
+  };
+
+  const handleReset = () => {
+    if (initialFormRef.current) {
+      setForm({ ...initialFormRef.current });
+      setSaveError("");
+      setSaveSuccess(false);
+    }
   };
 
   const handleSave = async () => {
@@ -228,10 +272,13 @@ export default function Profile() {
       else updates.avatar_url = null;
 
       await updateProfile(user.id, updates);
-      setForm((prev) => ({
-        ...prev,
-        phone: phoneCheck.normalized ? formatPhoneInput(phoneCheck.normalized) : "",
-      }));
+      const normalizedPhone = phoneCheck.normalized ? formatPhoneInput(phoneCheck.normalized) : "";
+      const updatedForm = {
+        ...form,
+        phone: normalizedPhone,
+      };
+      setForm(updatedForm);
+      initialFormRef.current = updatedForm;
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
@@ -346,8 +393,9 @@ export default function Profile() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 overflow-hidden">
       <Header />
+      <FloatingDecorations className="opacity-55" />
       <input
         ref={avatarInputRef}
         type="file"
@@ -389,17 +437,34 @@ export default function Profile() {
               <div>
                 <p className="text-sm text-slate-500">Welcome back</p>
                 <h2 className="text-xl font-semibold text-slate-900">{form.full_name || "Your name"}</h2>
-                <p className="mt-1 text-sm text-slate-600">{form.professional_headline || "Add a short headline for recruiters."}</p>
+                <p className="mt-1 text-sm text-slate-600">{profileHeadline}</p>
               </div>
             </div>
 
             <div className="mt-6 rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500 font-semibold">Profile strength</p>
-              <div className="mt-4 flex items-center gap-4">
-                <ProfileCompletionRing percentage={completionPct} />
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{completionPct}% complete</p>
-                  <p className="mt-1 text-sm text-slate-500">The more you fill, the better recruiters can find you.</p>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 font-semibold">Profile strength</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{profileStatus}</p>
+                </div>
+                <ProfileCompletionRing percentage={completionPct} />
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-3xl bg-slate-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Role</p>
+                  <p className="mt-2 font-semibold text-slate-900">{roleLabel}</p>
+                </div>
+                <div className="rounded-3xl bg-slate-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Completed fields</p>
+                  <p className="mt-2 font-semibold text-slate-900">{filledFieldsCount}/{activeFields.length}</p>
+                </div>
+                <div className="rounded-3xl bg-slate-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Location</p>
+                  <p className="mt-2 font-semibold text-slate-900">{primaryLocation}</p>
+                </div>
+                <div className="rounded-3xl bg-slate-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Top skills</p>
+                  <p className="mt-2 font-semibold text-slate-900">{topSkills.length ? topSkills.join(", ") : "Not set"}</p>
                 </div>
               </div>
             </div>
@@ -464,23 +529,32 @@ export default function Profile() {
                   Your email is read-only because it is linked to your account.
                 </div>
 
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm text-slate-500">Keep the page simple and easy to read for a layman.</div>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className={`inline-flex items-center justify-center rounded-2xl px-6 py-3 text-sm font-semibold transition ${
-                      saving ? "bg-blue-200 text-blue-800 cursor-wait" : "bg-blue-600 text-white hover:bg-blue-700"
-                    }`}
-                  >
-                    {saving ? (
-                      <>
-                        <Loader className="w-4 h-4 animate-spin" /> Saving...
-                      </>
-                    ) : (
-                      "Save changes"
-                    )}
-                  </button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-slate-500">Save your profile to make it visible to recruiters and providers.</div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button
+                      onClick={handleReset}
+                      disabled={saving}
+                      className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Reset changes
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className={`inline-flex items-center justify-center rounded-2xl px-6 py-3 text-sm font-semibold transition ${
+                        saving ? "bg-blue-200 text-blue-800 cursor-wait" : "bg-blue-600 text-white hover:bg-blue-700"
+                      }`}
+                    >
+                      {saving ? (
+                        <>
+                          <Loader className="w-4 h-4 animate-spin" /> Saving...
+                        </>
+                      ) : (
+                        "Save profile"
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

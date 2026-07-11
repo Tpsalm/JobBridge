@@ -3,6 +3,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ModalProvider } from "./contexts/ModalContext";
 import { ModalRenderer } from "./components/Modal";
 import AIAssistantWidget from "./components/AIAssistantWidget";
+import SwipeNavigator from "./components/SwipeNavigator";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
@@ -38,6 +39,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ModalProvider>
+          <SwipeNavigator />
           <Routes>
             {/* Auth pages */}
             <Route path="/signup" element={<Signup />} />

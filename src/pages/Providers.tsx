@@ -7,6 +7,7 @@ import { useAuthRequired } from '../hooks/useAuthRequired';
 import { fetchProviders } from '../lib/supabaseQueries';
 import type { Profile } from '../lib/supabase';
 import { Search, ChevronLeft, ChevronRight, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, Sparkles } from 'lucide-react';
+import FloatingDecorations from '../components/FloatingDecorations';
 import { IMG } from '../lib/media';
 
 interface Message {
@@ -209,6 +210,7 @@ export default function Providers() {
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Hero Search */}
         <div className="relative rounded-2xl shadow-lg overflow-hidden mb-6">
+          <FloatingDecorations className="opacity-70" />
           <img src={IMG.hero.providers} alt="" className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 via-blue-800/80 to-blue-700/70" />
           <div className="relative p-6 sm:p-8">
