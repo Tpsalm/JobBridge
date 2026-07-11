@@ -24,6 +24,10 @@ import {
   Globe,
   DollarSign,
   Clock,
+  Briefcase,
+  ShieldCheck,
+  Sparkles,
+  Users2,
 } from "lucide-react";
 
 const PROFILE_FIELDS = {
@@ -92,6 +96,9 @@ export default function Profile() {
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const initialFormRef = useRef<Record<string, string> | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const securityRef = useRef<HTMLDivElement | null>(null);
+  const activityRef = useRef<HTMLDivElement | null>(null);
 
   const normalizeAvatarUrl = (raw?: string) => {
     const value = (raw || "").trim();
@@ -277,6 +284,25 @@ export default function Profile() {
   const handleMore = () => {
     navigate('/about');
     push({ message: 'Explore more JobBridge resources and tools.', type: 'info' });
+  };
+
+  const handleViewJobs = () => {
+    navigate('/jobs');
+    push({ message: 'Opening the latest opportunities for you.', type: 'success' });
+  };
+
+  const handleExploreProviders = () => {
+    navigate('/providers');
+    push({ message: 'Opening trusted service providers and specialists.', type: 'info' });
+  };
+
+  const openAvatarPicker = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const scrollToSection = (target: "editor" | "security" | "activity") => {
+    const section = target === "editor" ? editorRef.current : target === "security" ? securityRef.current : activityRef.current;
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const handlePasswordChange = async () => {
@@ -474,7 +500,12 @@ export default function Profile() {
     .slice(0, 3);
 
   return (
-    <div className="relative min-h-screen bg-slate-50 text-slate-900 overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_transparent_35%),linear-gradient(135deg,_#f8fbff_0%,_#eef5ff_45%,_#f8fbff_100%)] text-slate-900">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-20 top-24 h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
+        <div className="absolute right-0 top-40 h-72 w-72 rounded-full bg-sky-300/25 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-56 w-56 rounded-full bg-indigo-400/15 blur-3xl" />
+      </div>
       <Header />
       <FloatingDecorations className="opacity-55" />
       <input
@@ -485,24 +516,45 @@ export default function Profile() {
         onChange={(e) => handleAvatarUpload(e.target.files?.[0])}
       />
 
-      <main className="max-w-7xl mx-auto px-4 py-10">
+      <main className="relative mx-auto max-w-7xl px-4 py-10">
         <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="space-y-6">
-            <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-              <div className="h-28 bg-blue-600" />
+            <div className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/90 shadow-[0_25px_70px_-25px_rgba(15,23,42,0.35)] backdrop-blur">
+              <div className="relative h-32 bg-[linear-gradient(135deg,_#0f4cfd_0%,_#2563eb_45%,_#38bdf8_100%)]">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.22),_transparent_42%)]" />
+              </div>
               <div className="px-6 pb-6 pt-0">
-                <div className="-mt-16 flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left sm:items-end">
-                  <img
-                    src={avatarSrc}
-                    alt="Profile"
-                    onError={() => setAvatarLoadFailed(true)}
-                    className="h-32 w-32 rounded-full border-4 border-white bg-slate-100 object-cover shadow-xl"
-                  />
+                <div className="-mt-16 flex flex-col items-center gap-4 text-center sm:flex-row sm:items-end sm:text-left">
+                  <button
+                    type="button"
+                    onClick={openAvatarPicker}
+                    className="group relative h-32 w-32 overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-[0_20px_45px_-18px_rgba(15,23,42,0.55)]"
+                  >
+                    <img
+                      src={avatarSrc}
+                      alt="Profile"
+                      onError={() => setAvatarLoadFailed(true)}
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-950/45 opacity-0 transition group-hover:opacity-100">
+                      <div className="rounded-full bg-white/90 p-2 text-blue-600">
+                        <Camera className="h-5 w-5" />
+                      </div>
+                    </div>
+                    {avatarUploading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-slate-950/55 text-white">
+                        <Loader className="h-6 w-6 animate-spin" />
+                      </div>
+                    )}
+                  </button>
                   <div className="sm:flex-1">
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Profile</p>
-                    <h1 className="mt-2 text-3xl font-bold text-slate-900">{form.full_name || 'Your name'}</h1>
+                    <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-blue-700">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Professional profile
+                    </div>
+                    <h1 className="mt-3 text-3xl font-bold text-slate-900">{form.full_name || 'Your name'}</h1>
                     <p className="mt-1 text-sm text-slate-600">{profileHeadline}</p>
-                    <p className="mt-4 text-sm text-slate-500 flex items-center justify-center gap-2 sm:justify-start">
+                    <p className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-slate-500 sm:justify-start">
                       <span className="rounded-full bg-slate-100 px-3 py-1">{roleLabel}</span>
                       <span className="text-slate-400">•</span>
                       <span>{primaryLocation}</span>
@@ -511,43 +563,50 @@ export default function Profile() {
                 </div>
 
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-3xl bg-slate-50 p-4 text-sm">
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm shadow-sm">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Connections</p>
                     <p className="mt-2 text-lg font-semibold text-slate-900">3,245</p>
                   </div>
-                  <div className="rounded-3xl bg-slate-50 p-4 text-sm">
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm shadow-sm">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Profile strength</p>
                     <p className="mt-2 text-lg font-semibold text-slate-900">{profileStatus}</p>
                   </div>
                 </div>
 
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mt-6 grid gap-3 md:grid-cols-2">
                   <button
                     type="button"
-                    onClick={handleConnect}
-                    className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 active:scale-[0.98] sm:w-auto"
+                    onClick={handleViewJobs}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 active:scale-[0.98]"
                   >
-                    Connect
+                    <Briefcase className="h-4 w-4" /> View jobs
                   </button>
                   <button
                     type="button"
-                    onClick={handleMessage}
-                    className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98] sm:w-auto"
+                    onClick={handleExploreProviders}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]"
                   >
-                    Message
+                    <Users2 className="h-4 w-4" /> Explore providers
                   </button>
                   <button
                     type="button"
-                    onClick={handleMore}
-                    className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
+                    onClick={() => scrollToSection("editor")}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]"
                   >
-                    More
+                    <Sparkles className="h-4 w-4" /> Edit profile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection("security")}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98]"
+                  >
+                    <ShieldCheck className="h-4 w-4" /> Security
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div ref={activityRef} className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Activity</p>
@@ -590,7 +649,7 @@ export default function Profile() {
           </aside>
 
           <section className="space-y-6">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div ref={editorRef} className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_25px_70px_-25px_rgba(15,23,42,0.32)] backdrop-blur">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="text-sm uppercase tracking-[0.24em] text-blue-500">Profile editor</p>
@@ -648,7 +707,7 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
               {saveSuccess && (
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-700">
                   Profile updated successfully.
@@ -736,7 +795,7 @@ export default function Profile() {
               )}
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div ref={securityRef} className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">Change password</h3>
@@ -798,7 +857,7 @@ export default function Profile() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
                 <h3 className="text-base font-semibold text-slate-900">Education</h3>
                 <div className="mt-4 space-y-4 text-sm text-slate-600">
                   <div className="rounded-3xl bg-slate-50 p-4">
@@ -809,7 +868,7 @@ export default function Profile() {
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
                 <h3 className="text-base font-semibold text-slate-900">Skills</h3>
                 <div className="mt-4 space-y-3">
                   {(topSkills.length ? topSkills : ['Creative Strategy', 'Advertising']).map((skill) => (
@@ -824,7 +883,7 @@ export default function Profile() {
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
                 <h3 className="text-base font-semibold text-slate-900">Honors & awards</h3>
                 <div className="mt-4 space-y-4 text-sm text-slate-600">
                   <div className="rounded-3xl bg-slate-50 p-4">
@@ -835,7 +894,7 @@ export default function Profile() {
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
                 <h3 className="text-base font-semibold text-slate-900">Languages</h3>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
                   <div className="rounded-3xl bg-slate-50 p-4">
