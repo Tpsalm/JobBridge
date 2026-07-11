@@ -81,6 +81,14 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const saveButtonClass = `inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+    saving
+      ? 'bg-blue-200 text-blue-800 cursor-wait'
+      : saveSuccess
+      ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20 transform scale-105'
+      : 'bg-blue-600 text-white hover:bg-blue-700'
+  }`;
   const [form, setForm] = useState<Record<string, string>>({});
   const [profileLoading, setProfileLoading] = useState(true);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
@@ -566,13 +574,15 @@ export default function Profile() {
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-                      saving ? 'bg-blue-200 text-blue-800 cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
+                    className={saveButtonClass}
                   >
                     {saving ? (
                       <>
                         <Loader className="w-4 h-4 animate-spin" /> Saving...
+                      </>
+                    ) : saveSuccess ? (
+                      <>
+                        <Check className="w-4 h-4" /> Saved
                       </>
                     ) : (
                       'Save changes'
