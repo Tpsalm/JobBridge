@@ -18,6 +18,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToasts } from "../contexts/ToastContext";
 import { fetchPaymentByReference, recordPayment } from "../lib/supabaseQueries";
 import { sendEmail } from "../lib/email";
+import { getSupabaseFunctionsUrl } from "../lib/supabaseHelpers";
 
 declare global {
   interface Window {
@@ -190,9 +191,9 @@ export default function Payment() {
     setKoraLoading(true);
     const script = document.createElement("script");
     script.id = "kora-script";
+    script.type = "text/javascript";
     script.src = KORA_SCRIPT_SRC;
-    script.async = true;
-    script.defer = true;
+    script.async = false;
     script.crossOrigin = "anonymous";
     const finalizeLoad = () => {
       if (window.Korapay) {
@@ -375,11 +376,9 @@ export default function Payment() {
 
     const reference =
       "JB-KORA-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-    const functionsBaseUrl =
-      import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+    const functionsBaseUrl = getSupabaseFunctionsUrl();
     const notificationUrl = functionsBaseUrl
-      ? `${functionsBaseUrl.replace(/\/+$/, '')}/kora-webhook`
+      ? `${functionsBaseUrl}/kora-webhook`
       : undefined;
 
     setPaying(true);

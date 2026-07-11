@@ -1,7 +1,7 @@
-const functionsBaseUrl =
-  import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
-  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
-const FUNC_URL = `${functionsBaseUrl.replace(/\/+$/, '')}/send-email`;
+import { getSupabaseFunctionsUrl } from './supabaseHelpers';
+
+const functionsBaseUrl = getSupabaseFunctionsUrl();
+const FUNC_URL = functionsBaseUrl ? `${functionsBaseUrl}/send-email` : null;
 const FALLBACK_FROM_EMAIL = 'JobBridge <onboarding@resend.dev>';
 
 interface EmailPayload {
@@ -26,6 +26,11 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   }
 
   try {
+    if (!FUNC_URL) {
+      console.error('[Email] sendEmail error: invalid Supabase functions URL');
+      return false;
+    }
+
     const response = await fetch(FUNC_URL, {
       method: 'POST',
       headers: {
