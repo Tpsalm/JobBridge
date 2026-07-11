@@ -9,7 +9,9 @@ const PAGE_MESSAGES: Record<string, string> = {
   "/support": "Visit support for guidance, answers, and help whenever you need it.",
   "/contact": "Reach out to the JobBridge team with questions, partnerships, or feedback.",
   "/about": "Learn more about JobBridge and the mission behind the platform.",
+  "/ceo": "Meet the leadership vision behind JobBridge and discover the story of the people shaping the platform.",
   "/pricing": "Review available plans and discover the right path for your career growth.",
+  "/payment": "Explore payment options and checkout choices designed to make your experience smooth and secure.",
   "/blog": "Read career stories, insights, and updates from the JobBridge community.",
   "/profile": "Manage your professional profile, update your details, and keep your account secure.",
   "/ai-resume": "Create a sharper AI-enhanced resume that highlights your experience with confidence.",
@@ -18,6 +20,14 @@ const PAGE_MESSAGES: Record<string, string> = {
   "/career": "Unlock career guidance and practical tools that support your next move.",
   "/analytics": "Explore insights and performance data that help you make smarter decisions.",
   "/games": "Take a break and enjoy light activities designed to keep the experience engaging.",
+  "/signup": "Create your account and begin building a strong professional presence on JobBridge.",
+  "/login": "Sign in and continue your journey with JobBridge.",
+  "/privacy": "Review privacy details and understand how your data is protected.",
+  "/business": "Discover advertising and business growth tools crafted for ambitious teams.",
+  "/profile-visibility": "Adjust who can see your profile and refine your privacy settings.",
+  "/job-preferences": "Set your job preferences and fine-tune the opportunities you receive.",
+  "/following": "Keep track of the people and companies you follow.",
+  "/reviews": "Read reviews and ratings to stay informed and make confident choices.",
 };
 
 const DEFAULT_MESSAGE = "Welcome to JobBridge. Your next step in growth begins here.";
@@ -93,7 +103,7 @@ export default function AudioExperience() {
     }
 
     isPlayingRef.current = true;
-    const notes = [261.63, 329.63, 392.0, 440.0];
+    const notes = [196.0, 246.94, 329.63, 392.0, 440.0];
     let noteIndex = 0;
 
     const playStep = () => {
@@ -103,32 +113,33 @@ export default function AudioExperience() {
 
       const ctx = audioContextRef.current;
       const now = ctx.currentTime;
-      const activeNotes = [notes[noteIndex % notes.length], notes[(noteIndex + 1) % notes.length], notes[(noteIndex + 2) % notes.length]];
+      const chord = [notes[noteIndex % notes.length], notes[(noteIndex + 2) % notes.length], notes[(noteIndex + 4) % notes.length]];
 
-      activeNotes.forEach((frequency) => {
+      chord.forEach((frequency, layerIndex) => {
         const oscillator = ctx.createOscillator();
         const gainNode = ctx.createGain();
         const filterNode = ctx.createBiquadFilter();
+        const waveType = layerIndex === 0 ? "sine" : layerIndex === 1 ? "triangle" : "square";
 
-        oscillator.type = "triangle";
+        oscillator.type = waveType as OscillatorType;
         oscillator.frequency.setValueAtTime(frequency, now);
         filterNode.type = "lowpass";
-        filterNode.frequency.setValueAtTime(1200, now);
+        filterNode.frequency.setValueAtTime(1800, now);
 
         gainNode.gain.setValueAtTime(0.0001, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.012, now + 0.08);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
+        gainNode.gain.exponentialRampToValueAtTime(layerIndex === 2 ? 0.0045 : 0.0075, now + 0.85);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
 
         oscillator.connect(filterNode);
         filterNode.connect(gainNode);
         gainNode.connect(ctx.destination);
 
         oscillator.start(now);
-        oscillator.stop(now + 1.0);
+        oscillator.stop(now + 3.0);
       });
 
       noteIndex = (noteIndex + 1) % notes.length;
-      musicTimerRef.current = window.setTimeout(playStep, 1600);
+      musicTimerRef.current = window.setTimeout(playStep, 2800);
     };
 
     playStep();

@@ -385,6 +385,39 @@ function getTimeGreeting(): string {
       : "Good evening";
 }
 
+function pickVoice() {
+  if (typeof window === "undefined" || !window.speechSynthesis) {
+    return null;
+  }
+
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find((voice) =>
+    voice.lang.startsWith("en") && /female|samantha|zira|victoria|ava|jessa|susan|alice|emma/i.test(voice.name),
+  );
+
+  return preferred ?? voices.find((voice) => voice.lang.startsWith("en")) ?? null;
+}
+
+function speakAssistantText(text: string) {
+  if (typeof window === "undefined" || !window.speechSynthesis) {
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text.replace(/[#*_`]/g, " "));
+  utterance.lang = "en-US";
+  utterance.rate = 1.02;
+  utterance.pitch = 1.08;
+  utterance.volume = 0.95;
+  const voice = pickVoice();
+
+  if (voice) {
+    utterance.voice = voice;
+  }
+
+  window.speechSynthesis.speak(utterance);
+}
+
 function AIAssistantWidget() {
   const { profile, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -637,10 +670,14 @@ function AIAssistantWidget() {
         onDone: (final, finalSources) => {
           setPhase("");
           setStreamText("");
+          const cleaned = final.replace(/\s+/g, " ").trim();
           setMessages((prev) => [
             ...prev,
-            { id: nextId(), text: final, sender: "bot", sources: finalSources },
+            { id: nextId(), text: cleaned, sender: "bot", sources: finalSources },
           ]);
+          if (cleaned) {
+            speakAssistantText(cleaned);
+          }
         },
       },
       pageState,
