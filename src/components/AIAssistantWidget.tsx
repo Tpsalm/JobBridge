@@ -403,8 +403,16 @@ function speakAssistantText(text: string) {
     return;
   }
 
+  const normalized = text.replace(/[#*_`]/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) return;
+
+  const expressiveText = normalized
+    .replace(/([.!?])\s+/g, "$1 ")
+    .replace(/\b(Here|Welcome|Let me|You can|To get started|On this page)\b/gi, "$1")
+    .replace(/\b(JobBridge|AI|career|resume|jobs|profile)\b/gi, (match) => `${match}`);
+
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text.replace(/[#*_`]/g, " "));
+  const utterance = new SpeechSynthesisUtterance(expressiveText);
   utterance.lang = "en-US";
   utterance.rate = 1.02;
   utterance.pitch = 1.08;

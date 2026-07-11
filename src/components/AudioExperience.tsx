@@ -32,6 +32,17 @@ const PAGE_MESSAGES: Record<string, string> = {
 
 const DEFAULT_MESSAGE = "Welcome to JobBridge. Your next step in growth begins here.";
 
+const PAGE_MUSIC_PRESETS: Record<string, { notes: number[]; waveforms: OscillatorType[]; pace: number; gain: number }> = {
+  "/": { notes: [196, 246.94, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 3000, gain: 0.0065 },
+  "/jobs": { notes: [261.63, 329.63, 392, 523.25], waveforms: ["triangle", "sine", "square", "triangle"], pace: 2200, gain: 0.0072 },
+  "/ai-resume": { notes: [220, 261.63, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 2400, gain: 0.0068 },
+  "/ceo": { notes: [220, 261.63, 329.63, 392, 440], waveforms: ["sine", "triangle", "sine", "triangle", "sine"], pace: 3200, gain: 0.0058 },
+  "/pricing": { notes: [196, 246.94, 293.66, 349.23], waveforms: ["triangle", "sine", "triangle", "sine"], pace: 3000, gain: 0.0062 },
+  "/payment": { notes: [220, 277.18, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 2800, gain: 0.0061 },
+  "/about": { notes: [196, 261.63, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 3100, gain: 0.0059 },
+  default: { notes: [196, 246.94, 329.63, 392, 440], waveforms: ["sine", "triangle", "sine", "triangle", "sine"], pace: 2800, gain: 0.0063 },
+};
+
 function pickVoice() {
   if (typeof window === "undefined" || !window.speechSynthesis) {
     return null;
@@ -45,17 +56,20 @@ function pickVoice() {
   return preferred ?? voices.find((voice) => voice.lang.startsWith("en")) ?? null;
 }
 
-function speakText(text: string) {
+function speakText(text: string, mode: "page" | "assistant" = "page") {
   if (typeof window === "undefined" || !window.speechSynthesis) {
     return;
   }
 
+  const normalized = text.replace(/[#*_`]/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) return;
+
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(normalized);
   utterance.lang = "en-US";
-  utterance.rate = 1;
-  utterance.pitch = 1.05;
-  utterance.volume = 0.9;
+  utterance.rate = mode === "assistant" ? 1.02 : 0.97;
+  utterance.pitch = mode === "assistant" ? 1.08 : 1.02;
+  utterance.volume = mode === "assistant" ? 0.95 : 0.9;
   const voice = pickVoice();
 
   if (voice) {
@@ -81,7 +95,7 @@ export default function AudioExperience() {
     isPlayingRef.current = false;
   };
 
-  const startMusic = () => {
+  const startMusic = (path: string) => {
     if (typeof window === "undefined") {
       return;
     }
@@ -102,8 +116,8 @@ export default function AudioExperience() {
       return;
     }
 
+    const preset = PAGE_MUSIC_PRESETS[path] || PAGE_MUSIC_PRESETS.default;
     isPlayingRef.current = true;
-    const notes = [196.0, 246.94, 329.63, 392.0, 440.0];
     let noteIndex = 0;
 
     const playStep = () => {
@@ -113,13 +127,13 @@ export default function AudioExperience() {
 
       const ctx = audioContextRef.current;
       const now = ctx.currentTime;
-      const chord = [notes[noteIndex % notes.length], notes[(noteIndex + 2) % notes.length], notes[(noteIndex + 4) % notes.length]];
+      const chord = [preset.notes[noteIndex % preset.notes.length], preset.notes[(noteIndex + 2) % preset.notes.length], preset.notes[(noteIndex + 4) % preset.notes.length]];
 
       chord.forEach((frequency, layerIndex) => {
         const oscillator = ctx.createOscillator();
         const gainNode = ctx.createGain();
         const filterNode = ctx.createBiquadFilter();
-        const waveType = layerIndex === 0 ? "sine" : layerIndex === 1 ? "triangle" : "square";
+        const waveType = preset.waveforms[layerIndex] || preset.waveforms[preset.waveforms.length - 1];
 
         oscillator.type = waveType as OscillatorType;
         oscillator.frequency.setValueAtTime(frequency, now);
@@ -127,7 +141,7 @@ export default function AudioExperience() {
         filterNode.frequency.setValueAtTime(1800, now);
 
         gainNode.gain.setValueAtTime(0.0001, now);
-        gainNode.gain.exponentialRampToValueAtTime(layerIndex === 2 ? 0.0045 : 0.0075, now + 0.85);
+        gainNode.gain.exponentialRampToValueAtTime(layerIndex === 2 ? preset.gain * 0.7 : preset.gain, now + 0.85);
         gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
 
         oscillator.connect(filterNode);
@@ -138,8 +152,8 @@ export default function AudioExperience() {
         oscillator.stop(now + 3.0);
       });
 
-      noteIndex = (noteIndex + 1) % notes.length;
-      musicTimerRef.current = window.setTimeout(playStep, 2800);
+      noteIndex = (noteIndex + 1) % preset.notes.length;
+      musicTimerRef.current = window.setTimeout(playStep, preset.pace);
     };
 
     playStep();
@@ -177,8 +191,8 @@ export default function AudioExperience() {
       return;
     }
 
-    startMusic();
-  }, [isEnabled]);
+    startMusic(location.pathname);
+  }, [isEnabled, location.pathname]);
 
   useEffect(() => {
     if (!isEnabled) {
@@ -189,7 +203,7 @@ export default function AudioExperience() {
     const message = PAGE_MESSAGES[currentPath] || DEFAULT_MESSAGE;
 
     const timer = window.setTimeout(() => {
-      speakText(message);
+      speakText(message, "page");
     }, 650);
 
     return () => {
