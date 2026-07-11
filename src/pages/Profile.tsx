@@ -404,162 +404,258 @@ export default function Profile() {
         onChange={(e) => handleAvatarUpload(e.target.files?.[0])}
       />
 
-      <main className="max-w-5xl mx-auto px-4 py-10">
-        <section className="rounded-[2rem] border border-blue-100 bg-white shadow-sm px-6 py-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-blue-500">Profile</p>
-              <h1 className="mt-2 text-3xl font-bold text-slate-900">Keep your profile clean and easy</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                A simple profile helps recruiters scan your details quickly. Use blue and white styling for a consistent experience.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => avatarInputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-            >
-              <Camera className="w-4 h-4" />
-              Upload photo
-            </button>
-          </div>
-        </section>
+      <main className="max-w-7xl mx-auto px-4 py-10">
+        <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+          <aside className="space-y-6">
+            <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+              <div className="h-28 bg-blue-600" />
+              <div className="px-6 pb-6 pt-0">
+                <div className="-mt-16 flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left sm:items-end">
+                  <img
+                    src={avatarSrc}
+                    alt="Profile"
+                    onError={() => setAvatarLoadFailed(true)}
+                    className="h-32 w-32 rounded-full border-4 border-white bg-slate-100 object-cover shadow-xl"
+                  />
+                  <div className="sm:flex-1">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Profile</p>
+                    <h1 className="mt-2 text-3xl font-bold text-slate-900">{form.full_name || 'Your name'}</h1>
+                    <p className="mt-1 text-sm text-slate-600">{profileHeadline}</p>
+                    <p className="mt-4 text-sm text-slate-500 flex items-center justify-center gap-2 sm:justify-start">
+                      <span className="rounded-full bg-slate-100 px-3 py-1">{roleLabel}</span>
+                      <span className="text-slate-400">•</span>
+                      <span>{primaryLocation}</span>
+                    </p>
+                  </div>
+                </div>
 
-        <section className="mt-8 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="rounded-[1.75rem] border border-slate-200 bg-blue-50 p-6">
-            <div className="flex items-center gap-4">
-              <img
-                src={avatarSrc}
-                alt="Profile"
-                onError={() => setAvatarLoadFailed(true)}
-                className="h-20 w-20 rounded-3xl border border-white object-cover shadow-sm"
-              />
-              <div>
-                <p className="text-sm text-slate-500">Welcome back</p>
-                <h2 className="text-xl font-semibold text-slate-900">{form.full_name || "Your name"}</h2>
-                <p className="mt-1 text-sm text-slate-600">{profileHeadline}</p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-3xl bg-slate-50 p-4 text-sm">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Connections</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-900">3,245</p>
+                  </div>
+                  <div className="rounded-3xl bg-slate-50 p-4 text-sm">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Profile strength</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-900">{profileStatus}</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <button
+                    type="button"
+                    className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:w-auto"
+                  >
+                    Connect
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
+                  >
+                    Message
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
+                  >
+                    More
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="mt-6 rounded-3xl border border-blue-100 bg-white p-4">
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 font-semibold">Profile strength</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{profileStatus}</p>
+                  <p className="text-sm font-semibold text-slate-900">Activity</p>
+                  <p className="mt-2 text-sm text-slate-600">Recent profile activity and insights that help recruiters connect with you faster.</p>
                 </div>
-                <ProfileCompletionRing percentage={completionPct} />
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">Active</span>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-3xl bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Role</p>
-                  <p className="mt-2 font-semibold text-slate-900">{roleLabel}</p>
+              <div className="mt-6 space-y-4 text-sm text-slate-600">
+                <div className="rounded-3xl bg-slate-50 p-4">
+                  <p className="font-semibold text-slate-900">Profile views</p>
+                  <p className="mt-1">Your profile was viewed 128 times in the last 14 days.</p>
                 </div>
-                <div className="rounded-3xl bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Completed fields</p>
-                  <p className="mt-2 font-semibold text-slate-900">{filledFieldsCount}/{activeFields.length}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Location</p>
-                  <p className="mt-2 font-semibold text-slate-900">{primaryLocation}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Top skills</p>
-                  <p className="mt-2 font-semibold text-slate-900">{topSkills.length ? topSkills.join(", ") : "Not set"}</p>
+                <div className="rounded-3xl bg-slate-50 p-4">
+                  <p className="font-semibold text-slate-900">Top match</p>
+                  <p className="mt-1">You are in the top 10% for recruiters searching for your skill set.</p>
                 </div>
               </div>
             </div>
 
-            {missingFields.length > 0 && (
-              <div className="mt-6 rounded-3xl border border-blue-100 bg-white p-4">
-                <p className="text-sm font-semibold text-slate-900">Finish your profile</p>
-                <div className="mt-3 space-y-2 text-sm text-slate-600">
-                  {missingFields.map(([_, field]) => (
-                    <div key={field.label} className="rounded-2xl bg-blue-50 px-3 py-2">
-                      <p>{field.label}</p>
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">Experience</p>
+              <div className="mt-5 space-y-5 text-sm text-slate-600">
+                <div className="flex items-start gap-4">
+                  <div className="mt-1 h-3 w-3 rounded-full bg-blue-600" />
+                  <div>
+                    <p className="font-semibold text-slate-900">{profileHeadline || 'Creative Director'}</p>
+                    <p className="mt-1">{form.years_of_experience ? `${form.years_of_experience} years experience` : '3 years experience'}</p>
+                    <p className="mt-2 text-slate-500">The Company Media Office · Full Time</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4">
+                  <div className="mt-1 h-3 w-3 rounded-full bg-slate-300" />
+                  <div>
+                    <p className="font-semibold text-slate-900">SEO Specialist</p>
+                    <p className="mt-1 text-slate-500">The Company Media Office · Freelance</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <section className="space-y-6">
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.24em] text-blue-500">Profile editor</p>
+                  <h2 className="mt-2 text-3xl font-bold text-slate-900">Keep your profile polished</h2>
+                  <p className="mt-2 text-sm text-slate-600">Update your details to improve visibility with recruiters and clients.</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <ProfileCompletionRing percentage={completionPct} />
+                  <div className="text-sm text-slate-500">
+                    <p>{filledFieldsCount}/{activeFields.length} fields completed</p>
+                    <p className="mt-1">{completionPct}% complete</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              {saveSuccess && (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-700">
+                  Profile updated successfully.
+                </div>
+              )}
+              {saveError && (
+                <div className="rounded-2xl border border-error-container bg-error-container/20 px-4 py-3 text-on-error-container">
+                  {saveError}
+                </div>
+              )}
+
+              {profileLoading ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center">
+                  <div className="mx-auto mb-4 h-10 w-10 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin" />
+                  <p className="text-sm text-slate-500">Loading your profile...</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(sectionGroups).map(([section, fields]) => (
+                    <div key={section} className="space-y-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <h3 className="text-base font-semibold text-slate-900">
+                          {section === 'personal'
+                            ? 'Personal details'
+                            : section === 'professional'
+                            ? 'Professional details'
+                            : section === 'provider'
+                            ? 'Provider details'
+                            : section}
+                        </h3>
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          {section === 'personal'
+                            ? 'Core'
+                            : section === 'professional'
+                            ? 'Career'
+                            : section === 'provider'
+                            ? 'Service'
+                            : section}
+                        </span>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {fields.map(([key, field]) => (
+                          <div key={key} className={key === 'bio' ? 'md:col-span-2' : ''}>
+                            {renderFormField(key, field)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="rounded-3xl border border-slate-200 bg-blue-50 p-5 text-sm text-slate-600">
+                    Your email is read-only because it is linked to your account.
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm text-slate-500">Save your profile to make it visible to recruiters and providers.</div>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <button
+                        onClick={handleReset}
+                        disabled={saving}
+                        className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Reset changes
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className={`inline-flex items-center justify-center rounded-2xl px-6 py-3 text-sm font-semibold transition ${
+                          saving ? 'bg-blue-200 text-blue-800 cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        {saving ? (
+                          <>
+                            <Loader className="w-4 h-4 animate-spin" /> Saving...
+                          </>
+                        ) : (
+                          'Save profile'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+                <h3 className="text-base font-semibold text-slate-900">Education</h3>
+                <div className="mt-4 space-y-4 text-sm text-slate-600">
+                  <div className="rounded-3xl bg-slate-50 p-4">
+                    <p className="font-semibold text-slate-900">Lorem University</p>
+                    <p className="mt-1 text-slate-500">Master of Art</p>
+                    <p className="mt-2">2017-2019 · Master of Art</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+                <h3 className="text-base font-semibold text-slate-900">Skills</h3>
+                <div className="mt-4 space-y-3">
+                  {(topSkills.length ? topSkills : ['Creative Strategy', 'Advertising']).map((skill) => (
+                    <div key={skill} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold text-slate-900">{skill}</p>
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Endorse</span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-500">Brief skill description for recruiters and clients.</p>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-          </aside>
-
-          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6">
-            {saveSuccess && (
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-700">
-                Profile updated successfully.
-              </div>
-            )}
-            {saveError && (
-              <div className="rounded-2xl border border-error-container bg-error-container/20 px-4 py-3 text-on-error-container">
-                {saveError}
-              </div>
-            )}
-
-            {profileLoading ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center">
-                <div className="mx-auto mb-4 h-10 w-10 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin" />
-                <p className="text-sm text-slate-500">Loading your profile...</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {Object.entries(sectionGroups).map(([section, fields]) => (
-                  <div key={section} className="space-y-4">
-                    <h2 className="text-base font-semibold text-slate-900">
-                      {section === "personal"
-                        ? "Personal details"
-                        : section === "professional"
-                        ? "Professional details"
-                        : section === "inclusion"
-                        ? "Inclusion details"
-                        : section === "provider"
-                        ? "Provider details"
-                        : section}
-                    </h2>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {fields.map(([key, field]) => (
-                        <div key={key} className={key === "bio" ? "md:col-span-2" : ""}>
-                          {renderFormField(key, field)}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                <div className="rounded-3xl border border-slate-200 bg-blue-50 p-5 text-sm text-slate-600">
-                  Your email is read-only because it is linked to your account.
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm text-slate-500">Save your profile to make it visible to recruiters and providers.</div>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <button
-                      onClick={handleReset}
-                      disabled={saving}
-                      className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Reset changes
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className={`inline-flex items-center justify-center rounded-2xl px-6 py-3 text-sm font-semibold transition ${
-                        saving ? "bg-blue-200 text-blue-800 cursor-wait" : "bg-blue-600 text-white hover:bg-blue-700"
-                      }`}
-                    >
-                      {saving ? (
-                        <>
-                          <Loader className="w-4 h-4 animate-spin" /> Saving...
-                        </>
-                      ) : (
-                        "Save profile"
-                      )}
-                    </button>
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+                <h3 className="text-base font-semibold text-slate-900">Honors & awards</h3>
+                <div className="mt-4 space-y-4 text-sm text-slate-600">
+                  <div className="rounded-3xl bg-slate-50 p-4">
+                    <p className="font-semibold text-slate-900">Gold Winner</p>
+                    <p className="mt-1 text-slate-500">January 2018</p>
+                    <p className="mt-2">Outstanding performance award for project leadership.</p>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        </section>
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+                <h3 className="text-base font-semibold text-slate-900">Languages</h3>
+                <div className="mt-4 space-y-3 text-sm text-slate-600">
+                  <div className="rounded-3xl bg-slate-50 p-4">
+                    <p className="font-semibold text-slate-900">English</p>
+                    <p className="mt-1 text-slate-500">Full professional proficiency</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
       </main>
       <BottomNav />
     </div>
