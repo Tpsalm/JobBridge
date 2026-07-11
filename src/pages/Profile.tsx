@@ -525,8 +525,15 @@ export default function Profile() {
                 </div>
               </div>
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="rounded-3xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  Edit your profile directly in the fields below and save when ready.
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="rounded-3xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    Edit your profile directly in the fields below and save when ready.
+                  </div>
+                  {saveSuccess && (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
+                      <Check className="h-3.5 w-3.5" /> Saved
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button
