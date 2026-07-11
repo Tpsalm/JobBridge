@@ -33,14 +33,14 @@ const PAGE_MESSAGES: Record<string, string> = {
 const DEFAULT_MESSAGE = "Welcome to JobBridge. Your next step in growth begins here.";
 
 const PAGE_MUSIC_PRESETS: Record<string, { notes: number[]; waveforms: OscillatorType[]; pace: number; gain: number }> = {
-  "/": { notes: [196, 246.94, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 3000, gain: 0.0065 },
-  "/jobs": { notes: [261.63, 329.63, 392, 523.25], waveforms: ["triangle", "sine", "square", "triangle"], pace: 2200, gain: 0.0072 },
+  "/": { notes: [196, 246.94, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 3200, gain: 0.0057 },
+  "/jobs": { notes: [261.63, 329.63, 392, 523.25, 587.33], waveforms: ["triangle", "sine", "square", "triangle", "sine"], pace: 2100, gain: 0.0075 },
   "/ai-resume": { notes: [220, 261.63, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 2400, gain: 0.0068 },
-  "/ceo": { notes: [220, 261.63, 329.63, 392, 440], waveforms: ["sine", "triangle", "sine", "triangle", "sine"], pace: 3200, gain: 0.0058 },
-  "/pricing": { notes: [196, 246.94, 293.66, 349.23], waveforms: ["triangle", "sine", "triangle", "sine"], pace: 3000, gain: 0.0062 },
-  "/payment": { notes: [220, 277.18, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 2800, gain: 0.0061 },
-  "/about": { notes: [196, 261.63, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 3100, gain: 0.0059 },
-  default: { notes: [196, 246.94, 329.63, 392, 440], waveforms: ["sine", "triangle", "sine", "triangle", "sine"], pace: 2800, gain: 0.0063 },
+  "/ceo": { notes: [196, 220, 261.63, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle", "sine"], pace: 3400, gain: 0.0052 },
+  "/pricing": { notes: [196, 246.94, 293.66, 349.23, 392], waveforms: ["triangle", "sine", "triangle", "sine", "triangle"], pace: 3000, gain: 0.0061 },
+  "/payment": { notes: [220, 277.18, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 2800, gain: 0.0059 },
+  "/about": { notes: [196, 261.63, 329.63, 392], waveforms: ["sine", "triangle", "sine", "triangle"], pace: 3100, gain: 0.0056 },
+  default: { notes: [196, 246.94, 329.63, 392, 440], waveforms: ["sine", "triangle", "sine", "triangle", "sine"], pace: 2800, gain: 0.0062 },
 };
 
 function pickVoice() {
@@ -56,12 +56,24 @@ function pickVoice() {
   return preferred ?? voices.find((voice) => voice.lang.startsWith("en")) ?? null;
 }
 
+function formatSpeechText(text: string, mode: "page" | "assistant" = "page") {
+  const normalized = text.replace(/[#*_`]/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) return normalized;
+
+  const pauses = normalized
+    .replace(/([.!?])\s+/g, "$1 ")
+    .replace(/(Welcome to JobBridge|Discover meaningful jobs|Browse curated opportunities|Meet skilled providers|Review available plans|Create a sharper AI-enhanced resume|Manage your professional profile|Explore recruiting tools|Unlock career guidance|Here|Welcome|Let me|You can|To get started|On this page)/gi, "$1...")
+    .replace(/(\.\.\.)/g, "... ");
+
+  return mode === "assistant" ? pauses.replace(/(JobBridge|AI|career|resume|jobs|profile)/gi, "$1") : pauses;
+}
+
 function speakText(text: string, mode: "page" | "assistant" = "page") {
   if (typeof window === "undefined" || !window.speechSynthesis) {
     return;
   }
 
-  const normalized = text.replace(/[#*_`]/g, " ").replace(/\s+/g, " ").trim();
+  const normalized = formatSpeechText(text, mode);
   if (!normalized) return;
 
   window.speechSynthesis.cancel();

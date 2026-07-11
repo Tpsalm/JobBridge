@@ -398,7 +398,7 @@ function pickVoice() {
   return preferred ?? voices.find((voice) => voice.lang.startsWith("en")) ?? null;
 }
 
-function speakAssistantText(text: string) {
+function speakAssistantText(text: string, onSpeakingChange?: (speaking: boolean) => void) {
   if (typeof window === "undefined" || !window.speechSynthesis) {
     return;
   }
@@ -408,8 +408,8 @@ function speakAssistantText(text: string) {
 
   const expressiveText = normalized
     .replace(/([.!?])\s+/g, "$1 ")
-    .replace(/\b(Here|Welcome|Let me|You can|To get started|On this page)\b/gi, "$1")
-    .replace(/\b(JobBridge|AI|career|resume|jobs|profile)\b/gi, (match) => `${match}`);
+    .replace(/(Here|Welcome|Let me|You can|To get started|On this page)/gi, "$1...")
+    .replace(/(JobBridge|AI|career|resume|jobs|profile)/gi, "$1");
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(expressiveText);
@@ -422,6 +422,10 @@ function speakAssistantText(text: string) {
   if (voice) {
     utterance.voice = voice;
   }
+
+  utterance.onstart = () => onSpeakingChange?.(true);
+  utterance.onend = () => onSpeakingChange?.(false);
+  utterance.onerror = () => onSpeakingChange?.(false);
 
   window.speechSynthesis.speak(utterance);
 }
@@ -446,6 +450,7 @@ function AIAssistantWidget() {
   const [thoughts, setThoughts] = useState<AgentThought[]>([]);
   const [showThoughts, setShowThoughts] = useState(true);
   const [toastMsg, setToastMsg] = useState("");
+  const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
 
   const lastUserMsgRef = useRef<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -684,7 +689,7 @@ function AIAssistantWidget() {
             { id: nextId(), text: cleaned, sender: "bot", sources: finalSources },
           ]);
           if (cleaned) {
-            speakAssistantText(cleaned);
+            speakAssistantText(cleaned, setIsAssistantSpeaking);
           }
         },
       },
@@ -768,6 +773,10 @@ function AIAssistantWidget() {
                   <span className="px-1.5 py-0.5 bg-emerald-400/25 border border-emerald-400/20 text-emerald-300 text-[9px] font-bold rounded-md">
                     {modelInfo.provider === "DeepSeek" ? "DeepSeek" : "GPT"}
                   </span>
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px] font-medium text-blue-100">
+                  <span className={`h-2 w-2 rounded-full ${isAssistantSpeaking ? "animate-pulse bg-emerald-300" : "bg-blue-200/70"}`} />
+                  {isAssistantSpeaking ? "Voice assistant speaking" : "Voice assistant ready"}
                 </div>
                 <p className="text-xs text-blue-100 flex items-center gap-1">
                   <Compass className="w-3 h-3" />
