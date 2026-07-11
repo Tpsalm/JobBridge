@@ -259,7 +259,7 @@ export default function Profile() {
   const saveButtonClass = `inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
     saving
       ? 'bg-blue-200 text-blue-800 cursor-wait'
-      : savedBadgeVisible
+      : saveSuccess || savedBadgeVisible
       ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20 transform scale-105 animate-pulse'
       : 'bg-blue-600 text-white hover:bg-blue-700'
   }`;
@@ -360,7 +360,7 @@ export default function Profile() {
       setSaveSuccess(true);
       setSavedBadgeVisible(true);
       push({ message: "Editing saved — your profile is updated.", type: "success" });
-      setTimeout(() => setSaveSuccess(false), 3000);
+      window.setTimeout(() => setSaveSuccess(false), 5000);
     } catch (err: unknown) {
       const message = err instanceof Error && err.message ? err.message : "Failed to save profile. Please try again.";
       setSaveError(message);
@@ -525,14 +525,14 @@ export default function Profile() {
                   <button
                     type="button"
                     onClick={handleConnect}
-                    className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:w-auto"
+                    className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 active:scale-[0.98] sm:w-auto"
                   >
                     Connect
                   </button>
                   <button
                     type="button"
                     onClick={handleMessage}
-                    className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:w-auto"
+                    className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 active:scale-[0.98] sm:w-auto"
                   >
                     Message
                   </button>
