@@ -213,6 +213,16 @@ export default function Payment() {
 
   const successTarget = getSuccessTarget(plan);
 
+  // Auto-redirect after 3 seconds for seamless UX
+  useEffect(() => {
+    if (paid) {
+      const redirectTimer = setTimeout(() => {
+        navigate(successTarget);
+      }, 3000);
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [paid, successTarget, navigate]);
+
   const clearPendingReference = () => {
     try {
       sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
@@ -737,6 +747,24 @@ export default function Payment() {
   }
 
   function renderSuccessScreen() {
+    const [countdown, setCountdown] = useState(3);
+
+    useEffect(() => {
+      if (!paid) return;
+      
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }, [paid]);
+
     return (
       <div className="max-w-[420px] mx-auto text-center">
         <div className="mb-8">
@@ -804,18 +832,27 @@ export default function Payment() {
           </div>
         </div>
 
-        <button
-          onClick={() => navigate(successTarget)}
-          className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base
-                     transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
-                     shadow-lg shadow-[#1A4BCE]/25"
-        >
-          {plan.ai
-            ? "Go to AI Resume Studio"
-            : plan.service
-              ? "Go to My Profile"
-              : "Go to Dashboard"}
-        </button>
+        <div className="space-y-3">
+          <button
+            onClick={() => navigate(successTarget)}
+            className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base
+                       transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
+                       shadow-lg shadow-[#1A4BCE]/25 flex items-center justify-center gap-2"
+          >
+            <Sparkles className="w-5 h-5" />
+            {plan.ai
+              ? "Go to AI Resume Studio"
+              : plan.service
+                ? "Go to My Profile"
+                : "Go to Dashboard"}
+          </button>
+          
+          {countdown > 0 && (
+            <p className="text-xs text-gray-500 text-center">
+              Redirecting in <strong>{countdown}</strong> second{countdown !== 1 ? 's' : ''}...
+            </p>
+          )}
+        </div>
       </div>
     );
   }
