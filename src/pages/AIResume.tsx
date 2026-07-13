@@ -4,6 +4,46 @@ import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { Sparkles, FileText, Upload, Download, Send, Bot, ArrowRight, CheckCircle, AlertCircle, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+// Load PDF.js worker
+let pdfWorkerInitialized = false;
+const initPdfWorker = async () => {
+  if (pdfWorkerInitialized) return;
+  try {
+    const pdfjsLib = (await import('pdfjs-dist')).default;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    pdfWorkerInitialized = true;
+  } catch {
+    console.warn('PDF.js not available, PDF parsing will be limited');
+  }
+};
+
+// Extract text from PDF
+async function extractPdfText(file: File): Promise<string> {
+  try {
+    await initPdfWorker();
+    const { default: pdfjsLib } = await import('pdfjs-dist');
+    
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      fullText += pageText + '\n';
+    }
+
+    return fullText.trim();
+  } catch (error) {
+    console.error('PDF extraction error:', error);
+    throw new Error('Could not extract text from PDF. Try uploading a text-based PDF.');
+  }
+}
+
 // AI features use direct OpenAI calls or local placeholders.
 const AI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
 const AI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
@@ -63,11 +103,28 @@ export default function AIResume() {
     const file = e.target.files?.[0];
     if (!file) return;
     setResumeFileName(file.name);
+    setError('');
     try {
-      const text = await file.text();
+      let text = '';
+      
+      // Handle PDF files separately
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        text = await extractPdfText(file);
+      } else {
+        // For text, doc, docx files
+        text = await file.text();
+      }
+      
+      if (!text.trim()) {
+        setError('Could not extract text from file. Try pasting the text directly.');
+        return;
+      }
+      
       setResumeText(text);
-    } catch {
-      setError('Could not read file. Try pasting the text directly.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not read file. Try pasting the text directly.';
+      setError(message);
+      setResumeFileName('');
     }
     e.target.value = '';
   }
