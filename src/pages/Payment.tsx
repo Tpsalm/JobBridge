@@ -29,6 +29,54 @@ declare global {
   }
 }
 
+// Safari/iOS error handling: Suppress KoraPay cleanup errors after payment success
+const originalError = window.onerror;
+const suppressKoraPay = (message: string) => {
+  // Suppress KoraPay "hasAttribute" errors on Safari/iOS
+  if (
+    typeof message === "string" &&
+    (message.includes("hasAttribute") || message.includes("Cannot read properties of null"))
+  ) {
+    // Check if this is coming from KoraPay library (korapay-collections.min.js)
+    const stack = new Error().stack || "";
+    if (stack.includes("korapay")) {
+      console.warn("[KoraPay] Suppressed cleanup error (iOS/Safari compatibility)", message);
+      return true;
+    }
+  }
+  return false;
+};
+
+window.onerror = function (message, source, lineno, colno, error) {
+  if (suppressKoraPay(message)) {
+    return true;
+  }
+  return originalError ? originalError(message, source, lineno, colno, error) : false;
+};
+
+// Handle unhandled promise rejections from KoraPay on iOS/Safari
+const originalUnhandledRejection = window.onunhandledrejection;
+window.onunhandledrejection = function (event) {
+  const reason = event.reason || {};
+  const message = reason?.message || String(reason);
+  
+  if (
+    typeof message === "string" &&
+    (message.includes("hasAttribute") || message.includes("Cannot read properties of null"))
+  ) {
+    const stack = reason?.stack || "";
+    if (stack.includes("korapay")) {
+      console.warn("[KoraPay] Suppressed unhandled rejection (iOS/Safari compatibility)", message);
+      event.preventDefault();
+      return;
+    }
+  }
+  
+  if (originalUnhandledRejection) {
+    originalUnhandledRejection(event);
+  }
+};
+
 interface KoraPayConfig {
   key: string;
   reference: string;
@@ -429,76 +477,110 @@ export default function Payment() {
       return;
     }
 
-    window.Korapay.initialize({
-      key: publicKey,
-      reference,
-      amount: plan.price,
-      currency: "NGN",
-      notification_url: notificationUrl,
-      customer: {
-        name: customerName,
-        email: customerEmail,
-      },
-      metadata: {
-        plan: planKey,
-        user_id: user.id,
-      },
-      onSuccess: (data) => {
-        koraCompletedRef.current = true;
-        const nextReference = data.reference || reference;
-        if (nextReference !== reference) {
+    try {
+      window.Korapay.initialize({
+        key: publicKey,
+        reference,
+        amount: plan.price,
+        currency: "NGN",
+        notification_url: notificationUrl,
+        customer: {
+          name: customerName,
+          email: customerEmail,
+        },
+        metadata: {
+          plan: planKey,
+          user_id: user.id,
+        },
+        onSuccess: (data) => {
           try {
-            sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, nextReference);
-          } catch {
-            // ignore storage failures
+            koraCompletedRef.current = true;
+            const nextReference = data.reference || reference;
+            if (nextReference !== reference) {
+              try {
+                sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, nextReference);
+              } catch {
+                // ignore storage failures
+              }
+              setPaymentReference(nextReference);
+            }
+            setStep("processing");
+            setPaying(true);
+            setError(
+              `Payment received. Verifying securely with KoraPay${nextReference ? ` (ref: ${nextReference})` : ""}...`,
+            );
+            push({
+              message: "Payment submitted successfully. Verifying securely now.",
+              type: "success",
+            });
+          } catch (e) {
+            console.error("[Payment] Error in onSuccess callback:", e);
+            // Don't throw - let the payment continue processing
           }
-          setPaymentReference(nextReference);
-        }
-        setStep("processing");
-        setPaying(true);
-        setError(
-          `Payment received. Verifying securely with KoraPay${nextReference ? ` (ref: ${nextReference})` : ""}...`,
-        );
-        push({
-          message: "Payment submitted successfully. Verifying securely now.",
-          type: "success",
-        });
-      },
-      onFailed: (data) => {
-        koraCompletedRef.current = true;
-        const failedReference = data.reference || reference;
-        setPaymentReference(failedReference);
-        setStep("processing");
-        setPaying(true);
-        setError(
-          `KoraPay reported a failed payment. We are verifying it now. Ref: ${failedReference}`,
-        );
-        push({
-          message: "KoraPay reported a failed payment. We are verifying it now.",
-          type: "error",
-        });
-      },
-      onPending: () => {
-        koraCompletedRef.current = true;
-        setStep("processing");
-        setPaying(true);
-        setError(
-          `Payment submitted. Waiting for secure verification for ref: ${reference}`,
-        );
-        push({
-          message: "Payment is pending. We are verifying it in the background.",
-          type: "info",
-        });
-      },
-      onClose: () => {
-        if (!koraCompletedRef.current) {
-          clearPendingReference();
-          setPaying(false);
-          setStep("kora-checkout");
-          setError("Payment cancelled before completion.");
-        }
-      },
-    });
+        },
+        onFailed: (data) => {
+          try {
+            koraCompletedRef.current = true;
+            const failedReference = data.reference || reference;
+            setPaymentReference(failedReference);
+            setStep("processing");
+            setPaying(true);
+            setError(
+              `KoraPay reported a failed payment. We are verifying it now. Ref: ${failedReference}`,
+            );
+            push({
+              message: "KoraPay reported a failed payment. We are verifying it now.",
+              type: "error",
+            });
+          } catch (e) {
+            console.error("[Payment] Error in onFailed callback:", e);
+          }
+        },
+        onPending: () => {
+          try {
+            koraCompletedRef.current = true;
+            setStep("processing");
+            setPaying(true);
+            setError(
+              `Payment submitted. Waiting for secure verification for ref: ${reference}`,
+            );
+            push({
+              message: "Payment is pending. We are verifying it in the background.",
+              type: "info",
+            });
+          } catch (e) {
+            console.error("[Payment] Error in onPending callback:", e);
+          }
+        },
+        onClose: () => {
+          try {
+            // Add a small delay to allow KoraPay to finish cleanup
+            // This prevents DOM access errors on iOS/Safari
+            window.setTimeout(() => {
+              try {
+                if (!koraCompletedRef.current) {
+                  clearPendingReference();
+                  setPaying(false);
+                  setStep("kora-checkout");
+                  setError("Payment cancelled before completion.");
+                }
+              } catch (e) {
+                console.error("[Payment] Error during delayed onClose:", e);
+              }
+            }, 100);
+          } catch (e) {
+            console.error("[Payment] Error in onClose callback:", e);
+          }
+        },
+      });
+    } catch (koraError) {
+      console.error("[Payment] Failed to initialize KoraPay:", koraError);
+      setPaying(false);
+      setStep("kora-checkout");
+      setError(
+        "Failed to open the payment gateway. Please refresh the page and try again.",
+      );
+    }
   };
 
   function renderKoraCheckoutScreen() {
