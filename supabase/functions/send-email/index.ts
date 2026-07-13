@@ -96,9 +96,13 @@ function heroCard(title: string, body: string, ctaText?: string, ctaHref?: strin
     </div>`;
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/[&"'<>]/g, c => ({ '&': '&amp;', '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;' })[c] || c);
+}
+
 function welcomeTemplate(name: string): string {
-  const n = name || 'there';
-  return T`<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 18px;">Hi <strong style="color:#111827;">${n}</strong>,</p>
+  const n = escapeHtml(name || 'there');
+  return `<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 18px;">Hi <strong style="color:#111827;">${n}</strong>,</p>
 <p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Welcome to <strong style="color:${BRAND_PRIMARY};">JobBridge</strong> — the modern professional network built for opportunity, growth, and smarter hiring across Africa.</p>
 ${heroCard('Start here', 'Complete your profile, unlock visibility, and start connecting with the right opportunities.', 'Complete Your Profile', 'https://jobbridge.com.ng/profile')}
 <div style="margin:18px 0 20px;padding:18px 20px;border:1px solid #e2e8f0;border-radius:16px;background:#ffffff;">
@@ -235,14 +239,16 @@ function paymentInitiatedTemplate(name: string, plan: string, amount: string): s
 }
 
 function signInTemplate(name: string): string {
-  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
+  const n = escapeHtml(name || 'there');
+  return `<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${n}</strong>,</p>
 <p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 24px;">We detected a successful sign-in to your JobBridge account. If this was you, no further action is required.</p>
 ${heroCard('Security update', 'If you do not recognize this activity, change your password right away and contact support so we can secure your account.', 'Secure My Account', 'https://jobbridge.com.ng/profile')}
 <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">This email confirms a recent sign-in to JobBridge. Keep your password safe and never share your login details.</p>`;
 }
 
 function signOutTemplate(name: string): string {
-  return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
+  const n = escapeHtml(name || 'there');
+  return `<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${n}</strong>,</p>
 <p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 24px;">You have successfully signed out of JobBridge. We hope to see you again soon.</p>
 ${heroCard('Signed out', 'If you were not expecting this sign-out, your account may have been accessed elsewhere. Review your account security and sign in again if needed.', 'Review Security', 'https://jobbridge.com.ng/profile')}
 <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">Thank you for using JobBridge. We’re here to help whenever you need support.</p>`;
