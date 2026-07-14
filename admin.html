@@ -638,8 +638,11 @@
                 }
 
                 try {
-                    // Allow shorthand 'admin' login id to map to the configured admin email
-                    const emailToUse = id === 'admin' ? (window.__JOBBRIDGE_SUPABASE_ADMIN_EMAIL__ || 'jobbridgesupport@gmail.com') : id;
+                    const alias = id.toLowerCase();
+                    const adminAliases = new Set(["admin", "administrator"]);
+                    const emailToUse = adminAliases.has(alias)
+                        ? window.__JOBBRIDGE_SUPABASE_ADMIN_EMAIL__ || id
+                        : id;
                     const { error } = await sb.auth.signInWithPassword({
                         email: emailToUse,
                         password: pw,
