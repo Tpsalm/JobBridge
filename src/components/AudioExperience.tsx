@@ -93,6 +93,10 @@ function speakText(text: string, mode: "page" | "assistant" = "page") {
 
 export default function AudioExperience() {
   const location = useLocation();
+  // Hide the audio/voice control on the public homepage only
+  if (location.pathname === "/") {
+    return null;
+  }
   const [isEnabled, setIsEnabled] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const musicTimerRef = useRef<number | null>(null);
