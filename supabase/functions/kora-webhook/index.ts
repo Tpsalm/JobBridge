@@ -367,11 +367,88 @@ serve(async (req: Request) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { data: payment, error: findError } = await supabase
+    // Primary lookup: match by JobBridge reference
+    let { data: payment, error: findError } = await supabase
       .from("payments")
-      .select("id, user_id, plan, status, amount, currency, reference")
+      .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
       .eq("reference", reference)
       .maybeSingle<PaymentRow>();
+
+    // Fallbacks: sometimes Kora returns a different internal reference
+    // (transaction_reference/payment_reference). Try these fallbacks so
+    // a payment record is reliably resolved to its plan.
+    if (!payment && !findError) {
+      const altRefs = [
+        payload.data?.payment_reference,
+        payload.data?.transaction_reference,
+      ]
+        .filter(Boolean)
+        .map(String);
+
+      if (altRefs.length) {
+        const { data: altMatch, error: altErr } = await supabase
+          .from("payments")
+          .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
+          .in("reference", altRefs)
+          .limit(1)
+          .maybeSingle<PaymentRow>();
+        if (altErr) {
+          console.error("[Kora Webhook] Alt lookup error:", altErr.message);
+        } else if (altMatch) {
+          payment = altMatch;
+        }
+      }
+    }
+
+    // Additional fallback: match by provider_reference field or metadata (user_id + plan)
+    if (!payment && !findError) {
+      const provRef = payload.data?.transaction_reference || payload.data?.payment_reference || null;
+      if (provRef) {
+        const { data: provMatch, error: provErr } = await supabase
+          .from("payments")
+          .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
+          .or(`provider_reference.eq.${provRef},provider_reference.eq.${reference}`)
+          .limit(1)
+          .maybeSingle<PaymentRow>();
+        if (provErr) {
+          console.error("[Kora Webhook] Provider-ref lookup error:", provErr.message);
+        } else if (provMatch) {
+          payment = provMatch;
+        }
+      }
+    }
+
+    // Metadata-based fallback: if Kora includes metadata.plan and metadata.user_id,
+    // try to match a recent pending payment for that user and plan.
+    if (!payment && payload.data?.metadata) {
+      try {
+        const metaPlan = payload.data.metadata.plan as string | undefined;
+        const metaUser = payload.data.metadata.user_id as string | undefined;
+        const amt = payload.data?.amount;
+        if (metaPlan && metaUser) {
+          const q = supabase
+            .from("payments")
+            .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
+            .eq("user_id", metaUser)
+            .eq("plan", metaPlan)
+            .in("status", ["pending"])
+            .order("created_at", { ascending: false })
+            .limit(1);
+          // If amount is present, prefer matching by amount too
+          if (typeof amt === "number") {
+            q.eq("amount", amt);
+          }
+          const { data: metaMatch, error: metaErr } = await q.maybeSingle<PaymentRow>();
+          if (metaErr) {
+            console.error("[Kora Webhook] Metadata lookup error:", metaErr.message);
+          } else if (metaMatch) {
+            payment = metaMatch;
+          }
+        }
+      } catch (e) {
+        console.error("[Kora Webhook] Metadata fallback error:", e);
+      }
+    }
 
     if (findError) {
       console.error("[Kora Webhook] Error finding payment:", findError.message);
@@ -586,6 +663,84 @@ serve(async (req: Request) => {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Activate the subscription on the user's profile as a fallback
+    // in case the database trigger is not present or not enabled.
+    const tier =
+      payment.plan === "ai_monthly" || payment.plan === "ai_annual"
+        ? "ai_tools"
+        : payment.plan === "service_verified"
+          ? "service_verified"
+          : payment.plan === "service_featured"
+            ? "service_featured"
+            : payment.plan;
+    const durationDays =
+      payment.plan === "basic"
+        ? 7
+        : payment.plan === "standard"
+          ? 14
+          : payment.plan === "premium"
+            ? 30
+            : payment.plan === "ai_monthly"
+              ? 30
+              : payment.plan === "ai_annual"
+                ? 365
+                : payment.plan === "service_verified"
+                  ? 30
+                  : payment.plan === "service_featured"
+                    ? 30
+                    : 7;
+    const creditsToAdd =
+      payment.plan === "basic" || payment.plan === "standard"
+        ? 1
+        : payment.plan === "premium"
+          ? 3
+          : 0;
+    const expiresAt = new Date(
+      Date.now() + durationDays * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const { data: profileData, error: profileFetchError } = await supabase
+      .from("profiles")
+      .select("credits")
+      .eq("id", payment.user_id)
+      .maybeSingle();
+
+    if (!profileFetchError && profileData) {
+      const creditCount = Number(profileData.credits || 0) + creditsToAdd;
+      const profileUpdates: Record<string, unknown> = {
+        is_premium: true,
+        subscription_tier: tier,
+        subscription_expires_at: expiresAt,
+        credits: creditCount,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (payment.plan === "service_verified") {
+        profileUpdates.is_verified = true;
+        profileUpdates.is_featured = false;
+      } else if (payment.plan === "service_featured") {
+        profileUpdates.is_verified = true;
+        profileUpdates.is_featured = true;
+      }
+
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update(profileUpdates)
+        .eq("id", payment.user_id);
+
+      if (profileUpdateError) {
+        console.error(
+          "[Kora Webhook] Failed to activate subscription on profile:",
+          profileUpdateError.message,
+        );
+      }
+    } else if (profileFetchError) {
+      console.error(
+        "[Kora Webhook] Failed to read profile credits:",
+        profileFetchError.message,
+      );
     }
 
     await sendPaymentConfirmationEmail(supabase, payment, reference);
