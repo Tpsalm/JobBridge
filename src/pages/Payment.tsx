@@ -212,8 +212,28 @@ export default function Payment() {
     }
   });
 
+  const originalPaymentReferenceRef = useRef<string>("");
   const koraCompletedRef = useRef(false);
   const receiptSentRef = useRef<Set<string>>(new Set());
+
+  const cleanupKora = () => {
+    if (typeof window === "undefined") return;
+    const script = document.getElementById("kora-script");
+    if (script) {
+      script.remove();
+    }
+    if (window.Korapay) {
+      try {
+        // Remove the global KoraPay object after checkout so it does not keep
+        // running cleanup logic on other pages or after a completed payment.
+        delete window.Korapay;
+      } catch {
+        // ignore non-configurable deletions
+      }
+    }
+    setKoraReady(false);
+    setKoraLoading(false);
+  };
 
   const customerEmail = user?.email || "user@example.com";
   const customerName = useMemo(() => {
@@ -250,6 +270,7 @@ export default function Payment() {
     } catch {
       // ignore storage failures
     }
+    originalPaymentReferenceRef.current = "";
     setPaymentReference("");
   };
 
@@ -321,6 +342,31 @@ export default function Payment() {
 
   useEffect(() => {
     loadKoraScript();
+  }, []);
+
+  useEffect(() => {
+    const handleGlobalError = (event: ErrorEvent) => {
+      if (typeof event.message === "string" && suppressKoraPay(event.message)) {
+        event.preventDefault();
+      }
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason || {};
+      const message = typeof reason?.message === "string" ? reason.message : String(reason);
+      if (typeof message === "string" && suppressKoraPay(message)) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener("error", handleGlobalError);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener("error", handleGlobalError);
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+      cleanupKora();
+    };
   }, []);
 
   useEffect(() => {
@@ -455,6 +501,7 @@ export default function Payment() {
 
     const reference =
       "JB-KORA-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    originalPaymentReferenceRef.current = reference;
     const functionsBaseUrl = getSupabaseFunctionsUrl();
     const notificationUrl = functionsBaseUrl
       ? `${functionsBaseUrl}/kora-webhook`
@@ -546,7 +593,8 @@ export default function Payment() {
             });
           } catch (e) {
             console.error("[Payment] Error in onSuccess callback:", e);
-            // Don't throw - let the payment continue processing
+          } finally {
+            cleanupKora();
           }
         },
         onFailed: (data) => {
@@ -565,6 +613,8 @@ export default function Payment() {
             });
           } catch (e) {
             console.error("[Payment] Error in onFailed callback:", e);
+          } finally {
+            cleanupKora();
           }
         },
         onPending: () => {
@@ -581,6 +631,8 @@ export default function Payment() {
             });
           } catch (e) {
             console.error("[Payment] Error in onPending callback:", e);
+          } finally {
+            cleanupKora();
           }
         },
         onClose: () => {
@@ -597,6 +649,8 @@ export default function Payment() {
                 }
               } catch (e) {
                 console.error("[Payment] Error during delayed onClose:", e);
+              } finally {
+                cleanupKora();
               }
             }, 100);
           } catch (e) {

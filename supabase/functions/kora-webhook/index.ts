@@ -69,6 +69,22 @@ function toNumber(value: string | number | undefined | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, val]) => `${JSON.stringify(key)}:${stableStringify(val)}`);
+
+  return `{${entries.join(",")}}`;
+}
+
 function planLabel(plan: string): string {
   switch (plan) {
     case "basic":
@@ -172,14 +188,12 @@ async function sendPaymentConfirmationEmail(
 async function verifySignature(
   payload: KoraWebhookPayload,
   signature: string | null,
+  rawBody: string,
 ): Promise<boolean> {
   if (!signature || !KORA_SECRET_KEY) return false;
 
   try {
-    const dataStr = JSON.stringify(payload.data);
     const keyBytes = new TextEncoder().encode(KORA_SECRET_KEY);
-    const dataBytes = new TextEncoder().encode(dataStr);
-
     const key = await crypto.subtle.importKey(
       "raw",
       keyBytes,
@@ -188,13 +202,29 @@ async function verifySignature(
       ["sign"],
     );
 
-    const sig = await crypto.subtle.sign("HMAC", key, dataBytes);
-    const hex = Array.from(new Uint8Array(sig))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    const variants = [      rawBody,      JSON.stringify(payload.data),
+      stableStringify(payload.data),
+      stableStringify(payload.data).replace(/\\s+/g, ""),
+    ];
 
-    return hex === signature;
-  } catch {
+    for (const dataStr of variants) {
+      const dataBytes = new TextEncoder().encode(dataStr);
+      const sig = await crypto.subtle.sign("HMAC", key, dataBytes);
+      const hex = Array.from(new Uint8Array(sig))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      if (hex === signature) {
+        console.log("[Kora Webhook] Signature verified using variant", dataStr);
+        return true;
+      }
+    }
+
+    console.warn(
+      "[Kora Webhook] Signature verification failed for all payload variants",
+    );
+    return false;
+  } catch (err) {
+    console.error("[Kora Webhook] Signature verification error:", err);
     return false;
   }
 }
@@ -314,7 +344,7 @@ serve(async (req: Request) => {
       return new Response("ok", { status: 200, headers: corsHeaders });
     }
 
-    const isValid = await verifySignature(payload, signature);
+    const isValid = await verifySignature(payload, signature, rawBody);
     console.log("[Kora Webhook] Signature check result:", isValid);
     if (!isValid) {
       console.error("[Kora Webhook] Invalid signature — ignoring request");
