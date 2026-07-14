@@ -30,62 +30,42 @@ declare global {
 }
 
 // Safari/iOS error handling: Suppress KoraPay cleanup errors after payment success
-const originalError = window.onerror;
-const suppressKoraPay = (message: string) => {
-  // Suppress KoraPay "hasAttribute" errors on Safari/iOS
+const isKoraScriptSource = (source?: string | null) => {
+  if (!source) return false;
+  return source.includes("korapay") || source.includes("korablobstorage") || source.includes("korapay-collections");
+};
+
+const suppressKoraPay = (message: string, source?: string | null) => {
+  if (typeof message !== "string") return false;
+
+  const sanitized = message.trim();
+  const isScriptError = sanitized === "Script error." || sanitized === "Script error";
+
   if (
-    typeof message === "string" &&
-    (message.includes("hasAttribute") || message.includes("Cannot read properties of null"))
+    sanitized.includes("hasAttribute") ||
+    sanitized.includes("Cannot read properties of null") ||
+    isScriptError
   ) {
-    // Check if this is coming from KoraPay library (korapay-collections.min.js)
+    if (isScriptError) {
+      return isKoraScriptSource(source);
+    }
+
     const stack = new Error().stack || "";
-    if (stack.includes("korapay")) {
-      console.warn("[KoraPay] Suppressed cleanup error (iOS/Safari compatibility)", message);
+    if (
+      stack.includes("korapay") ||
+      stack.includes("korapay-collections") ||
+      isKoraScriptSource(source)
+    ) {
+      console.warn(
+        "[KoraPay] Suppressed cleanup/error issue (iOS/Safari compatibility)",
+        message,
+        source,
+      );
       return true;
     }
   }
+
   return false;
-};
-
-window.onerror = function (
-  message: string | Event | null,
-  source?: string,
-  lineno?: number,
-  colno?: number,
-  error?: Error,
-) {
-  if (typeof message === "string" && suppressKoraPay(message)) {
-    return true;
-  }
-  return originalError
-    ? originalError(message as string, source, lineno, colno, error)
-    : false;
-};
-
-// Handle unhandled promise rejections from KoraPay on iOS/Safari
-const originalUnhandledRejection = window.onunhandledrejection;
-window.onunhandledrejection = function (event: PromiseRejectionEvent) {
-  const reason = event.reason || {};
-  const message = typeof reason?.message === "string" ? reason.message : String(reason);
-
-  if (
-    typeof message === "string" &&
-    (message.includes("hasAttribute") || message.includes("Cannot read properties of null"))
-  ) {
-    const stack = typeof reason?.stack === "string" ? reason.stack : "";
-    if (stack.includes("korapay")) {
-      console.warn(
-        "[KoraPay] Suppressed unhandled rejection (iOS/Safari compatibility)",
-        message,
-      );
-      event.preventDefault();
-      return;
-    }
-  }
-
-  if (typeof originalUnhandledRejection === "function") {
-    originalUnhandledRejection.call(window, event);
-  }
 };
 
 interface KoraPayConfig {
@@ -293,8 +273,9 @@ export default function Payment() {
     script.id = "kora-script";
     script.type = "text/javascript";
     script.src = KORA_SCRIPT_SRC;
-    script.async = false;
+    script.async = true;
     script.crossOrigin = "anonymous";
+    script.referrerPolicy = "no-referrer";
     const finalizeLoad = () => {
       if (window.Korapay) {
         setKoraReady(true);
@@ -346,7 +327,7 @@ export default function Payment() {
 
   useEffect(() => {
     const handleGlobalError = (event: ErrorEvent) => {
-      if (typeof event.message === "string" && suppressKoraPay(event.message)) {
+      if (typeof event.message === "string" && suppressKoraPay(event.message, event.filename)) {
         event.preventDefault();
       }
     };
@@ -354,7 +335,8 @@ export default function Payment() {
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason || {};
       const message = typeof reason?.message === "string" ? reason.message : String(reason);
-      if (typeof message === "string" && suppressKoraPay(message)) {
+      const source = typeof reason?.filename === "string" ? reason.filename : undefined;
+      if (suppressKoraPay(message, source)) {
         event.preventDefault();
       }
     };
