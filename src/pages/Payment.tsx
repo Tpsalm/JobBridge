@@ -47,33 +47,44 @@ const suppressKoraPay = (message: string) => {
   return false;
 };
 
-window.onerror = function (message, source, lineno, colno, error) {
-  if (suppressKoraPay(message)) {
+window.onerror = function (
+  message: string | Event | null,
+  source?: string,
+  lineno?: number,
+  colno?: number,
+  error?: Error,
+) {
+  if (typeof message === "string" && suppressKoraPay(message)) {
     return true;
   }
-  return originalError ? originalError(message, source, lineno, colno, error) : false;
+  return originalError
+    ? originalError(message as string, source, lineno, colno, error)
+    : false;
 };
 
 // Handle unhandled promise rejections from KoraPay on iOS/Safari
 const originalUnhandledRejection = window.onunhandledrejection;
-window.onunhandledrejection = function (event) {
+window.onunhandledrejection = function (event: PromiseRejectionEvent) {
   const reason = event.reason || {};
-  const message = reason?.message || String(reason);
-  
+  const message = typeof reason?.message === "string" ? reason.message : String(reason);
+
   if (
     typeof message === "string" &&
     (message.includes("hasAttribute") || message.includes("Cannot read properties of null"))
   ) {
-    const stack = reason?.stack || "";
+    const stack = typeof reason?.stack === "string" ? reason.stack : "";
     if (stack.includes("korapay")) {
-      console.warn("[KoraPay] Suppressed unhandled rejection (iOS/Safari compatibility)", message);
+      console.warn(
+        "[KoraPay] Suppressed unhandled rejection (iOS/Safari compatibility)",
+        message,
+      );
       event.preventDefault();
       return;
     }
   }
-  
-  if (originalUnhandledRejection) {
-    originalUnhandledRejection(event);
+
+  if (typeof originalUnhandledRejection === "function") {
+    originalUnhandledRejection.call(window, event);
   }
 };
 
@@ -188,6 +199,7 @@ export default function Payment() {
   const [step, setStep] = useState<CheckoutStep>("kora-checkout");
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [successCountdown, setSuccessCountdown] = useState(3);
   const [error, setError] = useState<ReactNode>("");
   const [koraReady, setKoraReady] = useState(false);
   const [koraLoading, setKoraLoading] = useState(false);
@@ -215,12 +227,21 @@ export default function Payment() {
 
   // Auto-redirect after 3 seconds for seamless UX
   useEffect(() => {
-    if (paid) {
-      const redirectTimer = setTimeout(() => {
-        navigate(successTarget);
-      }, 3000);
-      return () => clearTimeout(redirectTimer);
-    }
+    if (!paid) return;
+
+    setSuccessCountdown(3);
+    const redirectTimer = setTimeout(() => {
+      navigate(successTarget);
+    }, 3000);
+
+    const countdownTimer = setInterval(() => {
+      setSuccessCountdown((current) => Math.max(current - 1, 0));
+    }, 1000);
+
+    return () => {
+      clearTimeout(redirectTimer);
+      clearInterval(countdownTimer);
+    };
   }, [paid, successTarget, navigate]);
 
   const clearPendingReference = () => {
@@ -747,24 +768,6 @@ export default function Payment() {
   }
 
   function renderSuccessScreen() {
-    const [countdown, setCountdown] = useState(3);
-
-    useEffect(() => {
-      if (!paid) return;
-      
-      const interval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }, [paid]);
-
     return (
       <div className="max-w-[420px] mx-auto text-center">
         <div className="mb-8">
@@ -847,9 +850,9 @@ export default function Payment() {
                 : "Go to Dashboard"}
           </button>
           
-          {countdown > 0 && (
+          {successCountdown > 0 && (
             <p className="text-xs text-gray-500 text-center">
-              Redirecting in <strong>{countdown}</strong> second{countdown !== 1 ? 's' : ''}...
+              Redirecting in <strong>{successCountdown}</strong> second{successCountdown !== 1 ? 's' : ''}...
             </p>
           )}
         </div>
