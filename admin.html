@@ -3,10 +3,11 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <base href="/" />
         <title>JobBridge Admin Console</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-        <script src="./admin-config.js"></script>
+        <script src="/admin-config.js"></script>
         <style>
             * {
                 margin: 0;
@@ -569,8 +570,11 @@
           <p class="text-sm text-gray-500 mt-1">JobBridge Platform Management</p>
         </div>
         <div id="login-err" class="text-red-600 text-sm mb-3 p-3 bg-red-50 rounded-lg hidden"></div>
-        <input id="login-id" type="email" placeholder="Admin email" class="mb-3" autocomplete="username">
-        <input id="login-pw" type="password" placeholder="Password" class="mb-4" autocomplete="current-password">
+                <input id="login-id" type="email" placeholder="Admin email" class="mb-3" autocomplete="username">
+                <div class="mb-4 relative">
+                    <input id="login-pw" type="password" placeholder="Password" class="w-full pr-10" autocomplete="current-password">
+                    <button type="button" id="toggle-pw" aria-label="Show password" onclick="(function(){const i=document.getElementById('login-pw'); const b=document.getElementById('toggle-pw'); if(i.type==='password'){i.type='text'; b.textContent='🙈'; b.setAttribute('aria-label','Hide password');}else{i.type='password'; b.textContent='👁️'; b.setAttribute('aria-label','Show password');}})()" class="absolute right-2 top-1/2 -translate-y-1/2 text-sm bg-white/0 border-0">👁️</button>
+                </div>
         <div class="bg-blue-50 rounded-lg p-3 mb-4 text-center">
           <p class="text-xs text-blue-700 mb-1">Security Verification</p>
           <p class="text-lg font-bold text-blue-900">${a} + ${b} = ?</p>
@@ -634,8 +638,10 @@
                 }
 
                 try {
+                    // Allow shorthand 'admin' login id to map to the configured admin email
+                    const emailToUse = id === 'admin' ? (window.__JOBBRIDGE_SUPABASE_ADMIN_EMAIL__ || 'jobbridgesupport@gmail.com') : id;
                     const { error } = await sb.auth.signInWithPassword({
-                        email: id,
+                        email: emailToUse,
                         password: pw,
                     });
                     if (error) throw error;
