@@ -22,6 +22,7 @@ import {
   type SourceInfo,
   type AgentThought,
 } from "../lib/ragEngine";
+import { recordAssistantRouteClick } from "../lib/assistantMetrics";
 
 interface Message {
   id: string;
@@ -846,7 +847,12 @@ function AIAssistantWidget() {
                           {routes.map((r) => (
                             <button
                               key={r}
-                              onClick={() => navigate(r)}
+                              onClick={() => {
+                                try {
+                                  recordAssistantRouteClick(r);
+                                } catch (e) {}
+                                navigate(r);
+                              }}
                               className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 transition-colors"
                             >
                               {getRouteLabel(r)}
