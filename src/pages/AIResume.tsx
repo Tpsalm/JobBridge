@@ -206,6 +206,39 @@ export default function AIResume() {
           </div>
         </div>
 
+        <div className="mb-4 flex gap-2">
+          <button
+            onClick={async () => {
+              // Quick CV generation smoke test using sample text
+              const sample = `John Doe\nSoftware Engineer with 5 years experience in React, Node.js, AWS. Led teams and shipped products.`;
+              setResumeText(sample);
+              setJobTitle('Frontend Engineer');
+              setJobDesc('Build responsive web applications using React and TypeScript.');
+              setError('');
+              try {
+                setLoading('tailor');
+                const tailored = await callOpenAI(
+                  'You are a professional resume writer. Tailor the following resume for the specified job title and description. Return only the tailored resume text.',
+                  `Job Title: Frontend Engineer\nJob Description: Build responsive web applications using React and TypeScript.\n\nResume:\n${sample}`
+                );
+                setTailoredResume(tailored);
+                const cover = await callOpenAI(
+                  'You are a professional cover letter writer. Generate a compelling cover letter based on the resume and job details provided.',
+                  `Job Title: Frontend Engineer\nCompany: Acme\nJob Description: Build responsive web applications using React and TypeScript.\n\nResume:\n${sample}`
+                );
+                setCoverLetter(cover);
+              } catch (e) {
+                setError('CV test failed: ' + (e instanceof Error ? e.message : String(e)));
+              } finally {
+                setLoading('');
+              }
+            }}
+            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition"
+          >
+            Run CV generation test
+          </button>
+        </div>
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
             <AlertCircle className="w-4 h-4 shrink-0" /> {error}

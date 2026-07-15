@@ -13,6 +13,8 @@ import {
   Compass,
   ChevronDown,
   Terminal,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   streamAnswer,
@@ -438,6 +440,13 @@ function AIAssistantWidget() {
   const location = useLocation();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [assistantVoiceEnabled, setAssistantVoiceEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("assistant_voice_enabled") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [messages, setMessages] = useState<Message[]>([
     {
       id: nextId(),
@@ -690,7 +699,22 @@ function AIAssistantWidget() {
             { id: nextId(), text: cleaned, sender: "bot", sources: finalSources },
           ]);
           if (cleaned) {
-            // Speech output intentionally disabled for production.
+            try {
+              if (assistantVoiceEnabled && typeof window !== "undefined" && window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+                const utter = new SpeechSynthesisUtterance(cleaned.replace(/\s+/g, " "));
+                utter.lang = "en-US";
+                utter.rate = 1.02;
+                utter.pitch = 1.08;
+                utter.volume = 0.96;
+                const voices = window.speechSynthesis.getVoices();
+                const preferred = voices.find((v) => v.lang.startsWith("en") && /female|samantha|zira|victoria|ava|jessa|susan|alice|emma/i.test(v.name));
+                if (preferred) utter.voice = preferred;
+                window.speechSynthesis.speak(utter);
+              }
+            } catch (e) {
+              // ignore speech failures
+            }
           }
         },
       },
@@ -792,6 +816,17 @@ function AIAssistantWidget() {
                 className="p-2 hover:bg-white/10 rounded-xl transition-colors"
               >
                 <Trash2 className="w-4 h-4 text-white" />
+              </button>
+              <button
+                onClick={() => {
+                  const next = !assistantVoiceEnabled;
+                  setAssistantVoiceEnabled(next);
+                  try { localStorage.setItem("assistant_voice_enabled", next ? "1" : "0"); } catch {}
+                }}
+                title={assistantVoiceEnabled ? "Disable voice" : "Enable voice"}
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+              >
+                {assistantVoiceEnabled ? <Volume2 className="w-4 h-4 text-white" /> : <VolumeX className="w-4 h-4 text-white" />}
               </button>
               <button
                 onClick={() => setIsOpen(false)}

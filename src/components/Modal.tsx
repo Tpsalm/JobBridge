@@ -130,6 +130,7 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
                   <option>Part-time</option>
                   <option>Contract</option>
                   <option>Freelance</option>
+                  <option>Entry level</option>
                 </select>
               </div>
             </div>

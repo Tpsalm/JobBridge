@@ -239,6 +239,7 @@ const Jobs = () => {
                 <option>Part-time</option>
                 <option>Contract</option>
                 <option>Internship</option>
+                <option>Entry level</option>
                 <option>Freelance</option>
               </select>
               <select
