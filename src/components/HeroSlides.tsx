@@ -3,47 +3,54 @@ import { Link } from 'react-router-dom';
 import { Search, Users, Zap } from 'lucide-react';
 import { pexel } from '../lib/media';
 
-const SLIDE_INTERVAL = 5000;
+// A/B variant handling: stored in localStorage 'hero_ab'. Use ?ab=B to override.
+function resolveVariant() {
+  try {
+    const url = new URL(window.location.href);
+    const q = url.searchParams.get('ab');
+    if (q) {
+      localStorage.setItem('hero_ab', q);
+      return q;
+    }
+    const stored = localStorage.getItem('hero_ab');
+    if (stored) return stored;
+    // assign randomly on first visit
+    const rand = Math.random() < 0.5 ? 'A' : 'B';
+    localStorage.setItem('hero_ab', rand);
+    return rand;
+  } catch {
+    return 'A';
+  }
+}
+
+const variant = typeof window !== 'undefined' ? resolveVariant() : 'A';
+
+const DEFAULT_INTERVAL = variant === 'B' ? 4000 : 5000;
 
 const slides = [
-  {
-    id: 'discover',
-    image: pexel(3194519, 1280, 800),
-    title: "Your career bridge to what's next",
-    subtitle: 'AI-powered job matching, verified employers, and real-time talent search.',
-    ctas: [
-      { to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> },
-      { to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> },
-      { to: '/ai-resume', label: 'AI Resume', icon: <Zap className="w-4 h-4" /> },
-    ],
-  },
-  {
-    id: 'growth',
-    image: pexel(7176027, 1280, 800),
-    title: 'Professional Growth',
-    subtitle: 'Connect with top employers and discover opportunities that match your skills.',
-    ctas: [
-      { to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> },
-      { to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> },
-    ],
-  },
-  {
-    id: 'insights',
-    image: pexel(8386440, 1280, 800),
-    title: 'Live career insights',
-    subtitle: 'Real-time hiring data and career guidance to accelerate your next move.',
-    ctas: [
-      { to: '/promotional', label: 'Discover Insights', icon: <Zap className="w-4 h-4" /> },
-      { to: '/blog', label: 'Read Insights', icon: <Search className="w-4 h-4" /> },
-    ],
-  },
+  { id: 'discover', imageId: 3194519, w: 1280, h: 800, title: "Your career bridge to what's next", subtitle: 'AI-powered job matching, verified employers, and real-time talent search.', ctas: [{ to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> }, { to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> }, { to: '/ai-resume', label: 'AI Resume', icon: <Zap className="w-4 h-4" /> }] },
+  { id: 'growth', imageId: 7176027, w: 1280, h: 800, title: 'Professional Growth', subtitle: 'Connect with top employers and discover opportunities that match your skills.', ctas: [{ to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> }, { to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> }] },
+  { id: 'insights', imageId: 8386440, w: 1280, h: 800, title: 'Live career insights', subtitle: 'Real-time hiring data and career guidance to accelerate your next move.', ctas: [{ to: '/promotional', label: 'Discover Insights', icon: <Zap className="w-4 h-4" /> }, { to: '/blog', label: 'Read Insights', icon: <Search className="w-4 h-4" /> }] },
 ];
+
+function srcFor(id: number, w: number, h: number) {
+  return pexel(id, w, h);
+}
+
+function srcSetFor(id: number) {
+  // provide multiple widths for responsive loading
+  const sizes = [640, 900, 1280, 1600];
+  return sizes.map(s => `${srcFor(id, s, Math.round((s * 9) / 16))} ${s}w`).join(', ');
+}
 
 export default function HeroSlides() {
   const [index, setIndex] = useState(0);
   const timerRef = useRef<number | null>(null);
   const touchStartX = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // interval depends on variant (A or B)
+  const interval = DEFAULT_INTERVAL;
 
   useEffect(() => {
     startTimer();
@@ -52,7 +59,6 @@ export default function HeroSlides() {
   }, []);
 
   useEffect(() => {
-    // restart timer when index changes (so user interactions reset the interval)
     startTimer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
@@ -61,7 +67,7 @@ export default function HeroSlides() {
     stopTimer();
     timerRef.current = window.setInterval(() => {
       setIndex(i => (i + 1) % slides.length);
-    }, SLIDE_INTERVAL);
+    }, interval);
   }
 
   function stopTimer() {
@@ -103,19 +109,29 @@ export default function HeroSlides() {
       >
         {slides.map((s, i) => {
           const active = i === index;
+          // Determine CTA order per variant: variant B reverses CTAs
+          const ctas = variant === 'B' ? [...s.ctas].reverse() : s.ctas;
           return (
             <div
               key={s.id}
               className={`absolute inset-0 w-full h-full transition-opacity duration-800 ease-out ${active ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
             >
-              <img src={s.image} alt={s.title} className="w-full h-full object-cover" />
+              <img
+                src={srcFor(s.imageId, s.w, s.h)}
+                srcSet={srcSetFor(s.imageId)}
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                loading={active ? 'eager' : 'lazy'}
+                decoding="async"
+                alt={s.title}
+                className="w-full h-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-br from-black/30 via-transparent to-black/40" />
               <div className="absolute inset-0 flex flex-col items-start justify-center p-8 lg:p-12 text-white">
                 <p className="text-sm uppercase tracking-widest bg-white/10 px-3 py-1 rounded-full mb-4">Featured</p>
                 <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight mb-3">{s.title}</h3>
                 <p className="max-w-md text-sm text-white/80 mb-6">{s.subtitle}</p>
                 <div className="flex gap-3">
-                  {s.ctas.map(cta => (
+                  {ctas.map(cta => (
                     <Link key={cta.label} to={cta.to} className="inline-flex items-center gap-2 bg-white text-blue-700 font-semibold px-4 py-2 rounded-xl hover:bg-white/90 transition-shadow">
                       {cta.icon}
                       <span className="text-sm">{cta.label}</span>

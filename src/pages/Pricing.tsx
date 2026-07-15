@@ -19,9 +19,13 @@ export default function Pricing() {
   const [activeTab, setActiveTab] = useState<'jobs' | 'services' | 'business' | 'ai' | 'training'>('jobs');
 
   useEffect(() => {
-    if (location.hash === '#ai') {
-      setActiveTab('ai');
-    }
+    if (!location.hash) return;
+    const h = location.hash.replace('#', '');
+    if (h === 'ai') setActiveTab('ai');
+    else if (h === 'services') setActiveTab('services');
+    else if (h === 'business') setActiveTab('business');
+    else if (h === 'training') setActiveTab('training');
+    else if (h === 'jobs') setActiveTab('jobs');
   }, [location.hash]);
 
   return (

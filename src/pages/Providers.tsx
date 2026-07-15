@@ -298,7 +298,7 @@ export default function Providers() {
                 <ul className="text-xs text-emerald-200 space-y-1"><li>• Top of search results</li><li>• Featured on homepage</li><li>• Social media promotion</li></ul>
               </div>
             </div>
-            <Link to="/pricing" className="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-bold py-3 px-6 rounded-xl transition-colors">
+              <Link to="/pricing#services" className="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-bold py-3 px-6 rounded-xl transition-colors">
               View Pricing Plans <ArrowRight size={18} />
             </Link>
           </div>
