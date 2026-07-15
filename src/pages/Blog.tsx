@@ -34,18 +34,28 @@ const Blog: React.FC = () => {
   const [subscribeMsg, setSubscribeMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleSubscribe = async () => {
-    if (!subscribeEmail || !/\S+@\S+\.\S+/.test(subscribeEmail)) {
+    const email = subscribeEmail.trim().toLowerCase();
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
       setSubscribeMsg({ type: 'error', text: 'Please enter a valid email' });
       return;
     }
+
     try {
-      await subscribeToBlog(subscribeEmail);
-      sendEmail({ type: 'subscription', email: subscribeEmail });
+      await subscribeToBlog(email);
       setSubscribeMsg({ type: 'success', text: 'Subscribed! Check your inbox.' });
       setSubscribeEmail('');
-    } catch {
+    } catch (error) {
+      console.error('[Blog] subscription error', error);
       setSubscribeMsg({ type: 'error', text: 'Could not subscribe. Try again later.' });
+      return;
     }
+
+    try {
+      await sendEmail({ type: 'subscription', email });
+    } catch (error) {
+      console.warn('[Blog] subscription email send failed', error);
+    }
+
     setTimeout(() => setSubscribeMsg(null), 4000);
   };
 

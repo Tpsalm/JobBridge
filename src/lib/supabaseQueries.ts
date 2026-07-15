@@ -209,8 +209,18 @@ export async function upsertProfile(profile: {
 // ─── Blog Subscriptions ────────────────────────────────────────────────────
 
 export async function subscribeToBlog(email: string) {
-  const { error } = await supabase.from("blog_subscribers").upsert([{ email }], { onConflict: "email" });
-  if (error) throw error;
+  const normalizedEmail = email.trim().toLowerCase();
+  const { error } = await supabase
+    .from("blog_subscribers")
+    .upsert([{ email: normalizedEmail }], { onConflict: "email" });
+
+  if (error) {
+    // Treat unique constraint as success so repeated subscriptions don't fail the UI.
+    if (error.code === "23505") {
+      return;
+    }
+    throw error;
+  }
 }
 
 // ─── Payments ───────────────────────────────────────────────────────────────

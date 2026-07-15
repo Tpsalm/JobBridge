@@ -9,6 +9,7 @@ import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Gl
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 import FloatingDecorations from '../components/FloatingDecorations';
+import HeroSlides from '../components/HeroSlides';
 import { pexel } from '../lib/media';
 
 const stats = [
@@ -125,38 +126,7 @@ export default function Home() {
               </div>
             </div>
             <div className="hidden lg:block relative">
-              {/* Professional showcase card */}
-              <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 hover:shadow-blue-500/20 transition-shadow duration-500" style={{ transform: 'rotateY(-2deg) rotateX(2deg)', transformStyle: 'preserve-3d' }}>
-                <div className="relative h-[420px] bg-gradient-to-br from-blue-900/60 via-blue-800/40 to-transparent flex flex-col items-center justify-center p-8 text-center">
-                  {/* Decorative background pattern */}
-                  <div className="absolute inset-0 opacity-5">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-white blur-3xl" />
-                  </div>
-                  {/* Professional icon */}
-                  <div className="relative z-10 mb-6">
-                    <div className="w-20 h-20 mx-auto rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center">
-                      <span className="text-3xl">💼</span>
-                    </div>
-                  </div>
-                  <p className="relative z-10 text-white/60 text-xs uppercase tracking-[0.2em] mb-2">Your Career Bridge</p>
-                  <h3 className="relative z-10 text-white text-2xl font-bold mb-2">
-                    Professional Growth
-                  </h3>
-                  <p className="relative z-10 text-blue-200/80 text-sm max-w-xs">
-                    Connect with top employers and discover opportunities that match your skills
-                  </p>
-                </div>
-              </div>
-              {/* Floating stat card */}
-              <div className="absolute -left-6 top-8 bg-white rounded-xl shadow-xl p-4 flex items-center gap-3 animate-float">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-gray-900">94% Success</p>
-                  <p className="text-xs text-gray-500">Placement rate</p>
-                </div>
-              </div>
+              <HeroSlides />
             </div>
           </div>
         </div>
