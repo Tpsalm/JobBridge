@@ -40,9 +40,13 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Inspect built site
+        run: |
+          echo "Dist contents:"
+          ls -la dist
+          find dist -maxdepth 2 -type f | sort
       - id: deployment
         uses: actions/deploy-pages@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
