@@ -2,6 +2,11 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
+const RESEND_FROM = Deno.env.get('RESEND_FROM') || '';
+const RESEND_REPLY_TO = Deno.env.get('RESEND_REPLY_TO') || '';
+const RESEND_RETURN_PATH = Deno.env.get('RESEND_RETURN_PATH') || '';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const BRAND_PRIMARY = '#1d4ed8';
 const BRAND_SECONDARY = '#0f766e';
 const BRAND_ACCENT = '#38bdf8';
@@ -417,7 +422,12 @@ serve(async (req) => {
       throw lastErr;
     }
 
-    const res = await postWithRetry('https://api.resend.com/emails', { from: senderEmail, to: cleanEmail, subject, html: wrapHtml(htmlBody, subject) });
+    // Build payload with optional verified sender and reply/return-path
+    const payload: any = { from: RESEND_FROM || senderEmail, to: cleanEmail, subject, html: wrapHtml(htmlBody, subject) };
+    if (RESEND_REPLY_TO) payload.reply_to = RESEND_REPLY_TO;
+    if (RESEND_RETURN_PATH) payload.return_path = RESEND_RETURN_PATH;
+
+    const res = await postWithRetry('https://api.resend.com/emails', payload);
 
     if (!res.ok) {
       const errText = await res.text();
@@ -430,6 +440,24 @@ serve(async (req) => {
 
     const data = await res.json();
     console.log(`${type} email sent to ${cleanEmail}:`, data.id);
+
+    // Optionally persist a log to Supabase for durable tracking if service role key is available
+    try {
+      if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+        const logBody = [{ email: cleanEmail, type, subject, resend_id: data.id, status: 'sent', meta: { name: sanitize(name, MAX_NAME_LENGTH), jobTitle: sanitize(jobTitle, MAX_STR_LENGTH), company: sanitize(company, MAX_STR_LENGTH) } }];
+        await fetch(`${SUPABASE_URL}/rest/v1/email_logs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify(logBody),
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to persist email log to Supabase:', e);
+    }
     return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (err) {
     console.error('Function error:', err);
