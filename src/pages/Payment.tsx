@@ -19,6 +19,7 @@ import { useToasts } from "../contexts/ToastContext";
 import { fetchPaymentByReference, recordPayment } from "../lib/supabaseQueries";
 import { sendEmail } from "../lib/email";
 import { getSupabaseFunctionsUrl } from "../lib/supabaseHelpers";
+import { recordPaymentClick } from "../lib/paymentMetrics";
 
 declare global {
   interface Window {
@@ -515,6 +516,8 @@ export default function Payment() {
         // ignore storage failures
       }
       setPaymentReference(reference);
+      // record user tapping Pay
+      try { recordPaymentClick('pay_button'); } catch {}
       push({
         message: `KoraPay checkout initialized. Complete your payment to activate ${plan.name}.`,
         type: "info",
@@ -574,35 +577,42 @@ export default function Payment() {
               type: "success",
             });
 
-            // Optimistic activation & redirect: immediately refresh subscription
-            // and navigate the user to the purchased feature to improve UX on
-            // mobile and desktop when the gateway reports success.
+            // Attempt immediate server-side verification via Edge Function.
             (async () => {
               try {
-                if (plan.ai) {
-                  await fetchAiSubscription();
-                } else {
-                  await fetchSubscription();
+                const functionsBaseUrl = getSupabaseFunctionsUrl();
+                if (functionsBaseUrl) {
+                  const res = await fetch(`${functionsBaseUrl}/verify-payment`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reference: nextReference }),
+                  });
+                  const body = await res.json().catch(() => ({}));
+                  if (res.ok && body?.verified) {
+                    // server confirmed — refresh subscriptions and navigate
+                    try {
+                      if (plan.ai) await fetchAiSubscription();
+                      else await fetchSubscription();
+                    } catch {}
+                    clearPendingReference();
+                    setPaying(false);
+                    setError("");
+                    setPaid(true);
+                    setStep("success");
+                    window.setTimeout(() => { try { navigate(successTarget); } catch {} }, 600);
+                    return;
+                  }
                 }
 
-                // Mark as paid and show success UI then navigate
-                clearPendingReference();
-                setPaying(false);
-                setError("");
-                setPaid(true);
-                setStep("success");
-
-                // Short delay so the success modal briefly appears before navigation
-                window.setTimeout(() => {
-                  try {
-                    navigate(successTarget);
-                  } catch (e) {
-                    console.warn("Navigation after payment failed:", e);
-                  }
-                }, 800);
-              } catch (optimisticErr) {
-                // If immediate activation fails, keep polling for secure verification
-                console.warn("Optimistic activation failed, will continue server verification", optimisticErr);
+                // If server-side verify not available or not yet successful,
+                // keep the page in processing and allow the user to manually continue.
+                setStep("processing");
+                setPaying(true);
+                setError(`Payment received. Verifying securely with KoraPay${nextReference ? ` (ref: ${nextReference})` : ""}...`);
+              } catch (err) {
+                console.warn("Server verify attempt failed, falling back to polling", err);
+                setStep("processing");
+                setPaying(true);
               }
             })();
           } catch (e) {
@@ -799,6 +809,52 @@ export default function Payment() {
               fill="currentColor"
             />
             <span>{error}</span>
+          </div>
+        )}
+
+        {isProcessing && (
+          <div className="mt-4">
+            <button
+              onClick={async () => {
+                // Manual continue: call server verify then navigate if confirmed
+                if (!paymentReference) return;
+                const functionsBaseUrl = getSupabaseFunctionsUrl();
+                if (!functionsBaseUrl) {
+                  push({ message: "Verification service unavailable. Please wait or contact support.", type: "error" });
+                  return;
+                }
+
+                try {
+                  push({ message: "Checking payment status...", type: "info" });
+                  const res = await fetch(`${functionsBaseUrl}/verify-payment`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reference: paymentReference }),
+                  });
+                  const body = await res.json().catch(() => ({}));
+                  if (res.ok && body?.verified) {
+                    try {
+                      if (plan.ai) await fetchAiSubscription();
+                      else await fetchSubscription();
+                    } catch {}
+                    clearPendingReference();
+                    setPaid(true);
+                    setStep("success");
+                    setPaying(false);
+                    push({ message: "Payment verified — redirecting...", type: "success" });
+                    setTimeout(() => navigate(successTarget), 600);
+                    return;
+                  }
+                  push({ message: "Verification still pending. We'll continue to poll in the background.", type: "info" });
+                } catch (e) {
+                  console.error("Manual verify failed:", e);
+                  push({ message: "Verification failed. Please try again later or contact support.", type: "error" });
+                }
+              }}
+              className="w-full mt-3 py-3 rounded-2xl bg-white text-blue-700 font-semibold text-base border border-blue-100"
+            >
+              Continue to feature (check now)
+            </button>
           </div>
         )}
 

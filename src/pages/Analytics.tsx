@@ -6,18 +6,29 @@ import PageHero from '../components/PageHero';
 import VideoPlayer from '../components/VideoPlayer';
 import { HERO_CAROUSELS, VIDEO } from '../lib/media';
 import { getHeroAbMetrics, resetHeroAbMetrics } from '../lib/abMetrics';
+import { getAssistantMetrics, resetAssistantMetrics } from '../lib/assistantMetrics';
+import { getPaymentMetrics, resetPaymentMetrics } from '../lib/paymentMetrics';
 
 type DateRange = 'week' | 'month' | 'quarter' | 'year';
 
 export default function Analytics() {
   const [dateRange, setDateRange] = useState<DateRange>('week');
   const [abMetrics, setAbMetrics] = useState(() => getHeroAbMetrics());
+  const [assistantMetrics, setAssistantMetrics] = useState(() => getAssistantMetrics());
+  const [paymentMetrics, setPaymentMetrics] = useState(() => getPaymentMetrics());
 
   useEffect(() => {
     setAbMetrics(getHeroAbMetrics());
+    setAssistantMetrics(getAssistantMetrics());
+    setPaymentMetrics(getPaymentMetrics());
   }, []);
 
   const refreshMetrics = () => setAbMetrics(getHeroAbMetrics());
+  const refreshAll = () => {
+    setAbMetrics(getHeroAbMetrics());
+    setAssistantMetrics(getAssistantMetrics());
+    setPaymentMetrics(getPaymentMetrics());
+  };
 
   const kpis = [
     {
@@ -127,12 +138,10 @@ export default function Analytics() {
                 <p className="text-sm text-gray-500">Hero A/B Variant</p>
                 <h3 className="text-xl font-bold text-gray-900">Variant {abMetrics.variant}</h3>
               </div>
-              <button
-                onClick={refreshMetrics}
-                className="text-sm text-blue-700 hover:underline"
-              >
-                Refresh
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={refreshMetrics} className="text-sm text-blue-700 hover:underline">Refresh</button>
+                <button onClick={refreshAll} className="text-sm text-gray-600 hover:underline">Refresh All</button>
+              </div>
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm text-gray-700">
@@ -185,6 +194,53 @@ export default function Analytics() {
               </button>
             </div>
             <p className="text-sm text-gray-600">This panel stores metrics locally in browser storage for quick A/B experimentation tracking.</p>
+          </div>
+        </div>
+
+        {/* Assistant & Payment Metrics */}
+        <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl shadow p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm text-gray-500">Assistant Clicks</p>
+                <h3 className="text-xl font-bold text-gray-900">Interactive Assistant</h3>
+              </div>
+              <div>
+                <button onClick={() => { resetAssistantMetrics(); setAssistantMetrics(getAssistantMetrics()); }} className="text-sm text-red-600 hover:underline">Reset</button>
+              </div>
+            </div>
+            <div className="space-y-2 text-sm text-gray-700">
+              {Object.keys(assistantMetrics.clicks).length === 0 && <div className="text-gray-500">No assistant clicks recorded yet.</div>}
+              {Object.entries(assistantMetrics.clicks).map(([route, count]) => (
+                <div key={route} className="flex items-center justify-between">
+                  <span className="truncate pr-4">{route}</span>
+                  <span className="font-semibold">{count}</span>
+                </div>
+              ))}
+              <div className="pt-3 text-xs text-gray-500">Last updated: {new Date(assistantMetrics.lastUpdated).toLocaleString()}</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm text-gray-500">Payment Events</p>
+                <h3 className="text-xl font-bold text-gray-900">Local Payment Metrics</h3>
+              </div>
+              <div>
+                <button onClick={() => { resetPaymentMetrics(); setPaymentMetrics(getPaymentMetrics()); }} className="text-sm text-red-600 hover:underline">Reset</button>
+              </div>
+            </div>
+            <div className="space-y-2 text-sm text-gray-700">
+              {Object.keys(paymentMetrics.clicks).length === 0 && <div className="text-gray-500">No payment metrics recorded yet.</div>}
+              {Object.entries(paymentMetrics.clicks).map(([key, count]) => (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="truncate pr-4">{key}</span>
+                  <span className="font-semibold">{count}</span>
+                </div>
+              ))}
+              <div className="pt-3 text-xs text-gray-500">Last updated: {new Date(paymentMetrics.lastUpdated).toLocaleString()}</div>
+            </div>
           </div>
         </div>
 
