@@ -24,6 +24,7 @@ import {
   LogOut,
 } from "lucide-react";
 import JobBridgeLogo from "./JobBridgeLogo";
+import HeroSlides from './HeroSlides';
 
 const navLinks = [
   { label: "Home", path: "/", icon: Home },
@@ -492,6 +493,11 @@ export default function Header() {
           </div>
         </div>
       )}
+
+      {/* Global Hero Slides shown below header on all pages */}
+      <div className="w-full">
+        <HeroSlides />
+      </div>
     </header>
   );
 }
