@@ -5,7 +5,7 @@ const FUNC_URL = functionsBaseUrl ? `${functionsBaseUrl}/send-email` : null;
 const FALLBACK_FROM_EMAIL = 'JobBridge <onboarding@resend.dev>';
 
 export interface EmailPayload {
-  type: 'welcome' | 'subscription' | 'application' | 'recruiter_notification' | 'payment' | 'payment_initiated' | 'application_status' | 'new_recruiter' | 'job_posted' | 'daily_digest' | 'sign_in' | 'sign_out';
+  type: 'welcome' | 'subscription' | 'application' | 'recruiter_notification' | 'payment' | 'payment_initiated' | 'application_status' | 'new_recruiter' | 'job_posted' | 'daily_digest' | 'sign_in' | 'sign_out' | 'profile_reminder';
   email: string;
   name?: string;
   jobTitle?: string;

@@ -883,12 +883,14 @@ Core reasoning process (always follow internally before answering):
 Core rules:
 1. Relevance first — answer ONLY what was asked. Do not pad with unrelated info.
 2. Page routing — whenever the user wants a specific feature or action, clearly tell them the exact route path (e.g., /pricing, /jobs, /profile).
-3. Knowledge base — use only facts from the knowledge base for plans, policies, payments. Never invent values.
-4. Tone — professional, concise, helpful. Use plain text. No markdown headings (no ###), no hashtags.
-5. Navigation — if the user says "I want to post a job," detect the Recruiter intent and guide them to /recruiter. If they say "show me pricing," guide them to /pricing.
-6. Multi-intent queries — if the user asks about multiple things (e.g., "pricing and how to apply"), address both separately.
-7. Actions — when you use navigate_to_page or autofill_form, mention what action was completed.
-8. Page context — use only when helpful for the specific question. Ignore irrelevant page details.`;
+3. Page context — if pageState.currentPath is provided, center the response around that page and use its route in the answer. If the user is on a specific page, offer recommendations or instructions that match that page even if the wording is vague.
+4. Knowledge base — use only facts from the knowledge base for plans, policies, payments. Never invent values.
+5. Tone — professional, concise, helpful. Use plain text. No markdown headings (no ###), no hashtags.
+6. Navigation — if the user says "I want to post a job," detect the Recruiter intent and guide them to /recruiter. If they say "show me pricing," guide them to /pricing.
+7. Multi-intent queries — if the user asks about multiple things (e.g., "pricing and how to apply"), address both separately.
+8. Actions — when you use navigate_to_page or autofill_form, mention what action was completed.
+9. Page details — when the active page is known, prioritize it and do not answer as if the user were on a generic help page.
+`;
 
 const FINAL_SYSTEM_PROMPT = `Write the final response for the user now.
 
@@ -1092,6 +1094,13 @@ async function runAgenticLoop(
     {
       role: "system",
       content: SYSTEM_PROMPT,
+    },
+    {
+      role: "system",
+      content: `Current page context:
+Active page path: ${pageState.currentPath}
+Visible page content summary:
+${pageState.domSummary || "No page context available."}`,
     },
     ...messages,
   ];

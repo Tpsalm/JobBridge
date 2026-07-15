@@ -1366,7 +1366,7 @@
                         type: "text",
                         value: "",
                         required: true,
-                        placeholder: "Min 6 chars",
+                        placeholder: "Min 8 chars",
                     },
                     ...base,
                 ];
@@ -2019,7 +2019,10 @@
                 return `
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-sm font-bold text-gray-900">Service Providers <span class="text-gray-400 font-normal">(${providers.length})</span></h3>
-      <div class="flex gap-3 text-xs text-gray-500"><span>Verified: ${providers.filter((p) => p.is_verified).length}</span><span>Unverified: ${st.unverifiedProv}</span></div>
+      <div class="flex items-center gap-3">
+        <button class="btn btn-primary text-xs" onclick="showAddProvider()">+ Add Provider</button>
+        <div class="flex gap-3 text-xs text-gray-500"><span>Verified: ${providers.filter((p) => p.is_verified).length}</span><span>Unverified: ${st.unverifiedProv}</span></div>
+      </div>
     </div>
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div class="table-wrap"><table class="w-full">
@@ -2074,6 +2077,61 @@
                     () => sb.from("service_providers").delete().eq("id", id),
                     "provider_delete",
                     id,
+                );
+            };
+            window.showAddProvider = () => {
+                const userOpts = S.users
+                    .filter((u) => u.email)
+                    .map((u) => ({
+                        value: u.id,
+                        label: (u.full_name || u.email) + " <" + u.email + ">",
+                    }));
+                showForm(
+                    "Add Provider",
+                    [
+                        {
+                            label: "Provider Account",
+                            type: "select",
+                            options: userOpts,
+                            required: true,
+                        },
+                        {
+                            label: "Specialty",
+                            type: "text",
+                            placeholder: "e.g. Graphic Design, Plumbing",
+                            required: true,
+                        },
+                        {
+                            label: "Hourly Rate (NGN)",
+                            type: "number",
+                            placeholder: "e.g. 5000",
+                        },
+                        {
+                            label: "Verified",
+                            type: "select",
+                            value: "false",
+                            options: [
+                                { value: "false", label: "No" },
+                                { value: "true", label: "Yes" },
+                            ],
+                        },
+                    ],
+                    (vals) => {
+                        doAct(
+                            () =>
+                                sb.from("service_providers").insert({
+                                    profile_id: vals[0],
+                                    specialty: vals[1] || null,
+                                    hourly_rate: vals[2] ? parseInt(vals[2]) : null,
+                                    is_verified: vals[3] === "true",
+                                }),
+                            "Provider added",
+                            "provider_create",
+                            "",
+                        );
+                    },
+                    "Create Provider",
+                    true,
                 );
             };
             window.viewProviderDet = (id) => {

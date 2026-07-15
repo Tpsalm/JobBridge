@@ -15,10 +15,21 @@ BEGIN
   IF EXISTS (
     SELECT 1
     FROM pg_tables
+    WHERE schemaname = 'public' AND tablename = 'jobs'
+  ) THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can insert jobs" ON public.jobs';
+    EXECUTE 'CREATE POLICY "Admins can insert jobs" ON public.jobs FOR INSERT WITH CHECK (public.is_admin())';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_tables
     WHERE schemaname = 'public' AND tablename = 'service_providers'
   ) THEN
     EXECUTE 'DROP POLICY IF EXISTS "Admins can read providers" ON public.service_providers';
     EXECUTE 'CREATE POLICY "Admins can read providers" ON public.service_providers FOR SELECT USING (public.is_admin())';
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can insert providers" ON public.service_providers';
+    EXECUTE 'CREATE POLICY "Admins can insert providers" ON public.service_providers FOR INSERT WITH CHECK (public.is_admin())';
   END IF;
 
   IF EXISTS (

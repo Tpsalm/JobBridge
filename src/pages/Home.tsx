@@ -181,6 +181,20 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Promotional CTA */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div className="rounded-3xl border border-blue-100/40 bg-gradient-to-r from-blue-50 via-white to-slate-50 p-6 shadow-xl shadow-slate-200/50 flex flex-col lg:flex-row items-center justify-between gap-4">
+          <div className="space-y-3">
+            <p className="text-sm uppercase tracking-[0.28em] text-blue-700">New launch</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Explore JobBridge’s new career hub</h2>
+            <p className="max-w-2xl text-sm text-slate-600">Visit our promotional page for a quick tour of verified employers, AI-powered talent search, and real-time hiring insights.</p>
+          </div>
+          <Link to="/promotional" className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-800">
+            View Promotional Page <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </section>
+
       {/* Stats */}
       <AnimatedSection className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children stagger-visible">

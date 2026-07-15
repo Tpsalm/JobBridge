@@ -95,6 +95,8 @@ CREATE POLICY "Admins can delete payments"
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'service_providers') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can insert providers" ON public.service_providers';
+    EXECUTE 'CREATE POLICY "Admins can insert providers" ON public.service_providers FOR INSERT WITH CHECK (public.is_admin())';
     EXECUTE 'DROP POLICY IF EXISTS "Admins can update providers" ON public.service_providers';
     EXECUTE 'CREATE POLICY "Admins can update providers" ON public.service_providers FOR UPDATE USING (public.is_admin())';
     EXECUTE 'DROP POLICY IF EXISTS "Admins can delete providers" ON public.service_providers';

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   is_premium BOOLEAN DEFAULT false,
   subscription_tier TEXT,
   subscription_expires_at TIMESTAMPTZ,
+  profile_reminder_sent_at TIMESTAMPTZ,
   credits INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -202,6 +203,11 @@ DROP POLICY IF EXISTS "Recruiters can insert jobs" ON public.jobs;
 CREATE POLICY "Recruiters can insert jobs"
   ON public.jobs FOR INSERT
   WITH CHECK (auth.uid() = recruiter_id);
+
+DROP POLICY IF EXISTS "Admins can insert jobs" ON public.jobs;
+CREATE POLICY "Admins can insert jobs"
+  ON public.jobs FOR INSERT
+  WITH CHECK (public.is_admin());
 
 DROP POLICY IF EXISTS "Recruiters can update own jobs" ON public.jobs;
 CREATE POLICY "Recruiters can update own jobs"

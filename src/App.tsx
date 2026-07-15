@@ -2,9 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ModalProvider } from "./contexts/ModalContext";
 import { ModalRenderer } from "./components/Modal";
-import AIAssistantWidget from "./components/AIAssistantWidget";
 import SwipeNavigator from "./components/SwipeNavigator";
-import AudioExperience from "./components/AudioExperience";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
@@ -34,6 +32,8 @@ import Following from "./pages/Following";
 import Reviews from "./pages/Reviews";
 import ProfileVisibility from "./pages/ProfileVisibility";
 import JobPreferences from "./pages/JobPreferences";
+import Promotional from "./pages/Promotional";
+import AIAssistantWidget from "./components/AIAssistantWidget";
 
 export default function App() {
   return (
@@ -41,7 +41,6 @@ export default function App() {
       <AuthProvider>
         <ModalProvider>
           <SwipeNavigator />
-          <AudioExperience />
           <Routes>
             {/* Auth pages */}
             <Route path="/signup" element={<Signup />} />
@@ -75,6 +74,7 @@ export default function App() {
             <Route path="/following" element={<Following />} />
             <Route path="/reviews" element={<Reviews />} />
             <Route path="/revenue" element={<Pricing />} />
+            <Route path="/promotional" element={<Promotional />} />
             <Route
               path="/settings"
               element={<Navigate to="/profile" replace />}
@@ -82,8 +82,8 @@ export default function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<Home />} />
           </Routes>
-          <ModalRenderer />
           <AIAssistantWidget />
+          <ModalRenderer />
         </ModalProvider>
       </AuthProvider>
     </BrowserRouter>

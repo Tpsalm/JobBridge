@@ -254,6 +254,23 @@ ${heroCard('Signed out', 'If you were not expecting this sign-out, your account 
 <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">Thank you for using JobBridge. We’re here to help whenever you need support.</p>`;
 }
 
+function profileReminderTemplate(name: string): string {
+  const n = escapeHtml(name || 'there');
+  return `<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${n}</strong>,</p>
+<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 24px;">Your JobBridge profile is almost ready. Complete it now to increase your visibility to employers, recruiters, and clients.</p>
+${heroCard('Finish your profile', 'A complete profile helps you get discovered faster and increases your chances of interview requests. Add your experience, skills, location, and professional headline to stand out.', 'Complete Your Profile', 'https://jobbridge.com.ng/profile')}
+<div style="background:#f8fafc;border-radius:12px;padding:24px;margin-top:20px;border:1px solid #e2e8f0;">
+  <p style="font-size:14px;color:#374151;line-height:1.7;margin:0 0 12px;font-weight:700;">Why finish your profile?</p>
+  <ul style="font-size:14px;color:#4b5563;line-height:1.8;margin:0;padding-left:18px;">
+    <li>• Get matched with better job recommendations</li>
+    <li>• Appear in recruiter searches</li>
+    <li>• Make your application stand out</li>
+    <li>• Unlock career tools and coaching invites</li>
+  </ul>
+</div>
+<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:24px 0 0;">Need help? Reach out at <a href="mailto:jobbridgesupport@gmail.com" style="color:${BRAND_PRIMARY};text-decoration:underline;">jobbridgesupport@gmail.com</a>.</p>`;
+}
+
 function newRecruiterTemplate(name: string, recruiterEmail: string): string {
   return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi Admin,</p>
 <div style="background:#fefce8;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #fde68a;">
@@ -302,7 +319,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid email format' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'daily_digest', 'sign_in', 'sign_out'];
+    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'daily_digest', 'sign_in', 'sign_out', 'profile_reminder'];
     if (!VALID_TYPES.includes(type)) {
       return new Response(JSON.stringify({ error: `Unknown email type: ${type}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -342,6 +359,10 @@ serve(async (req) => {
       case 'sign_out':
         subject = 'You signed out of JobBridge 👋';
         htmlBody = signOutTemplate(sanitize(name, MAX_NAME_LENGTH));
+        break;
+      case 'profile_reminder':
+        subject = 'Finish your JobBridge profile to get discovered 📌';
+        htmlBody = profileReminderTemplate(sanitize(name, MAX_NAME_LENGTH));
         break;
       case 'application_status':
         subject = `Application Update: ${sanitize(jobTitle, MAX_STR_LENGTH) || 'Your Application'} ${statusDisplay(sanitize(status, MAX_STR_LENGTH))}`;

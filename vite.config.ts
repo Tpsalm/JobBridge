@@ -33,7 +33,8 @@ export default defineConfig({
       '/welcome': { target: 'http://localhost:5050', changeOrigin: true },
       '/health': { target: 'http://localhost:5050', changeOrigin: true },
       '/jobs': { target: 'http://localhost:5050', changeOrigin: true },
-      '/ai': { target: 'http://localhost:5050', changeOrigin: true },
+      '^/ai$': { target: 'http://localhost:5050', changeOrigin: true },
+      '^/ai/': { target: 'http://localhost:5050', changeOrigin: true },
 
       '/pay': { target: 'http://localhost:5050', changeOrigin: true },
       '/user': { target: 'http://localhost:5050', changeOrigin: true },

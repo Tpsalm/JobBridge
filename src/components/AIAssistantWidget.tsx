@@ -385,51 +385,6 @@ function getTimeGreeting(): string {
       : "Good evening";
 }
 
-function pickVoice() {
-  if (typeof window === "undefined" || !window.speechSynthesis) {
-    return null;
-  }
-
-  const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find((voice) =>
-    voice.lang.startsWith("en") && /female|samantha|zira|victoria|ava|jessa|susan|alice|emma/i.test(voice.name),
-  );
-
-  return preferred ?? voices.find((voice) => voice.lang.startsWith("en")) ?? null;
-}
-
-function speakAssistantText(text: string, onSpeakingChange?: (speaking: boolean) => void) {
-  if (typeof window === "undefined" || !window.speechSynthesis) {
-    return;
-  }
-
-  const normalized = text.replace(/[#*_`]/g, " ").replace(/\s+/g, " ").trim();
-  if (!normalized) return;
-
-  const expressiveText = normalized
-    .replace(/([.!?])\s+/g, "$1 ")
-    .replace(/(Here|Welcome|Let me|You can|To get started|On this page)/gi, "$1...")
-    .replace(/(JobBridge|AI|career|resume|jobs|profile)/gi, "$1");
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(expressiveText);
-  utterance.lang = "en-US";
-  utterance.rate = 1.02;
-  utterance.pitch = 1.08;
-  utterance.volume = 0.95;
-  const voice = pickVoice();
-
-  if (voice) {
-    utterance.voice = voice;
-  }
-
-  utterance.onstart = () => onSpeakingChange?.(true);
-  utterance.onend = () => onSpeakingChange?.(false);
-  utterance.onerror = () => onSpeakingChange?.(false);
-
-  window.speechSynthesis.speak(utterance);
-}
-
 function AIAssistantWidget() {
   const { profile, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -450,7 +405,6 @@ function AIAssistantWidget() {
   const [thoughts, setThoughts] = useState<AgentThought[]>([]);
   const [showThoughts, setShowThoughts] = useState(true);
   const [toastMsg, setToastMsg] = useState("");
-  const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
 
   const lastUserMsgRef = useRef<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -689,7 +643,7 @@ function AIAssistantWidget() {
             { id: nextId(), text: cleaned, sender: "bot", sources: finalSources },
           ]);
           if (cleaned) {
-            speakAssistantText(cleaned, setIsAssistantSpeaking);
+            // Speech output intentionally disabled for production.
           }
         },
       },
@@ -775,8 +729,8 @@ function AIAssistantWidget() {
                   </span>
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-[10px] font-medium text-blue-100">
-                  <span className={`h-2 w-2 rounded-full ${isAssistantSpeaking ? "animate-pulse bg-emerald-300" : "bg-blue-200/70"}`} />
-                  {isAssistantSpeaking ? "Voice assistant speaking" : "Voice assistant ready"}
+                  <span className="h-2 w-2 rounded-full bg-blue-200/70" />
+                  Text assistant ready
                 </div>
                 <p className="text-xs text-blue-100 flex items-center gap-1">
                   <Compass className="w-3 h-3" />

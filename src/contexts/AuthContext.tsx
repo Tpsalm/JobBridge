@@ -13,11 +13,15 @@ import {
   SubscriptionInfo,
   AiSubscriptionInfo,
 } from "../lib/supabase";
-import { fetchUserApplications } from "../lib/supabaseQueries";
+import { fetchUserApplications, updateProfile } from "../lib/supabaseQueries";
 import { sendEmail } from "../lib/email";
 import { normalizeAuthError } from "../lib/authErrors";
 
 const ADMIN_EMAIL = "jobbridgesupport@gmail.com";
+const PROFILE_REMINDER_THRESHOLD = 0.8; // 80% completion
+const PROFILE_REMINDER_DELAY_DAYS = 7;
+const PROFILE_REMINDER_WINDOW_MS = PROFILE_REMINDER_DELAY_DAYS * 24 * 60 * 60 * 1000;
+const PROFILE_REMINDER_STORAGE_PREFIX = "jb_profile_reminder_last_sent_";
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -552,6 +556,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!welcomeSent) {
           console.warn("[AuthContext signUp] welcome email send failed");
         }
+
+        const profileReminderSent = await sendEmail({
+          type: "profile_reminder",
+          email,
+          name: fullName,
+        });
+        if (!profileReminderSent) {
+          console.warn("[AuthContext signUp] profile reminder email send failed");
+        }
+
+        await updateProfile(authUser.id, {
+          profile_reminder_sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
         // Notify admin when a recruiter signs up
         if (role === "recruiter") {
           const recruiterNoticeSent = await sendEmail({
@@ -638,6 +657,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: signedInUserEmail,
           name: signedInUserName,
         });
+      }
+
+      if (data?.user?.id && signedInUserEmail) {
+        void (async () => {
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select(
+                "role,full_name,phone,location,professional_headline,years_of_experience,bio,specialty,hourly_rate,skills,profile_reminder_sent_at",
+              )
+              .eq("id", data.user.id)
+              .maybeSingle();
+
+            if (profileError || !profileData) return;
+
+            const fields = [
+              profileData.full_name,
+              profileData.phone,
+              profileData.location,
+              profileData.professional_headline,
+              profileData.years_of_experience,
+              profileData.bio,
+            ];
+
+            if (profileData.role === "provider") {
+              fields.push(
+                profileData.specialty,
+                profileData.hourly_rate,
+                Array.isArray(profileData.skills) ? profileData.skills.join(",") : profileData.skills,
+              );
+            }
+
+            const totalFields = fields.length;
+            const completedFields = fields.filter((value) => Boolean(value && String(value).trim())).length;
+            const isComplete = totalFields > 0 && completedFields / totalFields >= PROFILE_REMINDER_THRESHOLD;
+
+            const lastSentAt = profileData.profile_reminder_sent_at
+              ? new Date(profileData.profile_reminder_sent_at).getTime()
+              : 0;
+            const now = Date.now();
+            const reminderExpired = !lastSentAt || now - lastSentAt >= PROFILE_REMINDER_WINDOW_MS;
+
+            if (!isComplete && reminderExpired) {
+              await sendEmail({
+                type: "profile_reminder",
+                email: signedInUserEmail,
+                name: signedInUserName,
+              });
+              await updateProfile(data.user.id, {
+                profile_reminder_sent_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
+            }
+          } catch {
+            // ignore reminder failures
+          }
+        })();
       }
 
       return { error: null };

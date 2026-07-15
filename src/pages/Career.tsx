@@ -4,6 +4,7 @@ import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
 import { fetchJobs } from '../lib/supabaseQueries';
+import { sendEmail } from '../lib/email';
 import {
   Briefcase, Bell, ArrowRight, Check, GraduationCap, Users, Target,
   FileText, MessageCircle, BookOpen, Tv, Trophy, Calendar,
@@ -108,6 +109,11 @@ export default function Career() {
       } else {
         setSubscribed(true);
       }
+
+      void sendEmail({
+        type: 'subscription',
+        email: emailInput.trim().toLowerCase(),
+      });
     } catch (err: any) {
       setSubscribeError(err.message || 'Failed to subscribe. Please try again.');
     } finally {

@@ -92,6 +92,7 @@ export type Profile = {
   is_premium?: boolean;
   subscription_tier?: string;
   subscription_expires_at?: string;
+  profile_reminder_sent_at?: string;
   credits?: number;
   is_active?: boolean;
   subscription?: SubscriptionInfo;

@@ -202,11 +202,11 @@ export default function Payment() {
     if (script) {
       script.remove();
     }
-    if (window.Korapay) {
+    if ((window as any).Korapay) {
       try {
         // Remove the global KoraPay object after checkout so it does not keep
         // running cleanup logic on other pages or after a completed payment.
-        delete window.Korapay;
+        delete (window as any).Korapay;
       } catch {
         // ignore non-configurable deletions
       }

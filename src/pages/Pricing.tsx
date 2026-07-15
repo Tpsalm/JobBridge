@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
 import { Check, Star, Zap, Briefcase, Users, Award, MessageCircle, CreditCard, ExternalLink, ChevronRight, Bot, BookOpen, ShoppingBag } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 import FloatingDecorations from '../components/FloatingDecorations';
@@ -11,11 +11,18 @@ import FloatingDecorations from '../components/FloatingDecorations';
 export default function Pricing() {
   const { openModal } = useModal();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleChoosePlan = (plan: string) => {
     navigate(`/payment?plan=${plan}`);
   };
   const [activeTab, setActiveTab] = useState<'jobs' | 'services' | 'business' | 'ai' | 'training'>('jobs');
+
+  useEffect(() => {
+    if (location.hash === '#ai') {
+      setActiveTab('ai');
+    }
+  }, [location.hash]);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">

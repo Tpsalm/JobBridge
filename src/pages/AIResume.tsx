@@ -61,7 +61,7 @@ async function callOpenAI(systemPrompt: string, userMessage: string): Promise<st
     if (systemPrompt.includes('cover')) {
       return `Dear Hiring Manager,\n\nI am writing to express my strong interest in the position. With my background and skills, I am confident I can make a significant contribution to your team.\n\nThroughout my career, I have developed expertise in delivering high-impact results. My experience includes leading projects, driving innovation, and collaborating effectively with cross-functional teams.\n\nI am excited about the opportunity to bring my skills to your organization.\n\nBest regards,\nApplicant`;
     }
-    return 'AI service not configured. Set VITE_OPENAI_API_KEY to enable AI features.';
+    return 'AI service not configured. Set VITE_OPENAI_API_KEY in .env.local or your deployment environment to enable AI features.';
   }
 
   try {
@@ -78,9 +78,21 @@ async function callOpenAI(systemPrompt: string, userMessage: string): Promise<st
       }),
     });
     const data = await res.json();
-    return data.choices?.[0]?.message?.content || '';
-  } catch {
-    throw new Error('AI service unavailable');
+    if (!res.ok) {
+      const errorMessage =
+        data?.error?.message || data?.error || `OpenAI request failed with status ${res.status}`;
+      console.error('[AIResume] OpenAI error:', res.status, data);
+      throw new Error(errorMessage);
+    }
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      console.error('[AIResume] OpenAI returned no content', data);
+      throw new Error('AI service returned an empty response');
+    }
+    return content;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'AI service unavailable';
+    throw new Error(message);
   }
 }
 
@@ -208,11 +220,14 @@ export default function AIResume() {
             <h2 className="text-lg font-bold text-gray-900 mb-1">AI Career Tools Require a Subscription</h2>
             <p className="text-sm text-gray-600 mb-4">Subscribe to unlock AI resume tailoring, cover letter generation, and more.</p>
             <button
-              onClick={() => navigate('/pricing')}
+              onClick={() => navigate('/pricing#ai')}
               className="inline-flex items-center gap-2 bg-blue-700 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
             >
               View Pricing
             </button>
+            <p className="mt-4 text-xs text-gray-500">
+              If you want to test AI locally, add <code className="font-medium">VITE_OPENAI_API_KEY=YOUR_OPENAI_KEY</code> to <code className="font-medium">.env.local</code>, restart the dev server, and rebuild the site.
+            </p>
           </div>
         )}
 

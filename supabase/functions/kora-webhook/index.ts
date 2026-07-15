@@ -202,19 +202,22 @@ async function verifySignature(
       ["sign"],
     );
 
-    const variants = [      rawBody,      JSON.stringify(payload.data),
-      stableStringify(payload.data),
-      stableStringify(payload.data).replace(/\\s+/g, ""),
+    const variants = [
+      { name: "rawBody", data: rawBody },
+      { name: "jsonData", data: JSON.stringify(payload.data) },
+      { name: "stable", data: stableStringify(payload.data) },
+      { name: "stable_no_ws", data: stableStringify(payload.data).replace(/\s+/g, "") },
     ];
 
-    for (const dataStr of variants) {
+    for (const { name, data: dataStr } of variants) {
       const dataBytes = new TextEncoder().encode(dataStr);
       const sig = await crypto.subtle.sign("HMAC", key, dataBytes);
       const hex = Array.from(new Uint8Array(sig))
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
+      console.log(`[Kora Webhook] Variant ${name} -> ${hex}`);
       if (hex === signature) {
-        console.log("[Kora Webhook] Signature verified using variant", dataStr);
+        console.log("[Kora Webhook] Signature verified using variant", name);
         return true;
       }
     }
