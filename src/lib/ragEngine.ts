@@ -487,6 +487,13 @@ function getPageTitleForIntent(intent: IntentType): string {
   return INTENT_SIGNATURES[intent]?.title || "JobBridge";
 }
 
+function buildPageHint(intent: IntentType | null): string {
+  if (!intent) return "";
+  const route = getRouteForIntent(intent);
+  const title = getPageTitleForIntent(intent);
+  return `\n\nVisit ${route} to open the ${title} page on JobBridge.`;
+}
+
 // ─── PUBLIC EXPORTS ─────────────────────────────────────────────
 
 export function resolveUserIntent(query: string): {
@@ -790,12 +797,10 @@ function buildConversationalResponse(
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   const detected = resolveIntent(lower);
-  const pageHint = detected.intent
-    ? ` You can visit ${getRouteForIntent(detected.intent)} for this.`
-    : "";
+  const pageHint = buildPageHint(detected.intent);
 
   if (/^what is jobbridge\??$/i.test(lower)) {
-    return "JobBridge is Nigeria's professional network for job seekers, recruiters, and service providers. It helps people find jobs, hire talent, and grow careers in one platform." + pageHint;
+    return `JobBridge is Nigeria's professional network for job seekers, recruiters, and service providers. It helps people find jobs, hire talent, and grow careers in one platform.${pageHint || "\n\nVisit / to explore the JobBridge homepage."}`;
   }
 
   if (
@@ -827,7 +832,7 @@ function buildConversationalResponse(
       const destination = match[1].trim();
       const detected2 = resolveIntent(destination);
       if (detected2.intent && detected2.confidence > 0.3) {
-        return `Navigating you to the ${getPageTitleForIntent(detected2.intent)} now.${pageHint}`;
+        return `Navigating you to the ${getPageTitleForIntent(detected2.intent)} now.${buildPageHint(detected2.intent)}`;
       }
     }
   }
@@ -859,12 +864,21 @@ function buildFallbackAnswer(
   detectedIntents: IntentType[],
 ): string {
   const best = topSections[0];
-  const pageHint =
+  const pageRoute =
+    detectedIntents.length > 0 ? getRouteForIntent(detectedIntents[0]) : null;
+  const pageTitle =
     detectedIntents.length > 0
-      ? `\n\nTo access this, visit ${getRouteForIntent(detectedIntents[0])} on JobBridge.`
-      : "";
-  const text = getStructuredAnswer(question, best);
-  return cleanAssistantText(text) + pageHint;
+      ? getPageTitleForIntent(detectedIntents[0])
+      : best.title;
+  const summary = getStructuredAnswer(question, best);
+  const pageHint = pageRoute
+    ? `\n\nRecommended page: ${pageTitle} (${pageRoute})`
+    : "";
+  const nextStep = pageRoute
+    ? `\n\nWhat to do next: Open ${pageRoute} to continue on the ${pageTitle} page and find the exact information or action you need.`
+    : "";
+  const text = `Answer for ${pageTitle} on JobBridge:\n\n${summary}${pageHint}${nextStep}`;
+  return cleanAssistantText(text);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1389,9 +1403,7 @@ export async function streamAnswer(
         detectedIntents,
       );
 
-      const responseWithNav = pageRoute
-        ? `${textResponse}\n\nTo access this, go to ${pageRoute} on JobBridge.`
-        : textResponse;
+      const responseWithNav = textResponse;
 
       const updatedHistory: HistoryMsg[] = [
         ...history,

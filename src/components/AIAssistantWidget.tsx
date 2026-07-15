@@ -64,7 +64,7 @@ function renderInline(text: string): React.ReactNode {
 // Custom Markdown message formatting component supporting code blocks, links, lists, and tables
 function FormattedMessage({ text }: { text: string }) {
   const parts = text.split(
-    /(https?:\/\/[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+    /(https?:\/\/[^\s]+|\/[^\s]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
   );
 
   return (
@@ -77,6 +77,17 @@ function FormattedMessage({ text }: { text: string }) {
               href={part}
               target="_blank"
               rel="noopener noreferrer"
+              className="text-blue-600 underline font-medium hover:text-blue-800 break-all inline-flex items-center gap-0.5"
+            >
+              {part}
+            </a>
+          );
+        }
+        if (part.startsWith("/")) {
+          return (
+            <a
+              key={i}
+              href={part}
               className="text-blue-600 underline font-medium hover:text-blue-800 break-all inline-flex items-center gap-0.5"
             >
               {part}
@@ -287,6 +298,41 @@ function FormattedMessage({ text }: { text: string }) {
       })}
     </div>
   );
+}
+
+const ROUTE_LABELS: Record<string, string> = {
+  "/": "Home",
+  "/pricing": "Pricing",
+  "/jobs": "Jobs",
+  "/providers": "Providers",
+  "/ai-resume": "AI Resume",
+  "/payment": "Payment",
+  "/profile": "Profile",
+  "/support": "Support",
+  "/messages": "Messages",
+  "/notifications": "Notifications",
+};
+
+function extractInternalRoutes(text: string): string[] {
+  const matches = new Set<string>();
+  const routeRegex = /\/[a-zA-Z0-9_\-\/]+(?:#[a-zA-Z0-9_\-]+)?/g;
+  let match: RegExpExecArray | null;
+  while ((match = routeRegex.exec(text))) {
+    const route = match[0].replace(/\/+/g, "/");
+    if (route.length > 1) {
+      matches.add(route);
+    }
+  }
+  return [...matches];
+}
+
+function getRouteLabel(route: string): string {
+  if (ROUTE_LABELS[route]) return ROUTE_LABELS[route];
+  const label = route
+    .replace(/\//g, " ")
+    .replace(/\b([a-z])/g, (_, c) => c.toUpperCase())
+    .trim();
+  return label ? `Open ${label}` : "Open page";
 }
 
 const pagePrompts: Record<string, string[]> = {
@@ -789,6 +835,29 @@ function AIAssistantWidget() {
                         ))}
                       </div>
                     )}
+
+                  {/* Render explicit internal page link buttons if assistant mentioned routes */}
+                  {msg.sender === "bot" && (() => {
+                    try {
+                      const routes = extractInternalRoutes(msg.text || "");
+                      if (!routes || routes.length === 0) return null;
+                      return (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {routes.map((r) => (
+                            <button
+                              key={r}
+                              onClick={() => navigate(r)}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 transition-colors"
+                            >
+                              {getRouteLabel(r)}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    } catch (e) {
+                      return null;
+                    }
+                  })()}
 
                   {msg.sender === "bot" && msg.error && (
                     <div className="flex items-center gap-2 mt-2">
