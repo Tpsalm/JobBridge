@@ -28,6 +28,7 @@ import MyJobs from "./pages/MyJobs";
 import Messages from "./pages/Messages";
 import Notifications from "./pages/Notifications";
 import AIResume from "./pages/AIResume";
+import EmailLogsAdmin from "./pages/EmailLogsAdmin";
 import Career from "./pages/Career";
 import Following from "./pages/Following";
 import Reviews from "./pages/Reviews";
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="/messages" element={<Messages />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/ai-resume" element={<AIResume />} />
+            <Route path="/admin/email-logs" element={<EmailLogsAdmin />} />
             <Route path="/profile-visibility" element={<ProfileVisibility />} />
             <Route path="/job-preferences" element={<JobPreferences />} />
             <Route path="/following" element={<Following />} />
