@@ -100,13 +100,14 @@ export default function HeroSlides() {
 
   return (
     <div className="relative">
+      <div className="pointer-events-none absolute inset-0 rounded-[32px] bg-gradient-to-b from-slate-900/10 via-transparent to-slate-900/5" />
       <div
         ref={containerRef}
         onMouseEnter={stopTimer}
         onMouseLeave={startTimer}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="relative w-full h-[420px] overflow-hidden"
+        className="relative w-full h-[420px] overflow-hidden rounded-[32px] shadow-[0_32px_120px_-45px_rgba(15,23,42,0.65)]"
       >
         {slides.map((s, i) => {
           const active = i === index;
