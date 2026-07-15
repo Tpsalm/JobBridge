@@ -106,7 +106,7 @@ export default function HeroSlides() {
         onMouseLeave={startTimer}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="relative w-full h-[420px] rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 hover:shadow-blue-500/20 transition-shadow duration-500"
+        className="relative w-full h-[420px] overflow-hidden"
       >
         {slides.map((s, i) => {
           const active = i === index;
