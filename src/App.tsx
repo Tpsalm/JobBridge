@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import React, { Suspense } from "react";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ModalProvider } from "./contexts/ModalContext";
 import { ModalRenderer } from "./components/Modal";
@@ -33,7 +34,7 @@ import Reviews from "./pages/Reviews";
 import ProfileVisibility from "./pages/ProfileVisibility";
 import JobPreferences from "./pages/JobPreferences";
 import Promotional from "./pages/Promotional";
-import AIAssistantWidget from "./components/AIAssistantWidget";
+const AIAssistantWidget = React.lazy(() => import("./components/AIAssistantWidget"));
 
 export default function App() {
   return (
@@ -82,7 +83,9 @@ export default function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<Home />} />
           </Routes>
-          <AIAssistantWidget />
+          <Suspense fallback={null}>
+            <AIAssistantWidget />
+          </Suspense>
           <ModalRenderer />
         </ModalProvider>
       </AuthProvider>
