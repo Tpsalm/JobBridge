@@ -392,11 +392,32 @@ serve(async (req) => {
 
     const senderEmail = resolveFromEmail(from);
 
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: senderEmail, to: cleanEmail, subject, html: wrapHtml(htmlBody, subject) }),
-    });
+    async function postWithRetry(url: string, body: any, attempts = 3) {
+      let lastErr: any = null;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!r.ok) {
+            const t = await r.text();
+            lastErr = new Error(`status=${r.status} body=${t}`);
+            // continue to retry
+          } else {
+            return r;
+          }
+        } catch (e) {
+          lastErr = e;
+        }
+        // simple backoff
+        await new Promise((res) => setTimeout(res, 500 * (i + 1)));
+      }
+      throw lastErr;
+    }
+
+    const res = await postWithRetry('https://api.resend.com/emails', { from: senderEmail, to: cleanEmail, subject, html: wrapHtml(htmlBody, subject) });
 
     if (!res.ok) {
       const errText = await res.text();
