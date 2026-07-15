@@ -573,6 +573,38 @@ export default function Payment() {
               message: "Payment submitted successfully. Verifying securely now.",
               type: "success",
             });
+
+            // Optimistic activation & redirect: immediately refresh subscription
+            // and navigate the user to the purchased feature to improve UX on
+            // mobile and desktop when the gateway reports success.
+            (async () => {
+              try {
+                if (plan.ai) {
+                  await fetchAiSubscription();
+                } else {
+                  await fetchSubscription();
+                }
+
+                // Mark as paid and show success UI then navigate
+                clearPendingReference();
+                setPaying(false);
+                setError("");
+                setPaid(true);
+                setStep("success");
+
+                // Short delay so the success modal briefly appears before navigation
+                window.setTimeout(() => {
+                  try {
+                    navigate(successTarget);
+                  } catch (e) {
+                    console.warn("Navigation after payment failed:", e);
+                  }
+                }, 800);
+              } catch (optimisticErr) {
+                // If immediate activation fails, keep polling for secure verification
+                console.warn("Optimistic activation failed, will continue server verification", optimisticErr);
+              }
+            })();
           } catch (e) {
             console.error("[Payment] Error in onSuccess callback:", e);
           } finally {
