@@ -7,6 +7,7 @@ const RESEND_REPLY_TO = Deno.env.get('RESEND_REPLY_TO') || '';
 const RESEND_RETURN_PATH = Deno.env.get('RESEND_RETURN_PATH') || '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const SUPABASE_FUNCTIONS_URL = Deno.env.get('SUPABASE_FUNCTIONS_URL') || '';
 const BRAND_PRIMARY = '#1d4ed8';
 const BRAND_SECONDARY = '#0f766e';
 const BRAND_ACCENT = '#38bdf8';
@@ -422,8 +423,50 @@ serve(async (req) => {
       throw lastErr;
     }
 
+    // Persist a pending log to Supabase to provide a stable id for tracking
+    let logId: number | null = null;
+    try {
+      if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+        const logBody = [{ email: cleanEmail, type, subject, status: 'pending', meta: { name: sanitize(name, MAX_NAME_LENGTH), jobTitle: sanitize(jobTitle, MAX_STR_LENGTH), company: sanitize(company, MAX_STR_LENGTH) } }];
+        const lr = await fetch(`${SUPABASE_URL}/rest/v1/email_logs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify(logBody),
+        });
+        if (lr.ok) {
+          const inserted = await lr.json();
+          if (Array.isArray(inserted) && inserted[0] && inserted[0].id) logId = inserted[0].id;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to create pre-send email log', e);
+    }
+
     // Build payload with optional verified sender and reply/return-path
-    const payload: any = { from: RESEND_FROM || senderEmail, to: cleanEmail, subject, html: wrapHtml(htmlBody, subject) };
+    const baseHtml = wrapHtml(htmlBody, subject);
+    let finalHtml = baseHtml;
+    // Inject open-pixel and wrap CTA links with track-click if functions url is available
+    if (SUPABASE_FUNCTIONS_URL && logId) {
+      try {
+        // wrap absolute links to route through track-click
+        finalHtml = finalHtml.replace(/href="(https?:\/\/[^"'>]+)"/g, (m, p1) => {
+          const encoded = encodeURIComponent(p1);
+          const track = `${SUPABASE_FUNCTIONS_URL}/track-click?u=${encoded}&e=${encodeURIComponent(cleanEmail)}&id=${logId}`;
+          return `href="${track}"`;
+        });
+        // append open pixel
+        const pixel = `<img src="${SUPABASE_FUNCTIONS_URL}/track-open?id=${logId}&email=${encodeURIComponent(cleanEmail)}" alt="" style="width:1px;height:1px;display:none" />`;
+        finalHtml = finalHtml.replace('</body></html>', pixel + '</body></html>');
+      } catch (e) {
+        console.warn('Failed to inject tracking links/pixel', e);
+      }
+    }
+
+    const payload: any = { from: RESEND_FROM || senderEmail, to: cleanEmail, subject, html: finalHtml };
     if (RESEND_REPLY_TO) payload.reply_to = RESEND_REPLY_TO;
     if (RESEND_RETURN_PATH) payload.return_path = RESEND_RETURN_PATH;
 
@@ -441,26 +484,43 @@ serve(async (req) => {
     const data = await res.json();
     console.log(`${type} email sent to ${cleanEmail}:`, data.id);
 
-    // Optionally persist a log to Supabase for durable tracking if service role key is available
+    // Update the existing email log with resend id and status
+    try {
+      if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY && logId) {
+        await fetch(`${SUPABASE_URL}/rest/v1/email_logs?id=eq.${logId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify({ resend_id: data.id, status: 'sent' }),
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to update email log with send result:', e);
+    }
+    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  } catch (err) {
+    console.error('Function error:', err);
+    // On error, attempt to persist failure to queue for retries
     try {
       if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-        const logBody = [{ email: cleanEmail, type, subject, resend_id: data.id, status: 'sent', meta: { name: sanitize(name, MAX_NAME_LENGTH), jobTitle: sanitize(jobTitle, MAX_STR_LENGTH), company: sanitize(company, MAX_STR_LENGTH) } }];
-        await fetch(`${SUPABASE_URL}/rest/v1/email_logs`, {
+        const q = [{ email: sanitize((await (async () => { try { const body = await req.clone().json(); return body.email; } catch { return ''; } })()), MAX_EMAIL_LENGTH), type, payload: { type, email: sanitize((await (async () => { try { const body = await req.clone().json(); return body.email; } catch { return ''; } })()), MAX_EMAIL_LENGTH), name: sanitize((await (async () => { try { const body = await req.clone().json(); return body.name; } catch { return ''; } })()), MAX_NAME_LENGTH) }, attempts: 0, last_error: String(err) }];
+        await fetch(`${SUPABASE_URL}/rest/v1/email_queue`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
             Prefer: 'return=representation',
           },
-          body: JSON.stringify(logBody),
+          body: JSON.stringify(q),
         });
       }
     } catch (e) {
-      console.warn('Failed to persist email log to Supabase:', e);
+      console.warn('Failed to add to email_queue:', e);
     }
-    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  } catch (err) {
-    console.error('Function error:', err);
+
     return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
