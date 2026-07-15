@@ -64,7 +64,7 @@ export type Profile = {
   id: string;
   email: string;
   full_name: string;
-  role: "recruiter" | "provider" | "job_seeker";
+  role: "recruiter" | "provider" | "job_seeker" | "admin";
   company?: string;
   phone?: string;
   avatar_url?: string;

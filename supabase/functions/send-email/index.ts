@@ -484,7 +484,6 @@ serve(async (req) => {
     const data = await res.json();
     console.log(`${type} email sent to ${cleanEmail}:`, data.id);
 
-    // Update the existing email log with resend id and status
     try {
       if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY && logId) {
         await fetch(`${SUPABASE_URL}/rest/v1/email_logs?id=eq.${logId}`, {
@@ -500,13 +499,28 @@ serve(async (req) => {
     } catch (e) {
       console.warn('Failed to update email log with send result:', e);
     }
+
     return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (err) {
     console.error('Function error:', err);
-    // On error, attempt to persist failure to queue for retries
+
     try {
       if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-        const q = [{ email: sanitize((await (async () => { try { const body = await req.clone().json(); return body.email; } catch { return ''; } })()), MAX_EMAIL_LENGTH), type, payload: { type, email: sanitize((await (async () => { try { const body = await req.clone().json(); return body.email; } catch { return ''; } })()), MAX_EMAIL_LENGTH), name: sanitize((await (async () => { try { const body = await req.clone().json(); return body.name; } catch { return ''; } })()), MAX_NAME_LENGTH) }, attempts: 0, last_error: String(err) }];
+        const body = await req.clone().json().catch(() => ({}));
+        const queuePayload = {
+          type,
+          email: sanitize(body.email || '', MAX_EMAIL_LENGTH),
+          from: resolveFromEmail(from),
+          subject,
+          html: finalHtml,
+          meta: {
+            log_id: logId,
+            name: sanitize(body.name || '', MAX_NAME_LENGTH),
+            jobTitle: sanitize(body.jobTitle || '', MAX_STR_LENGTH),
+            company: sanitize(body.company || '', MAX_STR_LENGTH),
+          },
+        };
+
         await fetch(`${SUPABASE_URL}/rest/v1/email_queue`, {
           method: 'POST',
           headers: {
@@ -514,13 +528,16 @@ serve(async (req) => {
             Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
             Prefer: 'return=representation',
           },
-          body: JSON.stringify(q),
+          body: JSON.stringify([{ email: sanitize(body.email || '', MAX_EMAIL_LENGTH), type, payload: queuePayload, attempts: 0, last_error: String(err), status: 'pending' }]),
         });
       }
     } catch (e) {
       console.warn('Failed to add to email_queue:', e);
     }
 
-    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

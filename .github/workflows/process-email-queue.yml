@@ -1,0 +1,27 @@
+name: Process Supabase Email Queue
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  process-email-queue:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Call Supabase process-email-queue function
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+            echo "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured as repository secrets."
+            exit 1
+          fi
+          curl --fail --silent --show-error --request POST "${{ secrets.SUPABASE_URL }}/functions/v1/process-email-queue" \
+            --header "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            --header "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            --header "Content-Type: application/json" \
+            --data '{}' | jq .
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

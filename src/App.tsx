@@ -35,6 +35,7 @@ import Reviews from "./pages/Reviews";
 import ProfileVisibility from "./pages/ProfileVisibility";
 import JobPreferences from "./pages/JobPreferences";
 import Promotional from "./pages/Promotional";
+import ProtectedRoute from "./components/ProtectedRoute";
 const AIAssistantWidget = React.lazy(() => import("./components/AIAssistantWidget"));
 
 export default function App() {
@@ -71,7 +72,14 @@ export default function App() {
             <Route path="/messages" element={<Messages />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/ai-resume" element={<AIResume />} />
-            <Route path="/admin/email-logs" element={<EmailLogsAdmin />} />
+            <Route
+              path="/admin/email-logs"
+              element={
+                <ProtectedRoute>
+                  <EmailLogsAdmin />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/profile-visibility" element={<ProfileVisibility />} />
             <Route path="/job-preferences" element={<JobPreferences />} />
             <Route path="/following" element={<Following />} />
