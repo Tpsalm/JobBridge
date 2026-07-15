@@ -1,15 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { TrendingUp, Users, Briefcase, Award } from 'lucide-react';
 import PageHero from '../components/PageHero';
 import VideoPlayer from '../components/VideoPlayer';
 import { HERO_CAROUSELS, VIDEO } from '../lib/media';
+import { getHeroAbMetrics, resetHeroAbMetrics } from '../lib/abMetrics';
 
 type DateRange = 'week' | 'month' | 'quarter' | 'year';
 
 export default function Analytics() {
   const [dateRange, setDateRange] = useState<DateRange>('week');
+  const [abMetrics, setAbMetrics] = useState(() => getHeroAbMetrics());
+
+  useEffect(() => {
+    setAbMetrics(getHeroAbMetrics());
+  }, []);
+
+  const refreshMetrics = () => setAbMetrics(getHeroAbMetrics());
 
   const kpis = [
     {
@@ -111,6 +119,75 @@ export default function Analytics() {
       />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* A/B Test Metrics */}
+        <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl shadow p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm text-gray-500">Hero A/B Variant</p>
+                <h3 className="text-xl font-bold text-gray-900">Variant {abMetrics.variant}</h3>
+              </div>
+              <button
+                onClick={refreshMetrics}
+                className="text-sm text-blue-700 hover:underline"
+              >
+                Refresh
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm text-gray-700">
+                <span>Exposure A</span>
+                <span>{abMetrics.exposures.A}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-gray-700">
+                <span>Exposure B</span>
+                <span>{abMetrics.exposures.B}</span>
+              </div>
+              <div className="h-px bg-gray-100 my-3" />
+              <div className="flex items-center justify-between text-sm text-gray-700">
+                <span>CTA clicks A</span>
+                <span>{abMetrics.ctaClicks.A}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-gray-700">
+                <span>CTA clicks B</span>
+                <span>{abMetrics.ctaClicks.B}</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow p-6 border border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900 mb-3">Conversion Ratio</h3>
+            <p className="text-sm text-gray-600 mb-4">CTA clicks divided by exposures for each variant.</p>
+            <div className="space-y-3 text-sm text-gray-700">
+              <div className="flex items-center justify-between">
+                <span>Variant A</span>
+                <span>{abMetrics.exposures.A ? `${((abMetrics.ctaClicks.A / abMetrics.exposures.A) * 100).toFixed(1)}%` : '0.0%'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Variant B</span>
+                <span>{abMetrics.exposures.B ? `${((abMetrics.ctaClicks.B / abMetrics.exposures.B) * 100).toFixed(1)}%` : '0.0%'}</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm text-gray-500">Last updated</p>
+                <p className="text-base font-semibold text-gray-900">{new Date(abMetrics.lastUpdated).toLocaleString()}</p>
+              </div>
+              <button
+                onClick={() => {
+                  resetHeroAbMetrics();
+                  refreshMetrics();
+                }}
+                className="text-sm text-red-600 hover:underline"
+              >
+                Reset
+              </button>
+            </div>
+            <p className="text-sm text-gray-600">This panel stores metrics locally in browser storage for quick A/B experimentation tracking.</p>
+          </div>
+        </div>
+
         {/* Date Range Selector */}
         <div className="mb-8 flex gap-2 flex-wrap">
           {(['week', 'month', 'quarter', 'year'] as DateRange[]).map((range) => (

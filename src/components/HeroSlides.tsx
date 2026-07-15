@@ -2,22 +2,22 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Users, Zap } from 'lucide-react';
 import { pexel } from '../lib/media';
+import { recordHeroAbEvent, HeroAbVariant } from '../lib/abMetrics';
 
 // A/B variant handling: stored in localStorage 'hero_ab'. Use ?ab=B to override.
 function resolveVariant() {
   try {
     const url = new URL(window.location.href);
     const q = url.searchParams.get('ab');
-    if (q) {
+    if (q === 'A' || q === 'B') {
       localStorage.setItem('hero_ab', q);
-      return q;
+      return q as HeroAbVariant;
     }
     const stored = localStorage.getItem('hero_ab');
-    if (stored) return stored;
-    // assign randomly on first visit
+    if (stored === 'A' || stored === 'B') return stored as HeroAbVariant;
     const rand = Math.random() < 0.5 ? 'A' : 'B';
     localStorage.setItem('hero_ab', rand);
-    return rand;
+    return rand as HeroAbVariant;
   } catch {
     return 'A';
   }
@@ -53,6 +53,7 @@ export default function HeroSlides() {
   const interval = DEFAULT_INTERVAL;
 
   useEffect(() => {
+    recordHeroAbEvent('exposure', variant);
     startTimer();
     return () => stopTimer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,7 +133,12 @@ export default function HeroSlides() {
                 <p className="max-w-md text-sm text-white/80 mb-6">{s.subtitle}</p>
                 <div className="flex gap-3">
                   {ctas.map(cta => (
-                    <Link key={cta.label} to={cta.to} className="inline-flex items-center gap-2 bg-white text-blue-700 font-semibold px-4 py-2 rounded-xl hover:bg-white/90 transition-shadow">
+                    <Link
+                      key={cta.label}
+                      to={cta.to}
+                      onClick={() => recordHeroAbEvent('cta_click', variant)}
+                      className="inline-flex items-center gap-2 bg-white text-blue-700 font-semibold px-4 py-2 rounded-xl hover:bg-white/90 transition-shadow"
+                    >
                       {cta.icon}
                       <span className="text-sm">{cta.label}</span>
                     </Link>
