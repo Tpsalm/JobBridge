@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
@@ -43,6 +43,8 @@ export default function Recruiter() {
   const { openProtectedModal } = useAuthRequired();
   const { user, subscription } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [postJobOpened, setPostJobOpened] = useState(false);
   const [activeFilters, setActiveFilters] = useState({
     jobType: [] as string[],
     location: [] as string[],
@@ -69,6 +71,19 @@ export default function Recruiter() {
   }
 
   useEffect(() => { fetchMyJobs(); }, [user?.id]);
+
+  const shouldOpenPostJob = searchParams.get('postJob') === 'true';
+
+  useEffect(() => {
+    if (!shouldOpenPostJob || postJobOpened) return;
+    setPostJobOpened(true);
+    if (subscription.status === 'active') {
+      openProtectedModal({ action: 'post-job', requiredRole: 'recruiter' });
+      navigate('/recruiter', { replace: true });
+      return;
+    }
+    navigate('/pricing', { replace: true });
+  }, [shouldOpenPostJob, postJobOpened, subscription.status, openProtectedModal, navigate]);
 
   // Refresh when jobs are posted
   useEffect(() => {

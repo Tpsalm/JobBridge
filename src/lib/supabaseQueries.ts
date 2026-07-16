@@ -1,4 +1,4 @@
-import { supabase, Job, JobAlert, Profile } from "./supabase";
+import { supabase, Job, JobAlert, Profile, Advertisement } from "./supabase";
 
 // ─── Jobs ───────────────────────────────────────────────────────────────────
 
@@ -278,6 +278,7 @@ export async function createAdvertisement(ad: {
   email?: string | null;
   starts_at?: string | null;
   expires_at?: string | null;
+  amount_paid?: number | null;
 }) {
   const payload = {
     owner_id: ad.owner_id,
@@ -297,6 +298,7 @@ export async function createAdvertisement(ad: {
     views: 0,
     clicks: 0,
     payment_status: 'paid',
+    amount_paid: ad.amount_paid ?? null,
   };
 
   const { data, error } = await supabase
@@ -307,6 +309,17 @@ export async function createAdvertisement(ad: {
 
   if (error) throw error;
   return data;
+}
+
+export async function fetchAdvertisementsByOwner(ownerId: string) {
+  const { data, error } = await supabase
+    .from('advertisements')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []) as Advertisement[];
 }
 
 export type JobAlertSeed = Pick<JobAlert, "query" | "location" | "enabled">;

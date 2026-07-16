@@ -24,7 +24,8 @@ export default defineConfig({
     port: 5174,
     host: 'localhost',
     proxy: {
-      // Forward API requests to the Express backend server
+      // Forward API requests to the Express backend server.
+      // Note: /payment and /recruiter are frontend routes and should not be proxied here.
       '/signup': { target: 'http://localhost:5050', changeOrigin: true },
       '/login': { target: 'http://localhost:5050', changeOrigin: true },
       '/auth': { target: 'http://localhost:5050', changeOrigin: true },
@@ -39,7 +40,6 @@ export default defineConfig({
       '/pay': { target: 'http://localhost:5050', changeOrigin: true },
       '/user': { target: 'http://localhost:5050', changeOrigin: true },
       '/my-applications': { target: 'http://localhost:5050', changeOrigin: true },
-      '/recruiter': { target: 'http://localhost:5050', changeOrigin: true },
       '/applications': { target: 'http://localhost:5050', changeOrigin: true },
       '/uploads': { target: 'http://localhost:5050', changeOrigin: true },
       // Forward AI queries to the AI server

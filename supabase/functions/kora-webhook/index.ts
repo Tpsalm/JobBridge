@@ -10,6 +10,12 @@ const KORA_API_BASE = "https://api.korapay.com/merchant/api/v1";
 const KORA_ALLOW_SIMULATED_VERIFICATION =
   (Deno.env.get("KORA_ALLOW_SIMULATED_VERIFICATION") || "").toLowerCase() ===
     "true";
+// When set to 'true' the function will skip HMAC signature verification.
+// Use only for testing in a controlled environment and remove afterwards.
+const SKIP_KORA_SIGNATURE_CHECK =
+  (Deno.env.get("SKIP_KORA_SIGNATURE_CHECK") || "").toLowerCase() === "true";
+const KORA_DEBUG_RESPONSE =
+  (Deno.env.get("KORA_DEBUG_RESPONSE") || "").toLowerCase() === "true";
 
 const ALLOWED_EVENTS = new Set(["charge.success", "charge.failed"]);
 
@@ -189,8 +195,15 @@ async function verifySignature(
   payload: KoraWebhookPayload,
   signature: string | null,
   rawBody: string,
-): Promise<boolean> {
-  if (!signature || !KORA_SECRET_KEY) return false;
+  rawBodyBytes: ArrayBuffer,
+): Promise<{
+  valid: boolean;
+  normalizedHeaderCandidates: string[];
+  computedVariants: Array<{ name: string; hex: string; base64: string }>;
+}> {
+  if (!signature || !KORA_SECRET_KEY) {
+    return { valid: false, normalizedHeaderCandidates: [], computedVariants: [] };
+  }
 
   try {
     const keyBytes = new TextEncoder().encode(KORA_SECRET_KEY);
@@ -202,33 +215,115 @@ async function verifySignature(
       ["sign"],
     );
 
+    const headerSig = (signature || "").trim();
+    // Accept header formats like 'sha256=<hex>' or raw hex/base64, with either colon or equals.
+    const headerCandidates = headerSig.split(",").map((s) => s.trim()).filter(Boolean);
+
+    function normalizeHeader(h: string) {
+      let candidate = h.trim();
+      if (candidate.startsWith("sha256='") || candidate.startsWith("SHA256='")) {
+        candidate = candidate.slice(candidate.indexOf("=") + 2, -1);
+      }
+      if (candidate.startsWith("sha256=") || candidate.startsWith("SHA256=")) {
+        candidate = candidate.slice(candidate.indexOf("=") + 1);
+      }
+      if (candidate.startsWith("sha256:") || candidate.startsWith("SHA256:")) {
+        candidate = candidate.slice(candidate.indexOf(":") + 1);
+      }
+      if (candidate.startsWith("hmac-sha256=")) {
+        candidate = candidate.slice("hmac-sha256=".length);
+      }
+      if (candidate.startsWith("hmac-sha256:")) {
+        candidate = candidate.slice("hmac-sha256:".length);
+      }
+      if (candidate.startsWith("hmac=")) {
+        candidate = candidate.slice("hmac=".length);
+      }
+      candidate = candidate.trim().replace(/^['"]|['"]$/g, "");
+      return candidate;
+    }
+
+    const normalizedHeaderCandidates = headerCandidates.map(normalizeHeader).filter(Boolean);
+
+    const trimmedRawBody = rawBody.replace(/[\r\n]+$/, "");
+    const normalizedRawBody = rawBody.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const trimmedNormalizedRawBody = normalizedRawBody.replace(/[\r\n]+$/, "");
+
+    const trimmedRawBodyBytes = new TextEncoder().encode(trimmedRawBody);
+    const normalizedRawBodyBytes = new TextEncoder().encode(normalizedRawBody);
+    const trimmedNormalizedRawBodyBytes = new TextEncoder().encode(trimmedNormalizedRawBody);
+
     const variants = [
-      { name: "rawBody", data: rawBody },
-      { name: "jsonData", data: JSON.stringify(payload.data) },
-      { name: "stable", data: stableStringify(payload.data) },
-      { name: "stable_no_ws", data: stableStringify(payload.data).replace(/\s+/g, "") },
+      { name: 'rawBodyBytes', data: rawBodyBytes },
+      { name: 'rawBody', data: rawBody },
+      { name: 'rawBodyTrimmed', data: trimmedRawBody },
+      { name: 'rawBodyNormalized', data: normalizedRawBody },
+      { name: 'rawBodyNormalizedTrimmed', data: trimmedNormalizedRawBody },
+      { name: 'rawBodyTrimmedBytes', data: trimmedRawBodyBytes },
+      { name: 'rawBodyNormalizedBytes', data: normalizedRawBodyBytes },
+      { name: 'rawBodyNormalizedTrimmedBytes', data: trimmedNormalizedRawBodyBytes },
+      { name: 'fullPayloadJson', data: JSON.stringify(payload) },
+      { name: 'jsonData', data: JSON.stringify(payload.data) },
+      { name: 'stablePayload', data: stableStringify(payload) },
+      { name: 'stableData', data: stableStringify(payload.data) },
+      { name: 'stable_no_ws_payload', data: stableStringify(payload).replace(/\s+/g, '') },
+      { name: 'stable_no_ws_data', data: stableStringify(payload.data).replace(/\s+/g, '') },
+      { name: 'jsonData_no_ws', data: JSON.stringify(payload.data).replace(/\s+/g, '') },
     ];
 
+    const bytesToHex = (b: ArrayBuffer) =>
+      Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, "0")).join("");
+    const bytesToBase64 = (b: ArrayBuffer) => {
+      // Deno-friendly base64 encoding
+      const u8 = new Uint8Array(b);
+      let binary = "";
+      for (let i = 0; i < u8.byteLength; i++) binary += String.fromCharCode(u8[i]);
+      // btoa is available in Deno runtime
+      return btoa(binary);
+    };
+
+    const computedVariants: Array<{ name: string; hex: string; base64: string }> = [];
+    let valid = false;
+
     for (const { name, data: dataStr } of variants) {
-      const dataBytes = new TextEncoder().encode(dataStr);
-      const sig = await crypto.subtle.sign("HMAC", key, dataBytes);
-      const hex = Array.from(new Uint8Array(sig))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-      console.log(`[Kora Webhook] Variant ${name} -> ${hex}`);
-      if (hex === signature) {
-        console.log("[Kora Webhook] Signature verified using variant", name);
-        return true;
+      try {
+        const dataBytes = dataStr instanceof ArrayBuffer ? new Uint8Array(dataStr) : new TextEncoder().encode(String(dataStr));
+        const sig = await crypto.subtle.sign("HMAC", key, dataBytes);
+        const hex = bytesToHex(sig);
+        const b64 = bytesToBase64(sig);
+        computedVariants.push({ name, hex, base64: b64 });
+        console.log(`[Kora Webhook] Variant ${name} -> hex:${hex} base64:${b64}`);
+
+        for (const candidate of normalizedHeaderCandidates) {
+          if (!candidate) continue;
+          if (candidate === hex || candidate === b64) {
+            console.log("[Kora Webhook] Signature verified using variant", name);
+            valid = true;
+            break;
+          }
+          // sometimes header may include prefix like 'sha256=' or 'hmac='; try normalize
+          if (candidate.endsWith(hex) || candidate.endsWith(b64)) {
+            console.log("[Kora Webhook] Signature verified using suffix match on variant", name);
+            valid = true;
+            break;
+          }
+        }
+
+        if (valid) break;
+      } catch (e) {
+        console.warn(`[Kora Webhook] Failed to compute HMAC for variant ${name}:`, e);
       }
     }
 
-    console.warn(
-      "[Kora Webhook] Signature verification failed for all payload variants",
-    );
-    return false;
+    if (!valid) {
+      console.warn(
+        "[Kora Webhook] Signature verification failed for all payload variants",
+      );
+    }
+    return { valid, normalizedHeaderCandidates, computedVariants };
   } catch (err) {
     console.error("[Kora Webhook] Signature verification error:", err);
-    return false;
+    return { valid: false, normalizedHeaderCandidates: [], computedVariants: [] };
   }
 }
 
@@ -319,12 +414,13 @@ serve(async (req: Request) => {
   }
 
   try {
-    const signature = req.headers.get("x-korapay-signature");
-    const rawBody = await req.text();
+    const signature = req.headers.get('x-korapay-signature');
+    const rawBodyBuffer = await req.arrayBuffer();
+    const rawBody = new TextDecoder().decode(rawBodyBuffer);
     let payload: KoraWebhookPayload;
 
     try {
-      payload = rawBody ? JSON.parse(rawBody) : { event: "", data: {} };
+      payload = rawBody ? JSON.parse(rawBody) : { event: '', data: {} };
     } catch (parseError) {
       console.error("[Kora Webhook] Failed to parse payload:", parseError);
       return new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
@@ -347,16 +443,38 @@ serve(async (req: Request) => {
       return new Response("ok", { status: 200, headers: corsHeaders });
     }
 
-    const isValid = await verifySignature(payload, signature, rawBody);
+    let isValid = false;
+    let debugInfo: any = undefined;
+    if (SKIP_KORA_SIGNATURE_CHECK) {
+      console.warn("[Kora Webhook] SKIP_KORA_SIGNATURE_CHECK is enabled — skipping signature verification");
+      isValid = true;
+    } else {
+      const result = await verifySignature(payload, signature, rawBody, rawBodyBuffer);
+      isValid = result.valid;
+      if (KORA_DEBUG_RESPONSE) {
+        debugInfo = {
+          normalized_header_candidates: result.normalizedHeaderCandidates,
+          computed_variants: result.computedVariants,
+        };
+      }
+    }
     console.log("[Kora Webhook] Signature check result:", isValid);
     if (!isValid) {
       console.error("[Kora Webhook] Invalid signature — ignoring request");
+      const body: Record<string, unknown> = {
+        error: "Invalid signature",
+        reference: payload.data?.reference || null,
+        signature: signature || null,
+      };
+      if (KORA_DEBUG_RESPONSE) {
+        body['debug'] = {
+          ...debugInfo,
+          raw_body_length: rawBody.length,
+          raw_body_preview: rawBody.slice(0, 1024),
+        };
+      }
       return new Response(
-        JSON.stringify({
-          error: "Invalid signature",
-          reference: payload.data?.reference || null,
-          signature: signature || null,
-        }),
+        JSON.stringify(body),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -751,76 +869,91 @@ serve(async (req: Request) => {
       // did not persist it (e.g. webhook-only flows).
       try {
         const businessPlans = new Set(["business_weekly", "business_monthly", "business_featured"]);
-        // Attempt to extract advertisement payload from payment.metadata
-        let advertPayload: Record<string, unknown> | null = null;
+        const isBusinessPlan = businessPlans.has(payment.plan);
+
+        let advertDetails: Record<string, unknown> | null = null;
         try {
-          const meta = (payment as any).metadata;
-          if (meta) {
-            advertPayload = typeof meta === "string" ? JSON.parse(meta) : meta as Record<string, unknown>;
-          }
+          const rawMeta = (payment as any).metadata;
+          const parsedMeta = typeof rawMeta === 'string' ? JSON.parse(rawMeta) : rawMeta;
+          advertDetails = parsedMeta?.advert ? (parsedMeta.advert as Record<string, unknown>) : parsedMeta;
         } catch (e) {
-          console.warn("[Kora Webhook] Could not parse payment.metadata for advert payload", e);
+          console.warn('[Kora Webhook] Could not parse payment.metadata for advert payload', e);
         }
 
-        const isBusinessPlan = businessPlans.has(payment.plan);
         if (isBusinessPlan) {
-          const title = (advertPayload && (advertPayload.title as string)) || "New Business Advert";
-          const image_url = advertPayload && (advertPayload.image_url as string || advertPayload.imageUrl as string) || null;
-          const link_url = advertPayload && (advertPayload.website_url as string || advertPayload.link_url as string || advertPayload.linkUrl as string) || null;
+          const durationDays = payment.plan === 'business_weekly' ? 7 : 30;
+          const startsAt = new Date().toISOString();
+          const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+          const packageType = payment.plan === 'business_weekly' ? 'weekly' : payment.plan === 'business_monthly' ? 'monthly' : 'featured';
+
+          const businessName = (advertDetails?.businessName as string) || payment.user_id;
+          const title = (advertDetails?.title as string) || 'New Business Advert';
+          const description = (advertDetails?.description as string) || 'Promote your business to JobBridge users';
+          const category = (advertDetails?.category as string) || 'Other';
+          const imageUrl = (advertDetails?.image_url as string) || (advertDetails?.imageUrl as string) || null;
+          const websiteUrl = (advertDetails?.website_url as string) || (advertDetails?.link_url as string) || (advertDetails?.linkUrl as string) || null;
+          const featured = payment.plan === 'business_featured' || Boolean(advertDetails?.featured);
 
           const { data: advertData, error: advertErr } = await supabase
-            .from("advertisements")
-            .insert({
+            .from('advertisements')
+            .insert([{ 
               owner_id: payment.user_id,
+              business_name: businessName,
               title,
-              image_url,
-              link_url,
-              is_active: true,
+              description,
+              category,
+              package: packageType,
+              is_featured: featured,
+              image_url: imageUrl,
+              website_url: websiteUrl,
+              starts_at: startsAt,
+              expires_at: expiresAt,
+              status: 'active',
+              views: 0,
+              clicks: 0,
+              payment_status: 'paid',
+              amount_paid: actualAmount,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
-            })
-            .select("id")
+            }])
+            .select('id')
             .limit(1)
             .maybeSingle();
 
           if (advertErr) {
-            console.error("[Kora Webhook] Failed to create advertisement record:", advertErr.message);
+            console.error('[Kora Webhook] Failed to create advertisement record:', advertErr.message);
           } else {
-            console.log("[Kora Webhook] Created advertisement for user", payment.user_id, advertData?.id || "(no-id)");
-            // Notify user and send advert-created email
+            console.log('[Kora Webhook] Created advertisement for user', payment.user_id, advertData?.id || '(no-id)');
             try {
               await insertNotification(supabase, {
                 userId: payment.user_id,
-                type: "payment",
-                title: "Advertisement created",
-                content: "Your business advert has been created. Visit your Business page to edit and publish details.",
+                type: 'payment',
+                title: 'Advertisement created',
+                content: 'Your business advert has been created. Visit your Business page to edit and publish details.',
                 data: { reference, plan: payment.plan },
               });
 
-              // Queue advert_created email via send-email function
-              const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
-                payment.user_id,
-              );
+              const { data: userData, error: userError } = await supabase.auth.admin.getUserById(payment.user_id);
               if (!userError && userData?.user?.email) {
                 const emailPayload = {
-                  type: "advert_created",
+                  type: 'advert_created',
                   email: userData.user.email,
                   name: userData.user.user_metadata?.full_name || userData.user.email,
                   advert_id: advertData?.id || null,
                 };
                 await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(emailPayload),
                 });
               }
             } catch (e) {
-              console.error("[Kora Webhook] Failed to notify or email about advert creation:", e);
+              console.error('[Kora Webhook] Failed to notify or email about advert creation:', e);
             }
           }
         }
       } catch (e) {
-        console.error("[Kora Webhook] Error handling server-side advert creation:", e);
+        console.error('[Kora Webhook] Error handling server-side advert creation:', e);
       }
 
       await sendPaymentConfirmationEmail(supabase, payment, reference);

@@ -12,7 +12,10 @@ import {
   Circle,
   Zap,
 } from "lucide-react";
-import { createAdvertisement } from "../lib/supabaseQueries";
+import {
+  createAdvertisement,
+  fetchAdvertisementsByOwner,
+} from "../lib/supabaseQueries";
 import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
@@ -184,8 +187,8 @@ const PENDING_PAYMENT_STORAGE_KEY = "jobbridge_pending_payment_ref";
 function getSuccessTarget(plan: (typeof PLANS)[string]): string {
   if (plan.ai) return "/ai-resume";
   if (plan.service) return "/providers";
-  if ((plan as any).business) return "/business?create=true";
-  return "/recruiter";
+  if ((plan as any).business) return "/business";
+  return "/recruiter?postJob=true";
 }
 
 function formatNaira(n: number): string {
@@ -429,26 +432,42 @@ export default function Payment() {
               const raw = sessionStorage.getItem('jb_pending_advert');
               if (raw) {
                 const pending = JSON.parse(raw);
-                const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
-                const starts_at = new Date().toISOString();
-                const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-                await createAdvertisement({
-                  owner_id: user.id,
-                  business_name: pending.businessName || user.user_metadata?.full_name || user.email,
-                  title: pending.title,
-                  description: pending.description,
-                  category: pending.category || 'Other',
-                  package: planKey,
-                  is_featured: pending.featured || false,
-                  starts_at,
-                  expires_at,
-                });
-                // Send advert created email with direct link
-                try {
+
+                // Avoid duplicate advert creation if the webhook already inserted it.
+                const existingAds = await fetchAdvertisementsByOwner(user.id);
+                const hasDuplicate = existingAds.some(
+                  (ad) =>
+                    ad.title === pending.title &&
+                    ad.package === planKey &&
+                    ad.owner_id === user.id,
+                );
+
+                if (!hasDuplicate) {
+                  const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
+                  const starts_at = new Date().toISOString();
+                  const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+                  await createAdvertisement({
+                    owner_id: user.id,
+                    business_name: pending.businessName || user.user_metadata?.full_name || user.email,
+                    title: pending.title,
+                    description: pending.description,
+                    category: pending.category || 'Other',
+                    package: planKey,
+                    is_featured: pending.featured || false,
+                    starts_at,
+                    expires_at,
+                    amount_paid: plan.price,
+                  });
+
                   if (user?.email) {
-                    sendEmail({ type: 'advert_created', email: user.email, name: customerName });
+                    try {
+                      sendEmail({ type: 'advert_created', email: user.email, name: customerName });
+                    } catch (e) {
+                      console.warn('Failed to send advert created email:', e);
+                    }
                   }
-                } catch (e) {}
+                }
+
                 try { sessionStorage.removeItem('jb_pending_advert'); } catch {}
               }
             } catch (e) {
@@ -554,17 +573,32 @@ export default function Payment() {
     koraCompletedRef.current = false;
 
     try {
+      const pendingAdvert = (() => {
+        if (!(plan as any).business) return null;
+        try {
+          const raw = sessionStorage.getItem('jb_pending_advert');
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return null;
+        }
+      })();
+
+      const paymentMetadata: Record<string, unknown> = {
+        source: 'korapay_checkout_standard',
+        plan_name: plan.name,
+      };
+      if (pendingAdvert) {
+        paymentMetadata.advert = pendingAdvert;
+      }
+
       await recordPayment({
         user_id: user.id,
         plan: planKey,
         amount: plan.price,
         reference,
-        status: "pending",
-        currency: "NGN",
-        metadata: {
-          source: "korapay_checkout_standard",
-          plan_name: plan.name,
-        },
+        status: 'pending',
+        currency: 'NGN',
+        metadata: paymentMetadata,
       });
 
       try {

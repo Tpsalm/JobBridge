@@ -1,23 +1,25 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
+import { fetchAdvertisementsByOwner } from '../lib/supabaseQueries';
 import { Building, Plus, Eye, Clock, CheckCircle, AlertCircle, CreditCard, TrendingUp, BarChart3, Star, ChevronRight, Edit, Trash2, ExternalLink } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, advertImage } from '../lib/media';
 
+type AdvertStatus = 'pending' | 'active' | 'paused' | 'expired' | 'rejected';
+
 interface Advert {
-  id: number;
+  id: string;
   businessName: string;
   title: string;
   description: string;
   category: string;
   duration: string;
   price: number;
-  status: 'pending' | 'active' | 'paused' | 'expired';
+  status: AdvertStatus;
   startDate: string;
   endDate: string;
   views: number;
@@ -25,53 +27,7 @@ interface Advert {
   featured: boolean;
 }
 
-const initialAdverts: Advert[] = [
-  {
-    id: 1,
-    businessName: 'Tasty Bites Restaurant',
-    title: '50% Off All Meals This Weekend!',
-    description: 'Visit us for delicious local and continental dishes. Best prices in town.',
-    category: 'Restaurant',
-    duration: 'Weekly',
-    price: 2000,
-    status: 'active',
-    startDate: '2026-06-01',
-    endDate: '2026-06-07',
-    views: 0,
-    clicks: 0,
-    featured: false,
-  },
-  {
-    id: 2,
-    businessName: 'Fashion House Ibadan',
-    title: 'New Arrivals - Summer Collection',
-    description: 'Get the latest fashion trends at affordable prices. Visit our store today!',
-    category: 'Fashion',
-    duration: 'Monthly',
-    price: 7500,
-    status: 'active',
-    startDate: '2026-05-15',
-    endDate: '2026-06-15',
-    views: 0,
-    clicks: 0,
-    featured: true,
-  },
-  {
-    id: 3,
-    businessName: 'Tech Solutions Ltd',
-    title: 'Professional IT Training',
-    description: 'Learn Python, Web Development, and more. Certificate included.',
-    category: 'Education',
-    duration: 'Featured',
-    price: 15000,
-    status: 'pending',
-    startDate: '2026-06-10',
-    endDate: '2026-07-10',
-    views: 0,
-    clicks: 0,
-    featured: true,
-  },
-];
+const initialAdverts: Advert[] = [];
 
 const adPackages = [
   { name: 'Weekly Ad', duration: '7 days', price: 2000, popular: false },
@@ -84,8 +40,10 @@ const categories = ['Restaurant', 'Fashion', 'Technology', 'Education', 'Health'
 export default function Business() {
   const { openModal } = useModal();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [adverts, setAdverts] = useState<Advert[]>(initialAdverts);
+  const [loadingAdverts, setLoadingAdverts] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState({
     businessName: '',
@@ -96,26 +54,65 @@ export default function Business() {
     featured: false,
   });
 
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setShowCreateForm(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setAdverts([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadAdverts = async () => {
+      setLoadingAdverts(true);
+      try {
+        const data = await fetchAdvertisementsByOwner(user.id);
+        if (!cancelled) {
+          setAdverts(
+            data.map((ad) => ({
+              id: ad.id,
+              businessName: ad.business_name,
+              title: ad.title,
+              description: ad.description,
+              category: ad.category,
+              duration:
+                ad.package === 'weekly'
+                  ? 'Weekly'
+                  : ad.package === 'monthly'
+                  ? 'Monthly'
+                  : 'Featured',
+              price: ad.amount_paid || (ad.package === 'weekly' ? 2000 : ad.package === 'monthly' ? 7500 : 15000),
+              status: ad.status,
+              startDate: ad.starts_at ? ad.starts_at.split('T')[0] : '',
+              endDate: ad.expires_at ? ad.expires_at.split('T')[0] : '',
+              views: ad.views || 0,
+              clicks: ad.clicks || 0,
+              featured: ad.is_featured || false,
+            })),
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load business adverts:', error);
+        if (!cancelled) setAdverts([]);
+      } finally {
+        if (!cancelled) setLoadingAdverts(false);
+      }
+    };
+
+    loadAdverts();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   const handleCreateAd = (e: React.FormEvent) => {
     e.preventDefault();
     const selectedPackage = adPackages.find(p => p.name === formData.package);
     if (!selectedPackage) return;
-
-    const newAdvert: Advert = {
-      id: adverts.length + 1,
-      businessName: formData.businessName,
-      title: formData.title,
-      description: formData.description,
-      category: formData.category,
-      duration: selectedPackage.name,
-      price: selectedPackage.price + (formData.featured ? 1000 : 0),
-      status: 'pending',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      views: 0,
-      clicks: 0,
-      featured: formData.featured,
-    };
 
     // If package requires payment, save advert to session and redirect to checkout
     const packageKey = selectedPackage.name === 'Weekly Ad' ? 'business_weekly' : selectedPackage.name === 'Monthly Ad' ? 'business_monthly' : 'business_featured';
@@ -144,7 +141,7 @@ export default function Business() {
     navigate(`/payment?plan=${packageKey}`);
   };
 
-  const toggleAdStatus = (id: number) => {
+  const toggleAdStatus = (id: string) => {
     setAdverts(adverts.map(ad =>
       ad.id === id
         ? { ...ad, status: ad.status === 'active' ? 'paused' : 'active' }
@@ -152,7 +149,7 @@ export default function Business() {
     ));
   };
 
-  const deleteAdvert = (id: number) => {
+  const deleteAdvert = (id: string) => {
     setAdverts(adverts.filter(ad => ad.id !== id));
   };
 
@@ -366,7 +363,12 @@ export default function Business() {
         {/* My Adverts */}
         <div className="mb-8">
           <h2 className="text-lg font-bold text-gray-900 mb-4">My Adverts</h2>
-          {adverts.length === 0 ? (
+          {loadingAdverts ? (
+            <div className="bg-white rounded-xl p-8 text-center border border-gray-100">
+              <Building className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">Loading your adverts...</p>
+            </div>
+          ) : adverts.length === 0 ? (
             <div className="bg-white rounded-xl p-8 text-center border border-gray-100">
               <Building className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No adverts yet. Create your first advert above!</p>

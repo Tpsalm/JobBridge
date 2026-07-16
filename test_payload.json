@@ -1,0 +1,1 @@
+{"event":"charge.success","data":{"reference":"JB-TEST-123","amount":7500,"amount_paid":7500,"currency":"NGN","payment_reference":"KORA-PR-123","transaction_reference":"KORA-TX-123","status":"success","metadata":{"user_id":"<USER_ID>","plan":"business_monthly"}}}

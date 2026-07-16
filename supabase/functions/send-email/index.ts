@@ -230,6 +230,46 @@ function applicationStatusTemplate(name: string, jobTitle: string, company: stri
 <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:20px 0 0;">Keep your JobBridge profile updated and continue exploring other opportunities.</p>`;
 }
 
+function paymentTemplate(name: string, plan: string, amount: string): string {
+  const safeName = sanitize(name, MAX_NAME_LENGTH) || 'there';
+  const safePlan = sanitize(plan, MAX_STR_LENGTH) || 'your plan';
+  const safeAmount = sanitize(amount, MAX_STR_LENGTH) || '0';
+  const planLower = safePlan.toLowerCase();
+  const ctaHref = planLower.includes('business')
+    ? 'https://jobbridge.com.ng/business'
+    : planLower.includes('professional')
+      ? 'https://jobbridge.com.ng/providers'
+      : 'https://jobbridge.com.ng/recruiter';
+  const ctaText = planLower.includes('business')
+    ? 'View Business Adverts'
+    : planLower.includes('professional')
+      ? 'View Service Provider Profile'
+      : 'Go to Recruiter Dashboard';
+
+  return T`<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${safeName}</strong>,</p>
+<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Your payment for <strong>${safePlan}</strong> has been successfully verified. Your JobBridge access is now activated.</p>
+<div style="background:#f0f9ff;border-radius:18px;padding:24px;margin-bottom:24px;border:1px solid #bae6fd;">
+  <p style="font-size:15px;color:#0f172a;margin:0 0 8px;font-weight:700;">Plan activated</p>
+  <p style="font-size:14px;color:#334155;line-height:1.7;margin:0;">${safePlan} — NGN ${safeAmount}</p>
+</div>
+<p style="font-size:15px;color:#334155;line-height:1.7;margin:0 0 24px;">You can now continue on JobBridge using the features included in your plan.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,${BRAND_PRIMARY},${BRAND_SECONDARY});border-radius:12px;padding:14px 28px;"><a href="${ctaHref}" target="_blank" style="color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">${ctaText}</a></td></tr></table></td></tr></table>
+<p style="font-size:14px;color:${BRAND_MUTED};line-height:1.7;margin:24px 0 0;">If you have any questions, reply to this email or visit <a href="https://jobbridge.com.ng" style="color:${BRAND_PRIMARY};text-decoration:underline;">jobbridge.com.ng</a>.</p>`;
+}
+
+function advertCreatedTemplate(name: string, advertId: string | number | null): string {
+  const safeName = sanitize(name, MAX_NAME_LENGTH) || 'there';
+  const href = advertId ? `https://jobbridge.com.ng/business?advert_id=${encodeURIComponent(String(advertId))}` : 'https://jobbridge.com.ng/business';
+  return T`<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${safeName}</strong>,</p>
+<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Your business advert has been created successfully and is now live on JobBridge.</p>
+<div style="background:#eff6ff;border-radius:18px;padding:24px;margin-bottom:24px;border:1px solid #bfdbfe;">
+  <p style="font-size:15px;color:#0f172a;margin:0 0 8px;font-weight:700;">Advert is live</p>
+  <p style="font-size:14px;color:#334155;line-height:1.7;margin:0;">You can view or edit your advert directly in your Business dashboard.</p>
+</div>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,${BRAND_PRIMARY},${BRAND_SECONDARY});border-radius:12px;padding:14px 28px;"><a href="${href}" target="_blank" style="color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">View My Advert</a></td></tr></table></td></tr></table>
+<p style="font-size:14px;color:${BRAND_MUTED};line-height:1.7;margin:24px 0 0;">Thanks for advertising with JobBridge.</p>`;
+}
+
 function paymentInitiatedTemplate(name: string, plan: string, amount: string): string {
   const pn = plan || 'Plan';
   const am = amount || '0';
@@ -384,7 +424,7 @@ serve(async (req) => {
         break;
       case 'advert_created':
         subject = `Your Business Advert Is Live on JobBridge`;
-        htmlBody = `<p>Hi ${sanitize(name, MAX_NAME_LENGTH) || 'there'},</p><p>Your business advert has been created and is now live on JobBridge. <a href="https://jobbridge.com.ng/business">View or edit your adverts</a>.</p>`;
+        htmlBody = advertCreatedTemplate(sanitize(name, MAX_NAME_LENGTH), body?.advertId || null);
         break;
       case 'daily_digest':
         subject = 'Your JobBridge Daily Update';
