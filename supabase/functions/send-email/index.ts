@@ -325,7 +325,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid email format' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'daily_digest', 'sign_in', 'sign_out', 'profile_reminder'];
+    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'advert_created', 'daily_digest', 'sign_in', 'sign_out', 'profile_reminder'];
     if (!VALID_TYPES.includes(type)) {
       return new Response(JSON.stringify({ error: `Unknown email type: ${type}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -381,6 +381,10 @@ serve(async (req) => {
       case 'job_posted':
         subject = `Job Posted Successfully: ${sanitize(jobTitle, MAX_STR_LENGTH) || 'Your Job'} 🎉`;
         htmlBody = jobPostedTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(jobTitle, MAX_STR_LENGTH), sanitize(company, MAX_STR_LENGTH));
+        break;
+      case 'advert_created':
+        subject = `Your Business Advert Is Live on JobBridge`;
+        htmlBody = `<p>Hi ${sanitize(name, MAX_NAME_LENGTH) || 'there'},</p><p>Your business advert has been created and is now live on JobBridge. <a href="https://jobbridge.com.ng/business">View or edit your adverts</a>.</p>`;
         break;
       case 'daily_digest':
         subject = 'Your JobBridge Daily Update';

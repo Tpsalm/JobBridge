@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
@@ -81,6 +83,8 @@ const categories = ['Restaurant', 'Fashion', 'Technology', 'Education', 'Health'
 
 export default function Business() {
   const { openModal } = useModal();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [adverts, setAdverts] = useState<Advert[]>(initialAdverts);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -113,10 +117,31 @@ export default function Business() {
       featured: formData.featured,
     };
 
-    setAdverts([newAdvert, ...adverts]);
+    // If package requires payment, save advert to session and redirect to checkout
+    const packageKey = selectedPackage.name === 'Weekly Ad' ? 'business_weekly' : selectedPackage.name === 'Monthly Ad' ? 'business_monthly' : 'business_featured';
+    const pending = {
+      businessName: formData.businessName,
+      title: formData.title,
+      description: formData.description,
+      category: formData.category,
+      package: packageKey,
+      featured: formData.featured,
+    };
+
+    try {
+      sessionStorage.setItem('jb_pending_advert', JSON.stringify(pending));
+    } catch {}
+
     setShowCreateForm(false);
     setFormData({ businessName: '', title: '', description: '', category: '', package: '', featured: false });
-    openModal('info', { title: 'Advert Submitted', content: 'Your advert has been submitted for review. You will be notified once it is approved and live.' });
+
+    // If user not authenticated, redirect to login first
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/payment?plan=${packageKey}`)}`);
+      return;
+    }
+
+    navigate(`/payment?plan=${packageKey}`);
   };
 
   const toggleAdStatus = (id: number) => {

@@ -12,6 +12,7 @@ import {
   Circle,
   Zap,
 } from "lucide-react";
+import { createAdvertisement } from "../lib/supabaseQueries";
 import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
@@ -148,6 +149,27 @@ const PLANS: Record<
     credits: 0,
     service: true,
   },
+  business_weekly: {
+    name: "Weekly Ad",
+    duration: "7 days",
+    price: 2000,
+    credits: 0,
+    business: true,
+  },
+  business_monthly: {
+    name: "Monthly Ad",
+    duration: "30 days",
+    price: 7500,
+    credits: 0,
+    business: true,
+  },
+  business_featured: {
+    name: "Featured Business",
+    duration: "30 days",
+    price: 15000,
+    credits: 0,
+    business: true,
+  },
 };
 
 type CheckoutStep = "kora-checkout" | "processing" | "success";
@@ -160,6 +182,7 @@ const PENDING_PAYMENT_STORAGE_KEY = "jobbridge_pending_payment_ref";
 function getSuccessTarget(plan: (typeof PLANS)[string]): string {
   if (plan.ai) return "/ai-resume";
   if (plan.service) return "/providers";
+  if ((plan as any).business) return "/business?create=true";
   return "/recruiter";
 }
 
@@ -397,6 +420,38 @@ export default function Payment() {
               plan: plan.name,
               amount: String(plan.price),
             });
+          }
+          // If this was a business advert purchase, create the advert from pending data
+          if ((plan as any).business) {
+            try {
+              const raw = sessionStorage.getItem('jb_pending_advert');
+              if (raw) {
+                const pending = JSON.parse(raw);
+                const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
+                const starts_at = new Date().toISOString();
+                const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+                await createAdvertisement({
+                  owner_id: user.id,
+                  business_name: pending.businessName || user.user_metadata?.full_name || user.email,
+                  title: pending.title,
+                  description: pending.description,
+                  category: pending.category || 'Other',
+                  package: planKey,
+                  is_featured: pending.featured || false,
+                  starts_at,
+                  expires_at,
+                });
+                // Send advert created email with direct link
+                try {
+                  if (user?.email) {
+                    sendEmail({ type: 'advert_created', email: user.email, name: customerName });
+                  }
+                } catch (e) {}
+                try { sessionStorage.removeItem('jb_pending_advert'); } catch {}
+              }
+            } catch (e) {
+              console.warn('Failed to create advertisement after payment:', e);
+            }
           }
 
           clearPendingReference();

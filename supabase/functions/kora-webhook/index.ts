@@ -746,7 +746,84 @@ serve(async (req: Request) => {
       );
     }
 
-    await sendPaymentConfirmationEmail(supabase, payment, reference);
+      // If this payment corresponds to a business advertisement plan,
+      // create an advertisement server-side as a fallback when the client
+      // did not persist it (e.g. webhook-only flows).
+      try {
+        const businessPlans = new Set(["business_weekly", "business_monthly", "business_featured"]);
+        // Attempt to extract advertisement payload from payment.metadata
+        let advertPayload: Record<string, unknown> | null = null;
+        try {
+          const meta = (payment as any).metadata;
+          if (meta) {
+            advertPayload = typeof meta === "string" ? JSON.parse(meta) : meta as Record<string, unknown>;
+          }
+        } catch (e) {
+          console.warn("[Kora Webhook] Could not parse payment.metadata for advert payload", e);
+        }
+
+        const isBusinessPlan = businessPlans.has(payment.plan);
+        if (isBusinessPlan) {
+          const title = (advertPayload && (advertPayload.title as string)) || "New Business Advert";
+          const image_url = advertPayload && (advertPayload.image_url as string || advertPayload.imageUrl as string) || null;
+          const link_url = advertPayload && (advertPayload.website_url as string || advertPayload.link_url as string || advertPayload.linkUrl as string) || null;
+
+          const { data: advertData, error: advertErr } = await supabase
+            .from("advertisements")
+            .insert({
+              owner_id: payment.user_id,
+              title,
+              image_url,
+              link_url,
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .select("id")
+            .limit(1)
+            .maybeSingle();
+
+          if (advertErr) {
+            console.error("[Kora Webhook] Failed to create advertisement record:", advertErr.message);
+          } else {
+            console.log("[Kora Webhook] Created advertisement for user", payment.user_id, advertData?.id || "(no-id)");
+            // Notify user and send advert-created email
+            try {
+              await insertNotification(supabase, {
+                userId: payment.user_id,
+                type: "payment",
+                title: "Advertisement created",
+                content: "Your business advert has been created. Visit your Business page to edit and publish details.",
+                data: { reference, plan: payment.plan },
+              });
+
+              // Queue advert_created email via send-email function
+              const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
+                payment.user_id,
+              );
+              if (!userError && userData?.user?.email) {
+                const emailPayload = {
+                  type: "advert_created",
+                  email: userData.user.email,
+                  name: userData.user.user_metadata?.full_name || userData.user.email,
+                  advert_id: advertData?.id || null,
+                };
+                await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(emailPayload),
+                });
+              }
+            } catch (e) {
+              console.error("[Kora Webhook] Failed to notify or email about advert creation:", e);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[Kora Webhook] Error handling server-side advert creation:", e);
+      }
+
+      await sendPaymentConfirmationEmail(supabase, payment, reference);
 
     await insertNotification(supabase, {
       userId: payment.user_id,

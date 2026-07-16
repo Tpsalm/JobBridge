@@ -264,6 +264,51 @@ export async function fetchNotifications(userId: string) {
   return data || [];
 }
 
+export async function createAdvertisement(ad: {
+  owner_id: string;
+  business_name: string;
+  title: string;
+  description: string;
+  category: string;
+  package: string;
+  is_featured?: boolean;
+  image_url?: string | null;
+  website_url?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  starts_at?: string | null;
+  expires_at?: string | null;
+}) {
+  const payload = {
+    owner_id: ad.owner_id,
+    business_name: ad.business_name,
+    title: ad.title,
+    description: ad.description,
+    category: ad.category,
+    package: ad.package,
+    is_featured: ad.is_featured ?? false,
+    image_url: ad.image_url || null,
+    website_url: ad.website_url || null,
+    phone: ad.phone || null,
+    email: ad.email || null,
+    starts_at: ad.starts_at || new Date().toISOString(),
+    expires_at: ad.expires_at || null,
+    status: 'active',
+    views: 0,
+    clicks: 0,
+    payment_status: 'paid',
+  };
+
+  const { data, error } = await supabase
+    .from('advertisements')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 export type JobAlertSeed = Pick<JobAlert, "query" | "location" | "enabled">;
 export type JobAlertWithCount = JobAlert & { count: number };
 
