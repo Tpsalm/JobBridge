@@ -101,6 +101,8 @@ const PLANS: Record<
     credits: number;
     ai?: boolean;
     service?: boolean;
+    business?: boolean;
+    [key: string]: any;
   }
 > = {
   basic: {
