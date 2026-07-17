@@ -391,7 +391,7 @@ export default function Payment() {
 
     let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 40;
+    const maxAttempts = 5;
 
     const poll = async () => {
       attempts += 1;
@@ -432,13 +432,14 @@ export default function Payment() {
               const raw = sessionStorage.getItem('jb_pending_advert');
               if (raw) {
                 const pending = JSON.parse(raw);
+                const normalizedPackage = planKey.replace(/^business_/, "");
 
                 // Avoid duplicate advert creation if the webhook already inserted it.
                 const existingAds = await fetchAdvertisementsByOwner(user.id);
                 const hasDuplicate = existingAds.some(
                   (ad) =>
                     ad.title === pending.title &&
-                    ad.package === planKey &&
+                    ad.package === normalizedPackage &&
                     ad.owner_id === user.id,
                 );
 
@@ -446,13 +447,13 @@ export default function Payment() {
                   const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
                   const starts_at = new Date().toISOString();
                   const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-                  await createAdvertisement({
+                  const advert = await createAdvertisement({
                     owner_id: user.id,
                     business_name: pending.businessName || user.user_metadata?.full_name || user.email,
                     title: pending.title,
                     description: pending.description,
                     category: pending.category || 'Other',
-                    package: planKey,
+                    package: normalizedPackage,
                     is_featured: pending.featured || false,
                     starts_at,
                     expires_at,
@@ -461,7 +462,12 @@ export default function Payment() {
 
                   if (user?.email) {
                     try {
-                      sendEmail({ type: 'advert_created', email: user.email, name: customerName });
+                      sendEmail({
+                        type: 'advert_created',
+                        email: user.email,
+                        name: customerName,
+                        advertId: advert?.id ?? null,
+                      } as any);
                     } catch (e) {
                       console.warn('Failed to send advert created email:', e);
                     }
@@ -511,7 +517,7 @@ export default function Payment() {
     };
 
     poll();
-    const interval = window.setInterval(poll, 3000);
+    const interval = window.setInterval(poll, 1000);
 
     return () => {
       cancelled = true;
@@ -523,6 +529,8 @@ export default function Payment() {
     plan.ai,
     plan.name,
     plan.price,
+    plan.duration,
+    planKey,
     fetchAiSubscription,
     fetchSubscription,
     user?.email,
@@ -649,15 +657,19 @@ export default function Payment() {
         onSuccess: (data) => {
           try {
             koraCompletedRef.current = true;
-            const nextReference = data.reference || reference;
+            const nextReference =
+              data.reference ||
+              data.payment_reference ||
+              data.transaction_reference ||
+              reference;
             if (nextReference !== reference) {
               try {
                 sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, nextReference);
               } catch {
                 // ignore storage failures
               }
-              setPaymentReference(nextReference);
             }
+            setPaymentReference(nextReference);
             setStep("processing");
             setPaying(true);
             setError(
@@ -676,7 +688,11 @@ export default function Payment() {
                   const res = await fetch(`${functionsBaseUrl}/verify-payment`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ reference: nextReference }),
+                    body: JSON.stringify({
+                      reference: nextReference,
+                      fallback_reference: reference,
+                      original_reference: reference,
+                    }),
                   });
                   const body = await res.json().catch(() => ({}));
                   if (res.ok && body?.verified) {
@@ -715,7 +731,8 @@ export default function Payment() {
         onFailed: (data) => {
           try {
             koraCompletedRef.current = true;
-            const failedReference = data.reference || reference;
+            const failedReference =
+              data.reference || data.payment_reference || data.transaction_reference || reference;
             setPaymentReference(failedReference);
             setStep("processing");
             setPaying(true);
@@ -920,7 +937,11 @@ export default function Payment() {
                   const res = await fetch(`${functionsBaseUrl}/verify-payment`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ reference: paymentReference }),
+                    body: JSON.stringify({
+                      reference: paymentReference,
+                      fallback_reference: originalPaymentReferenceRef.current || paymentReference,
+                      original_reference: originalPaymentReferenceRef.current || paymentReference,
+                    }),
                   });
                   const body = await res.json().catch(() => ({}));
                   if (res.ok && body?.verified) {

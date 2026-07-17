@@ -245,10 +245,12 @@ export async function recordPayment(payment: {
 }
 
 export async function fetchPaymentByReference(reference: string) {
+  if (!reference) return null;
+  const conditions = `reference.eq.${reference},provider_reference.eq.${reference}`;
   const { data, error } = await supabase
     .from("payments")
     .select("*")
-    .eq("reference", reference)
+    .or(conditions)
     .maybeSingle();
   if (error) throw error;
   return data;

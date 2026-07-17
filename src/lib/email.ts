@@ -14,6 +14,7 @@ export interface EmailPayload {
   amount?: string;
   applicantName?: string;
   summary?: string;
+  advertId?: string | number | null;
   from?: string;
   /** For application_status: the new status value (shortlisted, rejected, hired) */
   status?: string;

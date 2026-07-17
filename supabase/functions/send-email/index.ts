@@ -354,7 +354,22 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
-    const { type, email, name, jobTitle, company, plan, amount, applicantName, summary, status, from } = await req.json();
+    const body = await req.json();
+    const {
+      type,
+      email,
+      name,
+      jobTitle,
+      company,
+      plan,
+      amount,
+      applicantName,
+      summary,
+      status,
+      from,
+      advertId,
+      advert_id,
+    } = body;
 
     if (!email || !type) {
       return new Response(JSON.stringify({ error: 'Email and type are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -424,7 +439,10 @@ serve(async (req) => {
         break;
       case 'advert_created':
         subject = `Your Business Advert Is Live on JobBridge`;
-        htmlBody = advertCreatedTemplate(sanitize(name, MAX_NAME_LENGTH), body?.advertId || null);
+        htmlBody = advertCreatedTemplate(
+          sanitize(name, MAX_NAME_LENGTH),
+          advertId ?? advert_id ?? null,
+        );
         break;
       case 'daily_digest':
         subject = 'Your JobBridge Daily Update';

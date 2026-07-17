@@ -940,6 +940,7 @@ serve(async (req: Request) => {
                   email: userData.user.email,
                   name: userData.user.user_metadata?.full_name || userData.user.email,
                   advert_id: advertData?.id || null,
+                  advertId: advertData?.id || null,
                 };
                 await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
                   method: 'POST',

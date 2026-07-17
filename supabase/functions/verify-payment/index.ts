@@ -29,15 +29,35 @@ serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({}));
     const reference = String(body?.reference || body?.ref || "").trim();
-    if (!reference) return new Response(JSON.stringify({ error: "Missing reference" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const fallbackReference = String(body?.fallback_reference || body?.fallbackRef || "").trim();
+    const originalReference = String(body?.original_reference || body?.originalRef || "").trim();
+    if (!reference && !fallbackReference && !originalReference) {
+      return new Response(JSON.stringify({ error: "Missing reference" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Lookup payment row
+    const candidateRefs = Array.from(
+      new Set(
+        [reference, fallbackReference, originalReference]
+          .map((item) => String(item || "").trim())
+          .filter((item) => item.length > 0),
+      ),
+    );
+
+    if (candidateRefs.length === 0) {
+      return new Response(JSON.stringify({ error: "Missing reference" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const orConditions = candidateRefs
+      .map((ref) => `reference.eq.${ref},provider_reference.eq.${ref}`)
+      .join(",");
+
     const { data: paymentRow, error: findErr } = await supabase
       .from("payments")
       .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
-      .eq("reference", reference)
+      .or(orConditions)
+      .limit(1)
       .maybeSingle();
 
     if (findErr) {
@@ -45,40 +65,44 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: "Lookup failed" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // If not found, attempt fallback lookup by provider refs
-    let payment = paymentRow as any;
-    if (!payment) {
-      const { data: alt } = await supabase
-        .from("payments")
-        .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
-        .or(`provider_reference.eq.${reference},reference.eq.${reference}`)
-        .limit(1)
-        .maybeSingle();
-      payment = alt as any;
-    }
-
-    if (!payment) {
+    if (!paymentRow) {
       return new Response(JSON.stringify({ error: "No payment record found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Call Kora verify endpoint
-    const resp = await fetch(`${KORA_API_BASE}/charges/${encodeURIComponent(reference)}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${KORA_SECRET_KEY}`,
-        "Content-Type": "application/json",
-      },
-    });
+    // Call Kora verify endpoint using candidate references until one succeeds
+    let chargeResponse: any = null;
+    let chargeReference = candidateRefs[0];
+    let lastVerifyError: any = null;
+    for (const candidate of candidateRefs) {
+      try {
+        const resp = await fetch(`${KORA_API_BASE}/charges/${encodeURIComponent(candidate)}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${KORA_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+        });
 
-    const text = await resp.text();
-    let bodyJson: any = null;
-    try { bodyJson = text ? JSON.parse(text) : null; } catch { bodyJson = null; }
+        const text = await resp.text();
+        const bodyJson = text ? JSON.parse(text) : null;
 
-    if (!resp.ok || !bodyJson?.status) {
-      return new Response(JSON.stringify({ verified: false, detail: bodyJson || text }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        if (resp.ok && bodyJson?.status) {
+          chargeReference = candidate;
+          chargeResponse = bodyJson;
+          break;
+        }
+
+        lastVerifyError = bodyJson || text;
+      } catch (verifyErr) {
+        lastVerifyError = verifyErr;
+      }
     }
 
-    const charge = bodyJson.data || {};
+    if (!chargeResponse) {
+      return new Response(JSON.stringify({ verified: false, detail: lastVerifyError }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const charge = chargeResponse.data || {};
     const actualAmount = toNumber(charge.amount_paid) ?? toNumber(charge.amount) ?? null;
     const expectedAmount = Number(payment.amount || 0);
 
