@@ -1,20 +1,13 @@
 import KB, { type KnowledgeSection } from "./jobbridgeKnowledge";
+import { aiChat, aiChatStream, aiEmbed } from "./aiBackend";
 
 // ══════════════════════════════════════════════════════════════════
 //  MODEL CONFIGURATION
 // ══════════════════════════════════════════════════════════════════
 
-// DeepSeek V4 Flash is the primary reasoning model.
-// Falls back to OpenAI GPT-4o-mini if no DeepSeek key is provided.
-const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-
-const USE_DEEPSEEK = !!DEEPSEEK_API_KEY;
-const LLM_API_KEY = DEEPSEEK_API_KEY || OPENAI_API_KEY;
-const LLM_BASE_URL = USE_DEEPSEEK
-  ? "https://api.deepseek.com/v1"
-  : "https://api.openai.com/v1";
-const LLM_MODEL = USE_DEEPSEEK ? "deepseek-chat" : "gpt-4o-mini";
+// All AI operations are now handled through the secure backend.
+// API keys are server-side only and never exposed to the client.
+const LLM_MODEL = "gpt-4o-mini";
 
 const TOP_K = 8;
 const MAX_HISTORY = 30;
@@ -544,7 +537,9 @@ export interface PageState {
 }
 
 export function hasApiKey(): boolean {
-  return !!LLM_API_KEY;
+  // API keys are handled server-side, so this always returns true
+  // The backend will handle authentication and key validation
+  return true;
 }
 
 export function getModelInfo(): { model: string; provider: string } {
@@ -924,30 +919,15 @@ async function streamLLM(
   messages: HistoryMsg[],
   onToken: (token: string) => void,
 ): Promise<string> {
-  const res = await fetchWithRetry(`${LLM_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LLM_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: LLM_MODEL,
-      messages: messages.map((m) => ({
-        role: m.role,
-        name: m.name,
-        tool_call_id: m.tool_call_id,
-        content: m.content,
-      })),
-      max_tokens: 2000,
-      temperature: USE_DEEPSEEK ? 0.1 : 0.3,
-      stream: true,
-    }),
-  });
+  // Call the backend AI service (which handles OpenAI/DeepSeek internally)
+  const messageList = messages.map((m) => ({
+    role: m.role,
+    name: m.name,
+    tool_call_id: m.tool_call_id,
+    content: m.content,
+  }));
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`API error: ${res.status} — ${err}`);
-  }
+  return await aiChatStream(messageList, onToken);
 
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
@@ -1126,33 +1106,15 @@ ${pageState.domSummary || "No page context available."}`,
     step++;
     onPhase(detectedIntent ? `Analyzing for ${getPageTitleForIntent(detectedIntent)}...` : "Reasoning...");
 
-    const res = await fetchWithRetry(`${LLM_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LLM_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: LLM_MODEL,
-        messages: loopMessages.map((m) => ({
-          role: m.role,
-          name: m.name,
-          tool_call_id: m.tool_call_id,
-          content: m.content,
-          tool_calls: m.tool_calls,
-        })),
-        tools,
-        tool_choice: "auto",
-        temperature: USE_DEEPSEEK ? 0.1 : 0.2,
-      }),
-    });
+    // Call backend AI service which handles OpenAI/DeepSeek internally
+    const messageList = loopMessages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`API error: ${res.status} — ${err}`);
-    }
-
-    const json = await res.json();
+    try {
+      const result = await aiChat(messageList);
+      const json = { choices: [{ message: { content: result } }] };
     const assistantMsg = json.choices?.[0]?.message;
 
     if (!assistantMsg) {

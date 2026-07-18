@@ -30,7 +30,7 @@ const DEFAULT_INTERVAL = variant === 'B' ? 4000 : 5000;
 const slides = [
   { id: 'discover', imageId: 3194519, w: 1280, h: 800, title: "Your career bridge to what's next", subtitle: 'AI-powered job matching, verified employers, and real-time talent search.', ctas: [{ to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> }, { to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> }, { to: '/ai-resume', label: 'AI Resume', icon: <Zap className="w-4 h-4" /> }] },
   { id: 'growth', imageId: 7176027, w: 1280, h: 800, title: 'Professional Growth', subtitle: 'Connect with top employers and discover opportunities that match your skills.', ctas: [{ to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> }, { to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> }] },
-  { id: 'insights', imageId: 8386440, w: 1280, h: 800, title: 'Live career insights', subtitle: 'Real-time hiring data and career guidance to accelerate your next move.', ctas: [{ to: '/promotional', label: 'Discover Insights', icon: <Zap className="w-4 h-4" /> }, { to: '/blog', label: 'Read Insights', icon: <Search className="w-4 h-4" /> }] },
+  { id: 'insights', imageId: 8386440, w: 1280, h: 800, title: 'Live career insights', subtitle: 'Real-time hiring data and career guidance to accelerate your next move.', ctas: [{ to: '/blog', label: 'Read Insights', icon: <Search className="w-4 h-4" /> }] },
 ];
 
 function srcFor(id: number, w: number, h: number) {

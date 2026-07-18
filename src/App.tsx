@@ -34,7 +34,6 @@ import Following from "./pages/Following";
 import Reviews from "./pages/Reviews";
 import ProfileVisibility from "./pages/ProfileVisibility";
 import JobPreferences from "./pages/JobPreferences";
-import Promotional from "./pages/Promotional";
 import ProtectedRoute from "./components/ProtectedRoute";
 const AIAssistantWidget = React.lazy(() => import("./components/AIAssistantWidget"));
 
@@ -85,7 +84,6 @@ export default function App() {
             <Route path="/following" element={<Following />} />
             <Route path="/reviews" element={<Reviews />} />
             <Route path="/revenue" element={<Pricing />} />
-            <Route path="/promotional" element={<Promotional />} />
             <Route
               path="/settings"
               element={<Navigate to="/profile" replace />}

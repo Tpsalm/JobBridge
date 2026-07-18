@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.28.0",
+    "@google/genai": "^2.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "genkit": "^1.39.0",
     "lucide-react": "^0.344.0",

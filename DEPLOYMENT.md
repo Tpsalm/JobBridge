@@ -33,8 +33,9 @@ The Express backend is **no longer needed**. Everything runs directly between th
 |---|---|
 | `VITE_SUPABASE_URL` | `https://gtstcstmezfiepzlvndt.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key (already in `.env`) |
-| `VITE_OPENAI_API_KEY` | (Optional) OpenAI key for AI features |
 | `VITE_PAYSTACK_PUBLIC_KEY` | (Optional) Paystack public key for payments |
+
+**Important:** Do NOT add OpenAI API key to Vercel environment variables. Instead, set it as a Supabase secret. See [AI_SETUP.md](./AI_SETUP.md) for details.
 
 8. Deploy
 
@@ -46,13 +47,25 @@ The Express backend is **no longer needed**. Everything runs directly between th
 4. Under Authentication → Settings, set **Site URL** to your Vercel URL
 5. Add your Vercel URL to **Redirect URLs** (e.g. `https://job-bridgee.vercel.app/**`)
 
-## Step 4: Enable MFA (Optional)
+## Step 5: Enable AI Features (Optional but Recommended)
+
+To enable the AI Resume Builder, Cover Letter Generator, and AI Assistant:
+
+1. Get an OpenAI API key from [platform.openai.com](https://platform.openai.com/api-keys)
+2. Set it as a Supabase secret (NOT in Vercel environment variables):
+   - Via Dashboard: Supabase → Settings → Secrets → Add `OPENAI_API_KEY`
+   - Via CLI: `supabase secrets set OPENAI_API_KEY=sk_live_...`
+3. Deploy the AI function: `supabase functions deploy ai-operations`
+
+**Important:** Never expose API keys to the client. See [AI_SETUP.md](./AI_SETUP.md) for complete details.
+
+## Step 6: Enable MFA (Optional)
 
 1. Supabase Dashboard → Authentication → Providers → MFA
 2. Toggle on **Enable MFA**
 3. Users can manage authenticator apps from their Settings page
 
-## Step 5: Verify
+## Step 7: Verify
 
 1. Visit your Vercel URL
 2. Sign up, log in, post jobs, apply to jobs — all flows go directly through Supabase

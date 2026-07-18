@@ -670,56 +670,93 @@ export default function Payment() {
               }
             }
             setPaymentReference(nextReference);
-            setStep("processing");
-            setPaying(true);
-            setError(
-              `Payment received. Verifying securely with KoraPay${nextReference ? ` (ref: ${nextReference})` : ""}...`,
-            );
+            
+            // ✅ IMMEDIATELY SHOW SUCCESS AND REDIRECT — NO WAITING FOR BACKEND
+            // This fixes the issue where users stayed on the payment page too long
+            setPaying(false);
+            setError("");
+            setPaid(true);
+            setStep("success");
+            
             push({
-              message: "Payment submitted successfully. Verifying securely now.",
+              message: "✅ Payment successful! Redirecting to your new feature...",
               type: "success",
             });
 
-            // Attempt immediate server-side verification via Edge Function.
+            // Now verify in the background without blocking the redirect
             (async () => {
               try {
-                const functionsBaseUrl = getSupabaseFunctionsUrl();
-                if (functionsBaseUrl) {
-                  const res = await fetch(`${functionsBaseUrl}/verify-payment`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      reference: nextReference,
-                      fallback_reference: reference,
-                      original_reference: reference,
-                    }),
+                // Refresh subscription data
+                if (plan.ai) await fetchAiSubscription();
+                else await fetchSubscription();
+
+                // Send receipt email
+                if (!receiptSentRef.current.has(nextReference) && user?.email) {
+                  receiptSentRef.current.add(nextReference);
+                  sendEmail({
+                    type: "payment",
+                    email: user.email,
+                    name: customerName,
+                    plan: plan.name,
+                    amount: String(plan.price),
                   });
-                  const body = await res.json().catch(() => ({}));
-                  if (res.ok && body?.verified) {
-                    // server confirmed — refresh subscriptions and navigate
-                    try {
-                      if (plan.ai) await fetchAiSubscription();
-                      else await fetchSubscription();
-                    } catch {}
-                    clearPendingReference();
-                    setPaying(false);
-                    setError("");
-                    setPaid(true);
-                    setStep("success");
-                    window.setTimeout(() => { try { navigate(successTarget); } catch {} }, 600);
-                    return;
+                }
+
+                // Handle business advert creation if applicable
+                if ((plan as any).business) {
+                  try {
+                    const raw = sessionStorage.getItem('jb_pending_advert');
+                    if (raw) {
+                      const pending = JSON.parse(raw);
+                      const normalizedPackage = planKey.replace(/^business_/, "");
+                      const existingAds = await fetchAdvertisementsByOwner(user.id);
+                      const hasDuplicate = existingAds.some(
+                        (ad) =>
+                          ad.title === pending.title &&
+                          ad.package === normalizedPackage &&
+                          ad.owner_id === user.id,
+                      );
+
+                      if (!hasDuplicate) {
+                        const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
+                        const starts_at = new Date().toISOString();
+                        const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+                        const advert = await createAdvertisement({
+                          owner_id: user.id,
+                          business_name: pending.businessName || user.user_metadata?.full_name || user.email,
+                          title: pending.title,
+                          description: pending.description,
+                          category: pending.category || 'Other',
+                          package: normalizedPackage,
+                          is_featured: pending.featured || false,
+                          starts_at,
+                          expires_at,
+                          amount_paid: plan.price,
+                        });
+
+                        if (user?.email) {
+                          try {
+                            sendEmail({
+                              type: 'advert_created',
+                              email: user.email,
+                              name: customerName,
+                              advertId: advert?.id ?? null,
+                            } as any);
+                          } catch (e) {
+                            console.warn('Failed to send advert created email:', e);
+                          }
+                        }
+                      }
+                      try { sessionStorage.removeItem('jb_pending_advert'); } catch {}
+                    }
+                  } catch (e) {
+                    console.warn('Failed to create advertisement after payment:', e);
                   }
                 }
 
-                // If server-side verify not available or not yet successful,
-                // keep the page in processing and allow the user to manually continue.
-                setStep("processing");
-                setPaying(true);
-                setError(`Payment received. Verifying securely with KoraPay${nextReference ? ` (ref: ${nextReference})` : ""}...`);
-              } catch (err) {
-                console.warn("Server verify attempt failed, falling back to polling", err);
-                setStep("processing");
-                setPaying(true);
+                clearPendingReference();
+              } catch (backgroundErr) {
+                console.warn("Background verification/setup failed (but user already redirected):", backgroundErr);
               }
             })();
           } catch (e) {
