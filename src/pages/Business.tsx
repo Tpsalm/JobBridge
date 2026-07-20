@@ -4,10 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
-import { fetchAdvertisementsByOwner } from '../lib/supabaseQueries';
+import { fetchAdvertisementsByOwner, createAdvertisement } from '../lib/supabaseQueries';
 import { Building, Plus, Eye, Clock, CheckCircle, AlertCircle, CreditCard, TrendingUp, BarChart3, Star, ChevronRight, Edit, Trash2, ExternalLink } from 'lucide-react';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, advertImage } from '../lib/media';
+import { sendEmail } from '../lib/email';
 
 type AdvertStatus = 'pending' | 'active' | 'paused' | 'expired' | 'rejected';
 
@@ -54,11 +55,23 @@ export default function Business() {
     featured: false,
   });
 
+  const paidPackage = searchParams.get('paidPackage') || '';
+  const paidPackageOption = paidPackage === 'business_weekly'
+    ? 'Weekly Ad'
+    : paidPackage === 'business_monthly'
+      ? 'Monthly Ad'
+      : paidPackage === 'business_featured'
+        ? 'Featured Business'
+        : '';
+
   useEffect(() => {
     if (searchParams.get('create') === 'true') {
       setShowCreateForm(true);
+      if (paidPackageOption) {
+        setFormData((current) => ({ ...current, package: paidPackageOption }));
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, paidPackageOption]);
 
   useEffect(() => {
     if (!user?.id) {

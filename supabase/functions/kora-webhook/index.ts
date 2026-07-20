@@ -838,7 +838,10 @@ serve(async (req: Request) => {
         updated_at: new Date().toISOString(),
       };
 
-      if (payment.plan === "service_verified") {
+      if (payment.plan === "service_monthly") {
+        profileUpdates.is_verified = false;
+        profileUpdates.is_featured = false;
+      } else if (payment.plan === "service_verified") {
         profileUpdates.is_verified = true;
         profileUpdates.is_featured = false;
       } else if (payment.plan === "service_featured") {

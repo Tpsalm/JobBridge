@@ -37,6 +37,8 @@ interface AuthContextType {
   fetchSubscription: () => Promise<void>;
   aiSubscription: AiSubscriptionInfo;
   fetchAiSubscription: () => Promise<void>;
+  subscriptionLoaded: boolean;
+  aiSubscriptionLoaded: boolean;
   savedJobs: string[];
   appliedJobs: string[];
   toggleSaveJob: (jobId: string) => void;
@@ -74,6 +76,8 @@ const AuthContext = createContext<AuthContextType>({
   fetchSubscription: async () => {},
   aiSubscription: { ai_tier: null, ai_status: "inactive", ai_expires_at: null },
   fetchAiSubscription: async () => {},
+  subscriptionLoaded: false,
+  aiSubscriptionLoaded: false,
   savedJobs: [],
   appliedJobs: [],
   toggleSaveJob: () => {},
@@ -101,6 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ai_status: "inactive",
     ai_expires_at: null,
   });
+  const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
+  const [aiSubscriptionLoaded, setAiSubscriptionLoaded] = useState(false);
   const [savedJobs, setSavedJobs] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("jobbridge_saved_jobs") || "[]");
@@ -123,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const fetchSubscription = useCallback(async (userId?: string) => {
+    setSubscriptionLoaded(false);
     const uid = userId || userRef.current?.id;
     if (!uid) {
       setSubscription({
@@ -131,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         expires_at: null,
         credits: 0,
       });
+      setSubscriptionLoaded(true);
       return;
     }
 
@@ -179,10 +187,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         expires_at: null,
         credits: 0,
       });
+    } finally {
+      setSubscriptionLoaded(true);
     }
   }, []);
 
   const fetchAiSubscription = useCallback(async (userId?: string) => {
+    setAiSubscriptionLoaded(false);
     const uid = userId || userRef.current?.id;
     if (!uid) {
       setAiSubscription({
@@ -190,6 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ai_status: "inactive",
         ai_expires_at: null,
       });
+      setAiSubscriptionLoaded(true);
       return;
     }
 
@@ -216,7 +228,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const isExpired = expiresAt ? expiresAt < now : false;
 
       let ai_status: "active" | "inactive" | "expired" = "inactive";
-      // AI subscription is active if the user has an ai_tools tier that hasn't expired
       if (data.subscription_tier === "ai_tools" && !isExpired) {
         ai_status = "active";
       } else if (data.subscription_tier === "ai_tools" && isExpired) {
@@ -235,6 +246,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ai_status: "inactive",
         ai_expires_at: null,
       });
+    } finally {
+      setAiSubscriptionLoaded(true);
     }
   }, []);
 
@@ -802,6 +815,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchSubscription,
         aiSubscription,
         fetchAiSubscription,
+        subscriptionLoaded,
+        aiSubscriptionLoaded,
         savedJobs,
         appliedJobs,
         toggleSaveJob,

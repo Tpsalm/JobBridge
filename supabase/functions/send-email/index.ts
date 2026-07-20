@@ -235,16 +235,23 @@ function paymentTemplate(name: string, plan: string, amount: string): string {
   const safePlan = sanitize(plan, MAX_STR_LENGTH) || 'your plan';
   const safeAmount = sanitize(amount, MAX_STR_LENGTH) || '0';
   const planLower = safePlan.toLowerCase();
-  const ctaHref = planLower.includes('business')
-    ? 'https://jobbridge.com.ng/business'
-    : planLower.includes('professional')
-      ? 'https://jobbridge.com.ng/providers'
-      : 'https://jobbridge.com.ng/recruiter';
-  const ctaText = planLower.includes('business')
-    ? 'View Business Adverts'
-    : planLower.includes('professional')
-      ? 'View Service Provider Profile'
-      : 'Go to Recruiter Dashboard';
+
+  let ctaHref = 'https://jobbridge.com.ng';
+  let ctaText = 'Go to JobBridge';
+
+  if (planLower.includes('business')) {
+    ctaHref = `https://jobbridge.com.ng/business?create=true&paidPackage=${encodeURIComponent(planLower)}`;
+    ctaText = 'Create Your Business Advert';
+  } else if (planLower.includes('service') || planLower.includes('professional')) {
+    ctaHref = 'https://jobbridge.com.ng/profile';
+    ctaText = 'View My Profile Badge';
+  } else if (planLower.includes('basic') || planLower.includes('standard') || planLower.includes('premium')) {
+    ctaHref = 'https://jobbridge.com.ng/recruiter?postJob=true';
+    ctaText = 'Post a Job Now';
+  } else if (planLower.includes('ai')) {
+    ctaHref = 'https://jobbridge.com.ng/ai-resume';
+    ctaText = 'Go to AI Resume Studio';
+  }
 
   return T`<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${safeName}</strong>,</p>
 <p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Your payment for <strong>${safePlan}</strong> has been successfully verified. Your JobBridge access is now activated.</p>

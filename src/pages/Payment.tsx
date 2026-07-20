@@ -87,10 +87,17 @@ interface KoraPayConfig {
   onClose?: () => void;
   onSuccess?: (data: {
     reference: string;
+    payment_reference?: string;
+    transaction_reference?: string;
     amount: string;
     status: string;
   }) => void;
-  onFailed?: (data: { reference: string; status: string }) => void;
+  onFailed?: (data: {
+    reference: string;
+    payment_reference?: string;
+    transaction_reference?: string;
+    status: string;
+  }) => void;
   onPending?: () => void;
   merchant_bears_cost?: boolean;
 }
@@ -140,6 +147,13 @@ const PLANS: Record<
     credits: 0,
     ai: true,
   },
+  service_monthly: {
+    name: "Monthly Professional Listing",
+    duration: "30 days",
+    price: 1500,
+    credits: 0,
+    service: true,
+  },
   service_verified: {
     name: "Verified Professional Listing",
     duration: "30 days",
@@ -184,10 +198,10 @@ const KORA_SCRIPT_SRC =
 const MAX_KORA_SCRIPT_LOAD_RETRIES = 3;
 const PENDING_PAYMENT_STORAGE_KEY = "jobbridge_pending_payment_ref";
 
-function getSuccessTarget(plan: (typeof PLANS)[string]): string {
+function getSuccessTarget(plan: (typeof PLANS)[string], planKey: string): string {
   if (plan.ai) return "/ai-resume";
-  if (plan.service) return "/providers";
-  if ((plan as any).business) return "/business";
+  if (plan.service) return "/profile";
+  if ((plan as any).business) return `/business?create=true&paidPackage=${planKey}`;
   return "/recruiter?postJob=true";
 }
 
@@ -208,7 +222,6 @@ export default function Payment() {
   const [step, setStep] = useState<CheckoutStep>("kora-checkout");
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
-  const [successCountdown, setSuccessCountdown] = useState(3);
   const [error, setError] = useState<ReactNode>("");
   const [koraReady, setKoraReady] = useState(false);
   const [koraLoading, setKoraLoading] = useState(false);
@@ -227,19 +240,18 @@ export default function Payment() {
 
   const cleanupKora = () => {
     if (typeof window === "undefined") return;
-    const script = document.getElementById("kora-script");
-    if (script) {
-      script.remove();
-    }
-    if ((window as any).Korapay) {
-      try {
-        // Remove the global KoraPay object after checkout so it does not keep
-        // running cleanup logic on other pages or after a completed payment.
-        delete (window as any).Korapay;
-      } catch {
-        // ignore non-configurable deletions
+    try {
+      const script = document.getElementById("kora-script");
+      if (script) {
+        script.remove();
       }
+    } catch {
+      // ignore
     }
+    // Do NOT delete window.Korapay while a redirect may be in flight.
+    // Removing the global can interrupt KoraPay's own success callback and
+    // prevent navigation. The script removal above is enough to stop the
+    // modal from reopening.
     setKoraReady(false);
     setKoraLoading(false);
   };
@@ -252,26 +264,7 @@ export default function Payment() {
     return "JobBridge User";
   }, [user?.email, user?.user_metadata?.full_name]);
 
-  const successTarget = getSuccessTarget(plan);
-
-  // Auto-redirect after 3 seconds for seamless UX
-  useEffect(() => {
-    if (!paid) return;
-
-    setSuccessCountdown(3);
-    const redirectTimer = setTimeout(() => {
-      navigate(successTarget);
-    }, 3000);
-
-    const countdownTimer = setInterval(() => {
-      setSuccessCountdown((current) => Math.max(current - 1, 0));
-    }, 1000);
-
-    return () => {
-      clearTimeout(redirectTimer);
-      clearInterval(countdownTimer);
-    };
-  }, [paid, successTarget, navigate]);
+  const successTarget = getSuccessTarget(plan, planKey);
 
   const clearPendingReference = () => {
     try {
@@ -281,6 +274,34 @@ export default function Payment() {
     }
     originalPaymentReferenceRef.current = "";
     setPaymentReference("");
+  };
+
+  const verifyPaymentReference = async (reference: string) => {
+    const functionsBaseUrl = getSupabaseFunctionsUrl();
+    if (!functionsBaseUrl) return false;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 7000);
+
+    try {
+      const res = await fetch(`${functionsBaseUrl}/verify-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference,
+          fallback_reference: originalPaymentReferenceRef.current || reference,
+          original_reference: originalPaymentReferenceRef.current || reference,
+        }),
+        signal: controller.signal,
+      });
+      const body = await res.json().catch(() => ({}));
+      return res.ok && body?.verified === true;
+    } catch (err) {
+      console.warn("[Payment] Manual verification failed:", err);
+      return false;
+    } finally {
+      window.clearTimeout(timeout);
+    }
   };
 
   const loadKoraScript = () => {
@@ -654,7 +675,7 @@ export default function Payment() {
           plan: planKey,
           user_id: user.id,
         },
-        onSuccess: (data) => {
+        onSuccess: async (data) => {
           try {
             koraCompletedRef.current = true;
             const nextReference =
@@ -671,98 +692,103 @@ export default function Payment() {
             }
             setPaymentReference(nextReference);
             
-            // ✅ IMMEDIATELY SHOW SUCCESS AND REDIRECT — NO WAITING FOR BACKEND
+            // ✅ IMMEDIATELY MARK SUCCESS AND REDIRECT — NO WAITING FOR BACKEND
             // This fixes the issue where users stayed on the payment page too long
             setPaying(false);
             setError("");
             setPaid(true);
             setStep("success");
-            
+
             push({
               message: "✅ Payment successful! Redirecting to your new feature...",
               type: "success",
             });
 
-            // Now verify in the background without blocking the redirect
-            (async () => {
-              try {
-                // Refresh subscription data
+            // Verify payment before redirecting so app state and subscription
+            // refresh are more deterministic on the destination page.
+            let verified = false;
+            try {
+              verified = await verifyPaymentReference(nextReference);
+            } catch (verifyErr) {
+              console.warn("[Payment] verifyPaymentReference failed:", verifyErr);
+            }
+
+            try {
+              if (verified) {
                 if (plan.ai) await fetchAiSubscription();
                 else await fetchSubscription();
+              }
 
-                // Send receipt email
-                if (!receiptSentRef.current.has(nextReference) && user?.email) {
-                  receiptSentRef.current.add(nextReference);
-                  sendEmail({
-                    type: "payment",
-                    email: user.email,
-                    name: customerName,
-                    plan: plan.name,
-                    amount: String(plan.price),
-                  });
-                }
+              if (!receiptSentRef.current.has(nextReference) && user?.email) {
+                receiptSentRef.current.add(nextReference);
+                sendEmail({
+                  type: "payment",
+                  email: user.email,
+                  name: customerName,
+                  plan: plan.name,
+                  amount: String(plan.price),
+                });
+              }
 
-                // Handle business advert creation if applicable
-                if ((plan as any).business) {
-                  try {
-                    const raw = sessionStorage.getItem('jb_pending_advert');
-                    if (raw) {
-                      const pending = JSON.parse(raw);
-                      const normalizedPackage = planKey.replace(/^business_/, "");
-                      const existingAds = await fetchAdvertisementsByOwner(user.id);
-                      const hasDuplicate = existingAds.some(
-                        (ad) =>
-                          ad.title === pending.title &&
-                          ad.package === normalizedPackage &&
-                          ad.owner_id === user.id,
-                      );
+              if ((plan as any).business) {
+                try {
+                  const raw = sessionStorage.getItem('jb_pending_advert');
+                  if (raw) {
+                    const pending = JSON.parse(raw);
+                    const normalizedPackage = planKey.replace(/^business_/, "");
+                    const existingAds = await fetchAdvertisementsByOwner(user.id);
+                    const hasDuplicate = existingAds.some(
+                      (ad) =>
+                        ad.title === pending.title &&
+                        ad.package === normalizedPackage &&
+                        ad.owner_id === user.id,
+                    );
 
-                      if (!hasDuplicate) {
-                        const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
-                        const starts_at = new Date().toISOString();
-                        const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-                        const advert = await createAdvertisement({
-                          owner_id: user.id,
-                          business_name: pending.businessName || user.user_metadata?.full_name || user.email,
-                          title: pending.title,
-                          description: pending.description,
-                          category: pending.category || 'Other',
-                          package: normalizedPackage,
-                          is_featured: pending.featured || false,
-                          starts_at,
-                          expires_at,
-                          amount_paid: plan.price,
-                        });
+                    if (!hasDuplicate) {
+                      const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
+                      const starts_at = new Date().toISOString();
+                      const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+                      const advert = await createAdvertisement({
+                        owner_id: user.id,
+                        business_name: pending.businessName || user.user_metadata?.full_name || user.email,
+                        title: pending.title,
+                        description: pending.description,
+                        category: pending.category || 'Other',
+                        package: normalizedPackage,
+                        is_featured: pending.featured || false,
+                        starts_at,
+                        expires_at,
+                        amount_paid: plan.price,
+                      });
 
-                        if (user?.email) {
-                          try {
-                            sendEmail({
-                              type: 'advert_created',
-                              email: user.email,
-                              name: customerName,
-                              advertId: advert?.id ?? null,
-                            } as any);
-                          } catch (e) {
-                            console.warn('Failed to send advert created email:', e);
-                          }
+                      if (user?.email) {
+                        try {
+                          sendEmail({
+                            type: 'advert_created',
+                            email: user.email,
+                            name: customerName,
+                            advertId: advert?.id ?? null,
+                          } as any);
+                        } catch (e) {
+                          console.warn('Failed to send advert created email:', e);
                         }
                       }
-                      try { sessionStorage.removeItem('jb_pending_advert'); } catch {}
                     }
-                  } catch (e) {
-                    console.warn('Failed to create advertisement after payment:', e);
+                    try { sessionStorage.removeItem('jb_pending_advert'); } catch {}
                   }
+                } catch (e) {
+                  console.warn('Failed to create advertisement after payment:', e);
                 }
-
-                clearPendingReference();
-              } catch (backgroundErr) {
-                console.warn("Background verification/setup failed (but user already redirected):", backgroundErr);
               }
-            })();
+            } catch (backgroundErr) {
+              console.warn("[Payment] Post-success refresh failed:", backgroundErr);
+            } finally {
+              try { clearPendingReference(); } catch {}
+              cleanupKora();
+              window.location.replace(successTarget);
+            }
           } catch (e) {
             console.error("[Payment] Error in onSuccess callback:", e);
-          } finally {
-            cleanupKora();
           }
         },
         onFailed: (data) => {
@@ -806,22 +832,15 @@ export default function Payment() {
         },
         onClose: () => {
           try {
-            // Add a small delay to allow KoraPay to finish cleanup
-            // This prevents DOM access errors on iOS/Safari
-            window.setTimeout(() => {
-              try {
-                if (!koraCompletedRef.current) {
-                  clearPendingReference();
-                  setPaying(false);
-                  setStep("kora-checkout");
-                  setError("Payment cancelled before completion.");
-                }
-              } catch (e) {
-                console.error("[Payment] Error during delayed onClose:", e);
-              } finally {
-                cleanupKora();
-              }
-            }, 100);
+            koraCompletedRef.current = true;
+            cleanupKora();
+            // Only treat this as a cancellation if the user has not already paid.
+            if (!paid) {
+              clearPendingReference();
+              setPaying(false);
+              setStep("kora-checkout");
+              setError("Payment cancelled before completion.");
+            }
           } catch (e) {
             console.error("[Payment] Error in onClose callback:", e);
           }
@@ -1051,19 +1070,18 @@ export default function Payment() {
             Payment Successful!
           </h1>
           <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto leading-relaxed">
-            Your <strong className="text-gray-900">{plan.name}</strong> plan is
-            now active.
+            Redirecting you to your <strong className="text-gray-900">{plan.name}</strong> feature now...
           </p>
         </div>
 
         <div className="rounded-2xl border bg-emerald-50 border-emerald-100 p-5 mb-6">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-              <CheckCircle className="w-4 h-4 text-white" />
+              <Loader2 className="w-4 h-4 text-white animate-spin" />
             </div>
             <div className="text-left">
               <p className="text-sm font-semibold text-gray-900">
-                Plan Activated
+                Taking you there now
               </p>
               <p className="text-xs text-gray-600">
                 Your {plan.name} is ready to use
@@ -1072,62 +1090,22 @@ export default function Payment() {
           </div>
         </div>
 
-        <div className="rounded-2xl bg-gray-50 p-5 mb-8">
-          <p className="text-sm font-semibold text-gray-900 mb-3">
-            What's next
-          </p>
-          <div className="space-y-3">
-            {[
-              "Your plan is active — start using it now",
-              "A receipt will be sent to your email",
-              plan.ai
-                ? "Explore AI Career Tools"
-                : plan.service
-                  ? "Manage your professional listing"
-                  : "Post your jobs and reach candidates",
-            ].map((item, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#1A4BCE]/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <svg
-                    className="w-3.5 h-3.5 text-[#1A4BCE]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <p className="text-sm text-gray-600 text-left">{item}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
         <div className="space-y-3">
           <button
-            onClick={() => navigate(successTarget)}
+            onClick={() => window.location.replace(successTarget)}
             className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base
                        transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
                        shadow-lg shadow-[#1A4BCE]/25 flex items-center justify-center gap-2"
           >
             <Sparkles className="w-5 h-5" />
             {plan.ai
-              ? "Go to AI Resume Studio"
+              ? "Go to AI Resume Studio now"
               : plan.service
-                ? "Go to My Profile"
-                : "Go to Dashboard"}
+                ? "Go to My Profile now"
+                : plan.business
+                  ? "Go to Business Ads now"
+                  : "Go to Dashboard now"}
           </button>
-          
-          {successCountdown > 0 && (
-            <p className="text-xs text-gray-500 text-center">
-              Redirecting in <strong>{successCountdown}</strong> second{successCountdown !== 1 ? 's' : ''}...
-            </p>
-          )}
         </div>
       </div>
     );

@@ -18,6 +18,25 @@ function toNumber(value: string | number | undefined | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseAdvertMetadata(metadata: unknown): Record<string, unknown> | null {
+  if (!metadata) return null;
+  if (typeof metadata === "string") {
+    try {
+      const parsed = JSON.parse(metadata);
+      return parsed?.advert ? parsed.advert as Record<string, unknown> : parsed;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof metadata === "object" && metadata !== null) {
+    const metaObj = metadata as Record<string, unknown>;
+    return metaObj.advert ? (metaObj.advert as Record<string, unknown>) : metaObj;
+  }
+  return null;
+}
+
+const BUSINESS_PLANS = new Set(["business_weekly", "business_monthly", "business_featured"]);
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -104,7 +123,7 @@ serve(async (req: Request) => {
 
     const charge = chargeResponse.data || {};
     const actualAmount = toNumber(charge.amount_paid) ?? toNumber(charge.amount) ?? null;
-    const expectedAmount = Number(payment.amount || 0);
+    const expectedAmount = Number(paymentRow.amount || 0);
 
     const status = (charge.status || charge.transaction_status || "").toLowerCase();
     if (status !== "success" && status !== "completed") {
@@ -113,21 +132,21 @@ serve(async (req: Request) => {
 
     if (actualAmount !== null && expectedAmount && actualAmount !== expectedAmount) {
       // mismatch
-      await supabase.from("payments").update({ status: "failed", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || reference, metadata: { verification_response: charge } }).eq("id", payment.id);
+      await supabase.from("payments").update({ status: "failed", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || reference, metadata: { verification_response: charge } }).eq("id", paymentRow.id);
       return new Response(JSON.stringify({ verified: false, reason: "amount_mismatch" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Update payment to verified
-    const { error: updateErr } = await supabase.from("payments").update({ status: "verified", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || reference, currency: charge.currency || payment.currency || "NGN", metadata: { verification_response: charge } }).eq("id", payment.id).neq("status", "verified");
+    const { error: updateErr } = await supabase.from("payments").update({ status: "verified", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || reference, currency: charge.currency || paymentRow.currency || "NGN", metadata: { verification_response: charge } }).eq("id", paymentRow.id).neq("status", "verified");
     if (updateErr) console.error("[verify-payment] update error", updateErr.message);
 
     // Activate profile similar to webhook
-    const tier = (payment.plan === "ai_monthly" || payment.plan === "ai_annual") ? "ai_tools" : payment.plan;
-    const durationDays = payment.plan === "basic" ? 7 : payment.plan === "standard" ? 14 : payment.plan === "premium" ? 30 : payment.plan === "ai_monthly" ? 30 : payment.plan === "ai_annual" ? 365 : 30;
-    const creditsToAdd = payment.plan === "basic" || payment.plan === "standard" ? 1 : payment.plan === "premium" ? 3 : 0;
+    const tier = (paymentRow.plan === "ai_monthly" || paymentRow.plan === "ai_annual") ? "ai_tools" : paymentRow.plan;
+    const durationDays = paymentRow.plan === "basic" ? 7 : paymentRow.plan === "standard" ? 14 : paymentRow.plan === "premium" ? 30 : paymentRow.plan === "ai_monthly" ? 30 : paymentRow.plan === "ai_annual" ? 365 : 30;
+    const creditsToAdd = paymentRow.plan === "basic" || paymentRow.plan === "standard" ? 1 : paymentRow.plan === "premium" ? 3 : 0;
     const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: profileData } = await supabase.from("profiles").select("credits").eq("id", payment.user_id).maybeSingle();
+    const { data: profileData } = await supabase.from("profiles").select("credits").eq("id", paymentRow.user_id).maybeSingle();
     if (profileData) {
       const creditCount = Number(profileData.credits || 0) + creditsToAdd;
       const profileUpdates: Record<string, unknown> = {
@@ -137,15 +156,106 @@ serve(async (req: Request) => {
         credits: creditCount,
         updated_at: new Date().toISOString(),
       };
-      if (payment.plan === "service_verified") {
+      if (paymentRow.plan === "service_monthly") {
+        profileUpdates.is_verified = false;
+        profileUpdates.is_featured = false;
+      } else if (paymentRow.plan === "service_verified") {
         profileUpdates.is_verified = true;
         profileUpdates.is_featured = false;
-      } else if (payment.plan === "service_featured") {
+      } else if (paymentRow.plan === "service_featured") {
         profileUpdates.is_verified = true;
         profileUpdates.is_featured = true;
       }
-      const { error: upErr } = await supabase.from("profiles").update(profileUpdates).eq("id", payment.user_id);
+      const { error: upErr } = await supabase.from("profiles").update(profileUpdates).eq("id", paymentRow.user_id);
       if (upErr) console.error("[verify-payment] profile update failed", upErr.message);
+    }
+
+    // Send email notification on success
+    try {
+      const { data: userData } = await supabase.auth.admin.getUserById(paymentRow.user_id);
+      if (userData?.user?.email) {
+        const emailPayload = {
+          type: "payment",
+          email: userData.user.email,
+          name: userData.user.user_metadata?.full_name || userData.user.email,
+          plan: paymentRow.plan,
+          amount: String(paymentRow.amount),
+        };
+        await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(emailPayload),
+        });
+        console.log(`[verify-payment] Payment confirmation email sent to ${userData.user.email}`);
+      }
+    } catch (emailErr) {
+      console.error("[verify-payment] failed to send email:", emailErr);
+    }
+
+    // Business advert fallback: create advert if plan was a paid business package
+    if (BUSINESS_PLANS.has(paymentRow.plan)) {
+      try {
+        const advertDetails = parseAdvertMetadata(paymentRow.metadata);
+        const packageType = paymentRow.plan === 'business_weekly'
+          ? 'weekly'
+          : paymentRow.plan === 'business_monthly'
+            ? 'monthly'
+            : 'featured';
+
+        const existingAdQuery = supabase
+          .from('advertisements')
+          .select('id')
+          .eq('owner_id', paymentRow.user_id)
+          .eq('package', packageType)
+          .limit(1);
+
+        if (advertDetails?.title) {
+          existingAdQuery.eq('title', String(advertDetails.title));
+        }
+
+        const { data: existingAd } = await existingAdQuery.maybeSingle();
+        if (!existingAd) {
+          const startsAt = new Date().toISOString();
+          const durationDays = paymentRow.plan === 'business_weekly' ? 7 : 30;
+          const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+          const title = String(advertDetails?.title || 'New Business Advert');
+          const businessName = String(advertDetails?.businessName || paymentRow.user_id);
+          const description = String(advertDetails?.description || 'Promote your business to JobBridge users');
+          const category = String(advertDetails?.category || 'Other');
+          const imageUrl = advertDetails?.image_url ? String(advertDetails.image_url) : advertDetails?.imageUrl ? String(advertDetails.imageUrl) : null;
+          const websiteUrl = advertDetails?.website_url ? String(advertDetails.website_url) : advertDetails?.websiteUrl ? String(advertDetails.websiteUrl) : null;
+          const featured = paymentRow.plan === 'business_featured' || Boolean(advertDetails?.featured);
+
+          const { error: advertErr } = await supabase.from('advertisements').insert([{ 
+            owner_id: paymentRow.user_id,
+            business_name: businessName,
+            title,
+            description,
+            category,
+            package: packageType,
+            is_featured: featured,
+            image_url: imageUrl,
+            website_url: websiteUrl,
+            starts_at: startsAt,
+            expires_at: expiresAt,
+            status: 'active',
+            views: 0,
+            clicks: 0,
+            payment_status: 'paid',
+            amount_paid: paymentRow.amount,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }]);
+
+          if (advertErr) {
+            console.error('[verify-payment] Failed to create business advert fallback:', advertErr.message || advertErr);
+          } else {
+            console.log('[verify-payment] Created fallback business advert for payment', paymentRow.reference);
+          }
+        }
+      } catch (advertError) {
+        console.error('[verify-payment] business advert fallback failed:', advertError);
+      }
     }
 
     return new Response(JSON.stringify({ verified: true }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });

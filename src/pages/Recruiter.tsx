@@ -41,7 +41,7 @@ import Card3D from '../components/Card3D';
 export default function Recruiter() {
   const { openModal } = useModal();
   const { openProtectedModal } = useAuthRequired();
-  const { user, subscription } = useAuth();
+  const { user, subscription, subscriptionLoaded } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [postJobOpened, setPostJobOpened] = useState(false);
@@ -77,13 +77,15 @@ export default function Recruiter() {
   useEffect(() => {
     if (!shouldOpenPostJob || postJobOpened) return;
     setPostJobOpened(true);
+    if (!subscriptionLoaded) return;
+
     if (subscription.status === 'active') {
       openProtectedModal({ action: 'post-job', requiredRole: 'recruiter' });
       navigate('/recruiter', { replace: true });
       return;
     }
     navigate('/pricing', { replace: true });
-  }, [shouldOpenPostJob, postJobOpened, subscription.status, openProtectedModal, navigate]);
+  }, [shouldOpenPostJob, postJobOpened, subscription.status, subscriptionLoaded, openProtectedModal, navigate]);
 
   // Refresh when jobs are posted
   useEffect(() => {
