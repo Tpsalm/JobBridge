@@ -50,7 +50,7 @@ interface AuthContextType {
     role: UserRole,
     company?: string,
     serviceCategory?: string,
-  ) => Promise<{ error: Error | null; session: any | null }>;
+  ) => Promise<{ error: Error | null; session: any | null; emailWarning?: string | null }>;
   signIn: (
     email: string,
     password: string,
@@ -82,7 +82,7 @@ const AuthContext = createContext<AuthContextType>({
   appliedJobs: [],
   toggleSaveJob: () => {},
   markApplied: () => {},
-  signUp: async () => ({ error: null, session: null }),
+  signUp: async () => ({ error: null, session: null, emailWarning: null }),
   signIn: async () => ({ error: null }),
   signOut: async () => {},
   resetPassword: async () => ({ error: null }),
@@ -276,6 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       fullName?: string,
       role?: string,
       company?: string,
+      serviceCategory?: string,
     ) => {
       const meta = authUser?.user_metadata || {};
       const payload: Record<string, any> = {
@@ -289,7 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       // Store service_category if provided
-      const svcCat = meta.service_category;
+      const svcCat = serviceCategory || meta.service_category;
       if (svcCat) {
         payload.service_category = svcCat;
       }
@@ -556,6 +557,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fullName,
           role || "job_seeker",
           company,
+          serviceCategory,
         );
 
         if (profileWriteError) {
@@ -565,8 +567,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
         }
 
+        let emailWarning: string | null = null;
+
         const welcomeSent = await sendEmail({ type: "welcome", email, name: fullName });
         if (!welcomeSent) {
+          emailWarning =
+            "Account created, but we could not send the welcome email. Please check your inbox or contact support.";
           console.warn("[AuthContext signUp] welcome email send failed");
         }
 
@@ -576,15 +582,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           name: fullName,
         });
         if (!profileReminderSent) {
+          emailWarning = emailWarning
+            ? "Account created, but some onboarding emails could not be delivered. Please check your inbox or contact support."
+            : "Account created, but we could not send the profile reminder email. Please check your inbox or contact support.";
           console.warn("[AuthContext signUp] profile reminder email send failed");
         }
 
-        await updateProfile(authUser.id, {
-          profile_reminder_sent_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+        try {
+          await updateProfile(authUser.id, {
+            profile_reminder_sent_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        } catch (updateError) {
+          if (isMissingSchemaColumnError(updateError, "profile_reminder_sent_at")) {
+            console.warn(
+              "[AuthContext signUp] profile_reminder_sent_at not available yet; skipping timestamp write",
+            );
+            await updateProfile(authUser.id, {
+              updated_at: new Date().toISOString(),
+            });
+          } else {
+            console.error("[AuthContext signUp] failed to update reminder timestamp:", updateError);
+          }
+        }
 
-        // Notify admin when a recruiter signs up
         if (role === "recruiter") {
           const recruiterNoticeSent = await sendEmail({
             type: "new_recruiter",
@@ -595,20 +616,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.warn("[AuthContext signUp] recruiter notification email send failed");
           }
         }
+
+        return { error: null, session: newSession, emailWarning };
       }
 
       // If no session returned (email confirmation required), return success with null session
       if (!newSession) {
         if (authUser) {
-          return { error: null, session: null };
+          return { error: null, session: null, emailWarning: null };
         }
         return {
           error: new Error("Could not create account. Please try again."),
           session: null,
+          emailWarning: null,
         };
       }
 
-      return { error: null, session: newSession };
+      return { error: null, session: newSession, emailWarning: null };
     } catch (error: any) {
       // Safely extract message from any error shape (class instance, plain object, string)
       let msg = "";
@@ -675,15 +699,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data?.user?.id && signedInUserEmail) {
         void (async () => {
           try {
-            const { data: profileData, error: profileError } = await supabase
-              .from("profiles")
-              .select(
-                "role,full_name,phone,location,professional_headline,years_of_experience,bio,specialty,hourly_rate,skills,profile_reminder_sent_at",
-              )
-              .eq("id", data.user.id)
-              .maybeSingle();
+            let profileData: any = null;
+            let hasReminderColumn = true;
 
-            if (profileError || !profileData) return;
+            try {
+              const { data: result, error: profileError } = await supabase
+                .from("profiles")
+                .select(
+                  "role,full_name,phone,location,professional_headline,years_of_experience,bio,specialty,hourly_rate,skills,profile_reminder_sent_at",
+                )
+                .eq("id", data.user.id)
+                .maybeSingle();
+
+              if (profileError) throw profileError;
+              profileData = result;
+            } catch (fetchError) {
+              if (isMissingSchemaColumnError(fetchError, "profile_reminder_sent_at")) {
+                hasReminderColumn = false;
+                const { data: result, error: profileError } = await supabase
+                  .from("profiles")
+                  .select(
+                    "role,full_name,phone,location,professional_headline,years_of_experience,bio,specialty,hourly_rate,skills",
+                  )
+                  .eq("id", data.user.id)
+                  .maybeSingle();
+
+                if (profileError) throw profileError;
+                profileData = result;
+              } else {
+                return;
+              }
+            }
+
+            if (!profileData) return;
 
             const fields = [
               profileData.full_name,
@@ -706,11 +754,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const completedFields = fields.filter((value) => Boolean(value && String(value).trim())).length;
             const isComplete = totalFields > 0 && completedFields / totalFields >= PROFILE_REMINDER_THRESHOLD;
 
-            const lastSentAt = profileData.profile_reminder_sent_at
+            const lastSentAt = hasReminderColumn && profileData.profile_reminder_sent_at
               ? new Date(profileData.profile_reminder_sent_at).getTime()
               : 0;
             const now = Date.now();
-            const reminderExpired = !lastSentAt || now - lastSentAt >= PROFILE_REMINDER_WINDOW_MS;
+            const reminderExpired = hasReminderColumn && (!lastSentAt || now - lastSentAt >= PROFILE_REMINDER_WINDOW_MS);
 
             if (!isComplete && reminderExpired) {
               await sendEmail({
@@ -718,10 +766,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 email: signedInUserEmail,
                 name: signedInUserName,
               });
-              await updateProfile(data.user.id, {
-                profile_reminder_sent_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              });
+              try {
+                await updateProfile(data.user.id, {
+                  profile_reminder_sent_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                });
+              } catch (updateError) {
+                if (isMissingSchemaColumnError(updateError, "profile_reminder_sent_at")) {
+                  console.warn(
+                    "[AuthContext signIn] profile_reminder_sent_at column missing; skipping timestamp write",
+                  );
+                  await updateProfile(data.user.id, {
+                    updated_at: new Date().toISOString(),
+                  });
+                } else {
+                  console.error("[AuthContext signIn] failed to update reminder timestamp:", updateError);
+                }
+              }
             }
           } catch {
             // ignore reminder failures
@@ -750,6 +811,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: currentName,
       });
     }
+  };
+
+  const isMissingSchemaColumnError = (error: any, columnName: string) => {
+    if (!error) return false;
+    const msg = String(error?.message || error?.details || error?.hint || error?.code || "");
+    return (
+      msg.includes(columnName) ||
+      msg.includes("schema cache") ||
+      msg.includes("could not find the") ||
+      msg.includes("unknown column")
+    );
   };
 
   /**

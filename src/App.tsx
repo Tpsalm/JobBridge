@@ -88,7 +88,7 @@ export default function App() {
               path="/settings"
               element={<Navigate to="/profile" replace />}
             />
-            <Route path="/profile" element={<Profile />} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="*" element={<Home />} />
           </Routes>
           <Suspense fallback={null}>

@@ -74,20 +74,27 @@ export default function Providers() {
 
   useEffect(() => {
     fetchProviders().then(data => {
-      const mapped: ProviderDisplay[] = data.map(p => ({
-        id: p.id,
-        name: p.full_name || 'Provider',
-        specialty: p.specialty || 'Professional',
-        rating: 4.8,
-        reviews: p.reviews_count || 0,
-        hourlyRate: p.hourly_rate || 0,
-        specializations: (p.skills || []).slice(0, 3),
-        img: p.avatar_url || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2&fit=crop&crop=face',
-        bgColor: getBgColor(p.id),
-        verified: p.is_verified || false,
-        featured: p.is_featured || false,
-        tier: p.subscription?.tier || 'basic',
-      }));
+      const mapped: ProviderDisplay[] = data.map(p => {
+        const specialty = p.specialty || p.service_category || 'Professional';
+        const specializations = Array.from(
+          new Set([...(p.skills || []), p.service_category].filter(Boolean) as string[]),
+        ).slice(0, 3);
+
+        return {
+          id: p.id,
+          name: p.full_name || 'Provider',
+          specialty,
+          rating: 4.8,
+          reviews: p.reviews_count || 0,
+          hourlyRate: p.hourly_rate || 0,
+          specializations,
+          img: p.avatar_url || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2&fit=crop&crop=face',
+          bgColor: getBgColor(p.id),
+          verified: p.is_verified || false,
+          featured: p.is_featured || false,
+          tier: (p.subscription_tier as string) || p.subscription?.tier || 'basic',
+        };
+      });
       setProviders(mapped);
     }).catch(() => {});
   }, []);
@@ -177,7 +184,10 @@ export default function Providers() {
               <h3 className="font-bold text-gray-900 truncate">{provider.name}</h3>
               {provider.verified && <BadgeCheck className="w-4 h-4 text-blue-600 shrink-0" />}
             </div>
-            <p className="text-sm text-gray-600">{provider.specialty}</p>
+            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
+              <span className="text-sm text-gray-600">{provider.specialty}</span>
+              <span className="rounded-full bg-gray-100 text-gray-600 px-2 py-0.5">{provider.tier}</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2 mb-3">

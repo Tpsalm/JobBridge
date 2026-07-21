@@ -22,6 +22,7 @@ import {
   HelpCircle,
   Shield,
   LogOut,
+  Loader2,
 } from "lucide-react";
 import JobBridgeLogo from "./JobBridgeLogo";
 
@@ -46,7 +47,7 @@ const moreLinks = [
 ];
 
 export default function Header() {
-  const { user, profile, isAuthenticated, savedJobs, signOut } = useAuth();
+  const { user, profile, isAuthenticated, loading: authLoading, savedJobs, signOut } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -285,15 +286,26 @@ export default function Header() {
               title="Notifications"
             >
               <Bell className="w-5 h-5" />
-              {notifCount > 0 && (
+              {authLoading ? (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                </span>
+              ) : notifCount > 0 ? (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow">
                   {notifCount > 9 ? "9+" : notifCount}
                 </span>
-              )}
+              ) : null}
             </Link>
 
             {/* Profile Dropdown or Login */}
-            {isAuthenticated ? (
+            {authLoading ? (
+              <div className="flex items-center gap-2 ml-2">
+                <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="ml-2">Checking...</span>
+                </span>
+              </div>
+            ) : isAuthenticated ? (
               <div className="relative" ref={profileRef}>
                 <button
                   onClick={() => setProfileOpen(!profileOpen)}
@@ -440,7 +452,12 @@ export default function Header() {
 
             {/* Mobile: Profile or Login */}
             <div className="pt-2 border-t border-gray-100 mt-2">
-              {isAuthenticated ? (
+              {authLoading ? (
+                <div className="flex items-center gap-3 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Checking login status...
+                </div>
+              ) : isAuthenticated ? (
                 <>
                   <Link
                     to="/profile"

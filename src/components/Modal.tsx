@@ -954,12 +954,23 @@ function SignupModal({ data, onClose }: { data: { pendingAction?: string; requir
     setLoading(true);
     setError(null);
 
-    const { error: signupError, session: newSession } = await signUp(formData.email, formData.password, formData.name, selectedRole);
+    const { error: signupError, session: newSession, emailWarning } = await signUp(
+      formData.email,
+      formData.password,
+      formData.name,
+      selectedRole,
+    );
 
     if (signupError) {
       setError(signupError.message);
       setLoading(false);
       return;
+    }
+
+    if (emailWarning) {
+      window.dispatchEvent(new CustomEvent('jobbridge:toast', {
+        detail: { message: emailWarning, type: 'warning' },
+      }));
     }
 
     setLoading(false);

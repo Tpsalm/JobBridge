@@ -46,8 +46,14 @@ serve(async (req) => {
     for (const item of items) {
       const attempts = Number(item.attempts || 0);
       const payload = item.payload || {};
+      const safeFrom = (payload.from || 'JobBridge <onboarding@resend.dev>').trim();
+      const normalizedFrom = safeFrom.toLowerCase();
+      const finalFrom = normalizedFrom.includes('@jobbridge.com.ng') || normalizedFrom.includes('@www.jobbridge.com.ng')
+        ? 'JobBridge <onboarding@resend.dev>'
+        : safeFrom;
+
       const body = {
-        from: payload.from || 'JobBridge <onboarding@resend.dev>',
+        from: finalFrom,
         to: item.email,
         subject: payload.subject || 'JobBridge',
         html: payload.html || '<p></p>',

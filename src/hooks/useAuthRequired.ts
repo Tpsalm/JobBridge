@@ -8,8 +8,10 @@ interface AuthActionOptions {
 }
 
 export function useAuthRequired() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, profile } = useAuth();
   const { openModal } = useModal();
+
+  const userRole = profile?.role || user?.user_metadata?.role || user?.role;
 
   const executeIfAuthenticated = (options: AuthActionOptions): boolean => {
     if (!isAuthenticated) {
@@ -22,7 +24,7 @@ export function useAuthRequired() {
     }
 
     // Check if user has the required role
-    if (options.requiredRole && user?.role !== options.requiredRole) {
+    if (options.requiredRole && userRole !== options.requiredRole) {
       openModal('auth-required', {
         pendingAction: options.action,
         requiredRole: options.requiredRole,

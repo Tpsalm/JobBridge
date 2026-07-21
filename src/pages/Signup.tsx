@@ -58,6 +58,7 @@ export default function Signup() {
   const [emailError, setEmailError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [emailStatusMessage, setEmailStatusMessage] = useState<string | null>(null);
 
   // Resend state
   const [resending, setResending] = useState(false);
@@ -157,7 +158,7 @@ export default function Signup() {
     (async () => {
       setLoading(true);
       try {
-        const { error: signupErr, session: newSession } = await signUp(
+        const { error: signupErr, session: newSession, emailWarning } = await signUp(
           formData.email,
           formData.password,
           formData.name,
@@ -181,6 +182,12 @@ export default function Signup() {
           );
           setLoading(false);
           return;
+        }
+
+        if (emailWarning) {
+          setEmailStatusMessage(emailWarning);
+        } else {
+          setEmailStatusMessage(null);
         }
 
         if (newSession) {
@@ -225,6 +232,7 @@ export default function Signup() {
     setError(null);
     setNameError("");
     setEmailError("");
+    setEmailStatusMessage(null);
   };
 
   // ── Shared background ──
@@ -376,6 +384,12 @@ export default function Signup() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
             <p className="text-gray-500 mb-2">We sent a confirmation link to</p>
             <p className="font-semibold text-gray-900 mb-6">{formData.email}</p>
+            {emailStatusMessage ? (
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-6 text-left text-amber-800">
+                <p className="font-semibold">Email delivery issue</p>
+                <p className="text-sm mt-1">{emailStatusMessage}</p>
+              </div>
+            ) : null}
 
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-left">
               <h3 className="font-semibold text-sm text-blue-800 mb-2">What happens next?</h3>
