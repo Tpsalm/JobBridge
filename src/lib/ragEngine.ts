@@ -7,7 +7,8 @@ import { aiChat, aiChatStream, aiEmbed } from "./aiBackend";
 
 // All AI operations are now handled through the secure backend.
 // API keys are server-side only and never exposed to the client.
-const LLM_MODEL = "gpt-4o-mini";
+const LLM_MODEL = "gemini-2.0-flash";
+const LLM_PROVIDER = "Google Gemini";
 
 const TOP_K = 8;
 const MAX_HISTORY = 30;
@@ -545,7 +546,7 @@ export function hasApiKey(): boolean {
 export function getModelInfo(): { model: string; provider: string } {
   return {
     model: LLM_MODEL,
-    provider: USE_DEEPSEEK ? "DeepSeek" : "OpenAI",
+    provider: LLM_PROVIDER,
   };
 }
 
@@ -804,7 +805,7 @@ function buildConversationalResponse(
     )
   ) {
     if (historyLength === 0) {
-      return `${timeGreeting}. I am your JobBridge AI Career Agent powered by ${USE_DEEPSEEK ? "DeepSeek V4 Flash" : "advanced AI"}. I have deep knowledge of all JobBridge pages and can navigate you anywhere. How can I help you today?`;
+      return `${timeGreeting}. I am your JobBridge AI Career Agent powered by ${LLM_PROVIDER}. I have deep knowledge of all JobBridge pages and can navigate you anywhere. How can I help you today?`;
     }
     return "Hello again. I am ready to help you with any JobBridge page or task.";
   }
@@ -814,7 +815,7 @@ function buildConversationalResponse(
       lower,
     )
   ) {
-    return `I am the JobBridge AI Career Agent (powered by ${USE_DEEPSEEK ? "DeepSeek V4 Flash" : "advanced AI"}). I can:\n- Guide you to any JobBridge page\n- Explain features, pricing, and how-to guides\n- Help with profile, jobs, recruiter tools\n- Detect what you need and route you there\n- Answer questions about the platform`;
+    return `I am the JobBridge AI Career Agent (powered by ${LLM_PROVIDER}). I can:\n- Guide you to any JobBridge page\n- Explain features, pricing, and how-to guides\n- Help with profile, jobs, recruiter tools\n- Detect what you need and route you there\n- Answer questions about the platform`;
   }
 
   if (/^(thanks|thank you|appreciate it)/i.test(lower)) {
@@ -920,45 +921,14 @@ async function streamLLM(
   onToken: (token: string) => void,
 ): Promise<string> {
   // Call the backend AI service (which handles OpenAI/DeepSeek internally)
-  const messageList = messages.map((m) => ({
-    role: m.role,
-    name: m.name,
-    tool_call_id: m.tool_call_id,
-    content: m.content,
-  }));
+  const messageList = messages
+    .filter((m) => m.role === "user" || m.role === "system" || m.role === "assistant")
+    .map((m) => ({
+      role: m.role,
+      content: m.content || "",
+    }));
 
   return await aiChatStream(messageList, onToken);
-
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let full = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const data = trimmed.slice(5).trim();
-      if (data === "[DONE]") continue;
-      try {
-        const parsed = JSON.parse(data);
-        const token = parsed.choices?.[0]?.delta?.content || "";
-        if (token) {
-          full += token;
-          onToken(token);
-        }
-      } catch {}
-    }
-  }
-
-  return full;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1106,23 +1076,24 @@ ${pageState.domSummary || "No page context available."}`,
     step++;
     onPhase(detectedIntent ? `Analyzing for ${getPageTitleForIntent(detectedIntent)}...` : "Reasoning...");
 
-    // Call backend AI service which handles OpenAI/DeepSeek internally
-    const messageList = loopMessages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // Call backend AI service which handles AI internally
+    const messageList = loopMessages
+      .filter((m) => m.role === "user" || m.role === "system" || m.role === "assistant")
+      .map((m) => ({
+        role: m.role,
+        content: m.content || "",
+      }));
 
     try {
       const result = await aiChat(messageList);
-      const json = { choices: [{ message: { content: result } }] };
-    const assistantMsg = json.choices?.[0]?.message;
+      const assistantMsg: { content: string; tool_calls?: any[] } = { content: result };
 
-    if (!assistantMsg) {
-      throw new Error("Empty assistant message from API");
-    }
+      if (!assistantMsg.content && !assistantMsg.tool_calls) {
+        throw new Error("Empty assistant message from API");
+      }
 
-    // Check if assistant made tool calls
-    if (assistantMsg.tool_calls && assistantMsg.tool_calls.length > 0) {
+      // Check if assistant made tool calls
+      if (assistantMsg.tool_calls && assistantMsg.tool_calls.length > 0) {
       loopMessages.push({
         role: "assistant",
         content: null,
@@ -1344,7 +1315,7 @@ export async function streamAnswer(
     }
 
     // 2. Local fallback mode if no API key is set
-    if (!LLM_API_KEY) {
+    if (false) {
       onPhase("Searching knowledge base...");
       const { sections, detectedIntents } = retrieveRelevant(
         questionClean,
@@ -1389,7 +1360,7 @@ export async function streamAnswer(
       return;
     }
 
-    // 3. Agentic loop execution with DeepSeek / OpenAI
+    // 3. Agentic loop execution with backend AI service
     const userMessage: HistoryMsg = { role: "user", content: questionClean };
     const messages = [...history, userMessage];
 
@@ -1398,7 +1369,7 @@ export async function streamAnswer(
     const msg = err?.message || "";
     if (msg.includes("401")) {
       onError(
-        `The ${USE_DEEPSEEK ? "DeepSeek" : "OpenAI"} API key is invalid. Please verify your VITE_${USE_DEEPSEEK ? "DEEPSEEK" : "OPENAI"}_API_KEY environment variable.`,
+        `The Google Gemini API key is invalid. Please verify your GEMINI_API_KEY environment variable in Supabase secrets.`,
       );
     } else if (msg.includes("429")) {
       onError("Rate limit exceeded. Please try again in a few moments.");
