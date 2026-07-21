@@ -671,12 +671,6 @@ export default function Payment() {
   }, []);
 
   useEffect(() => {
-    if (!paymentReference || !checkoutStarted) return;
-    setStep((current) => (current === "success" ? current : "processing"));
-    setPaying(true);
-  }, [paymentReference, checkoutStarted]);
-
-  useEffect(() => {
     if (!paymentReference || step !== "processing") return;
 
     let cancelled = false;
@@ -854,6 +848,7 @@ export default function Payment() {
       });
     } catch (koraError) {
       console.error("[Payment] Failed to initialize KoraPay:", koraError);
+      setCheckoutStarted(false);
       setPaying(false);
       setStep("kora-checkout");
       setError(
