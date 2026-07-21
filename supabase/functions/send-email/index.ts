@@ -57,6 +57,33 @@ function resolveFromEmail(rawFrom: string | undefined | null): string {
   return candidate;
 }
 
+const FALLBACK_FROM_EMAIL = 'JobBridge <onboarding@resend.dev>';
+
+function resolveSafeResendFrom(rawFrom: string | undefined | null): string {
+  const fallback = FALLBACK_FROM_EMAIL;
+  const candidate = (rawFrom || '').trim();
+  if (!candidate) return fallback;
+
+  const normalized = candidate.toLowerCase();
+  if (normalized.includes('@jobbridge.com.ng') || normalized.includes('@www.jobbridge.com.ng')) {
+    console.warn('[Send Email] RESEND_FROM is unverified. Falling back to safe resend.dev sender:', candidate);
+    return fallback;
+  }
+
+  return candidate;
+}
+
+function isUnverifiedSenderError(message: unknown): boolean {
+  const text = String(message || '').toLowerCase();
+  return (
+    text.includes('validate a domain') ||
+    text.includes('testing emails') ||
+    text.includes('sender address') ||
+    text.includes('unverified sender') ||
+    text.includes('unverified domain')
+  );
+}
+
 function wrapHtml(body: string, title = 'JobBridge'): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${title}</title></head>
 <body style="margin:0;padding:0;background:${BRAND_BG};font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;color:${BRAND_TEXT};">
@@ -466,6 +493,7 @@ serve(async (req) => {
     }
 
     const senderEmail = resolveFromEmail(from);
+    const verifiedFromEmail = resolveSafeResendFrom(RESEND_FROM || senderEmail);
 
     async function postWithRetry(url: string, body: any, attempts = 3) {
       let lastErr: any = null;
@@ -535,11 +563,37 @@ serve(async (req) => {
       }
     }
 
-    const payload: any = { from: RESEND_FROM || senderEmail, to: cleanEmail, subject, html: finalHtml };
+    const payload: any = { from: verifiedFromEmail, to: cleanEmail, subject, html: finalHtml };
     if (RESEND_REPLY_TO) payload.reply_to = RESEND_REPLY_TO;
     if (RESEND_RETURN_PATH) payload.return_path = RESEND_RETURN_PATH;
 
-    const res = await postWithRetry('https://api.resend.com/emails', payload);
+    let res;
+    try {
+      res = await postWithRetry('https://api.resend.com/emails', payload);
+    } catch (err) {
+      const errText = String(err || 'Unknown error');
+      if (verifiedFromEmail !== FALLBACK_FROM_EMAIL && isUnverifiedSenderError(errText)) {
+        console.warn('[Send Email] Retrying with safe resend.dev sender due to unverified sender error:', errText);
+        payload.from = FALLBACK_FROM_EMAIL;
+
+        try {
+          res = await postWithRetry('https://api.resend.com/emails', payload);
+        } catch (fallbackErr) {
+          const fallbackText = String(fallbackErr || 'Unknown error');
+          console.error(`Resend retry error (${type}) status=failed:`, fallbackText);
+          return new Response(JSON.stringify({ error: 'Failed to send email after retry', details: fallbackText }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      } else {
+        console.error(`Resend error (${type}) status=failed:`, errText);
+        return new Response(JSON.stringify({ error: 'Failed to send email', details: errText }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
     if (!res.ok) {
       const errText = await res.text();

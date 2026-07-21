@@ -163,6 +163,7 @@ export async function fetchProviders() {
     .from("profiles")
     .select("*")
     .eq("role", "provider")
+    .neq("is_active", false)
     .order("is_featured", { ascending: false })
     .order("is_verified", { ascending: false })
     .order("reviews_count", { ascending: false });
@@ -176,10 +177,8 @@ export async function updateProfile(
 ) {
   const { data, error } = await supabase
     .from("profiles")
-    .upsert(
-      { id: userId, ...updates, updated_at: new Date().toISOString() },
-      { onConflict: "id" },
-    )
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", userId)
     .select()
     .single();
   if (error) throw error;
@@ -212,7 +211,7 @@ export async function subscribeToBlog(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
   const { error } = await supabase
     .from("blog_subscribers")
-    .upsert([{ email: normalizedEmail }], { onConflict: "email" });
+    .insert([{ email: normalizedEmail }]);
 
   if (error) {
     // Treat unique constraint as success so repeated subscriptions don't fail the UI.

@@ -28,6 +28,7 @@ import {
   Settings,
   Search,
   X,
+  Loader2,
 } from "lucide-react";
 import PageHero from "../components/PageHero";
 import { HERO_CAROUSELS } from "../lib/media";
@@ -97,7 +98,7 @@ function formatRelativeTime(value: string): string {
 }
 
 export default function Notifications() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [alerts, setAlerts] = useState<JobAlertWithCount[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -533,17 +534,28 @@ export default function Notifications() {
           </div>
 
           {!isAuthenticated ? (
-            <div className="bg-gray-50 rounded-xl p-8 text-center">
-              <p className="text-sm text-gray-500 mb-3">
-                Sign in to see your notifications
-              </p>
-              <Link
-                to="/login"
-                className="text-blue-600 text-sm font-medium hover:underline"
-              >
-                Sign in
-              </Link>
-            </div>
+            authLoading ? (
+              <div className="bg-gray-50 rounded-xl p-8 text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 mx-auto mb-4">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                </div>
+                <p className="text-sm text-gray-500">
+                  Checking your login status...
+                </p>
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-xl p-8 text-center">
+                <p className="text-sm text-gray-500 mb-3">
+                  Sign in to see your notifications
+                </p>
+                <Link
+                  to="/login"
+                  className="text-blue-600 text-sm font-medium hover:underline"
+                >
+                  Sign in
+                </Link>
+              </div>
+            )
           ) : loading ? (
             <div className="bg-gray-50 rounded-xl p-8 text-center">
               <p className="text-sm text-gray-500">Loading notifications...</p>

@@ -212,7 +212,7 @@ function formatNaira(n: number): string {
 export default function Payment() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, fetchSubscription, fetchAiSubscription, isAuthenticated } = useAuth();
+  const { user, fetchSubscription, fetchAiSubscription, isAuthenticated, loading: authLoading } = useAuth();
   const { push } = useToasts();
 
   const planKey = searchParams.get("plan") || "basic";
@@ -226,11 +226,6 @@ export default function Payment() {
   const [koraReady, setKoraReady] = useState(false);
   const [koraLoading, setKoraLoading] = useState(false);
   const [checkoutStarted, setCheckoutStarted] = useState(false);
-  const koraRetryCountRef = useRef(0);
-
-  const isGatewayLoading = !koraReady && koraLoading;
-  const isGatewayUnavailable = !koraReady && !koraLoading;
-  const isCheckoutOpening = checkoutStarted && !paymentReference;
   const [paymentReference, setPaymentReference] = useState<string>(() => {
     try {
       return sessionStorage.getItem(PENDING_PAYMENT_STORAGE_KEY) || "";
@@ -238,6 +233,11 @@ export default function Payment() {
       return "";
     }
   });
+  const koraRetryCountRef = useRef(0);
+
+  const isGatewayLoading = !koraReady && koraLoading;
+  const isGatewayUnavailable = !koraReady && !koraLoading;
+  const isCheckoutOpening = checkoutStarted && !paymentReference;
 
   const originalPaymentReferenceRef = useRef<string>("");
   const koraCompletedRef = useRef(false);
@@ -858,6 +858,24 @@ export default function Payment() {
   };
 
   function renderKoraCheckoutScreen() {
+    if (authLoading) {
+      return (
+        <div className="max-w-[420px] mx-auto text-center">
+          <div className="mb-8">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 mb-4">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+              Checking your account
+            </h1>
+            <p className="text-sm text-gray-500 mt-2">
+              Please wait while we confirm your login status.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (!isAuthenticated) {
       return (
         <div className="max-w-[420px] mx-auto text-center">

@@ -16,6 +16,7 @@ import {
   Camera,
   Check,
   Loader,
+  Loader2,
   User,
   Phone,
   Award,
@@ -78,7 +79,7 @@ function ProfileCompletionRing({ percentage }: { percentage: number }) {
 }
 
 export default function Profile() {
-  const { user, profile: userProfile, updatePassword } = useAuth();
+  const { user, profile: userProfile, updatePassword, isAuthenticated, loading: authLoading } = useAuth();
   const { push } = useToasts();
   const navigate = useNavigate();
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -505,6 +506,42 @@ export default function Profile() {
   const missingFields = activeFields
     .filter(([key]) => !form[key]?.trim() && key !== "phone")
     .slice(0, 3);
+
+  if (authLoading) {
+    return (
+      <div className="relative min-h-screen bg-slate-50 text-slate-900">
+        <Header />
+        <div className="mx-auto max-w-4xl px-4 py-24 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mx-auto mb-6">
+            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+          </div>
+          <h1 className="text-2xl font-bold">Loading your profile...</h1>
+          <p className="mt-3 text-sm text-slate-600">Please wait while we confirm your account.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <div className="relative min-h-screen bg-slate-50 text-slate-900">
+        <Header />
+        <div className="mx-auto max-w-4xl px-4 py-24 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mx-auto mb-6">
+            <ShieldCheck className="w-6 h-6 text-slate-700" />
+          </div>
+          <h1 className="text-2xl font-bold">Please sign in</h1>
+          <p className="mt-3 text-sm text-slate-600">You must be signed in to view and edit your profile.</p>
+          <button
+            onClick={() => navigate(`/login?redirect=${encodeURIComponent('/profile')}`)}
+            className="mt-8 rounded-2xl bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition"
+          >
+            Sign in to continue
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_transparent_35%),linear-gradient(135deg,_#f8fbff_0%,_#eef5ff_45%,_#f8fbff_100%)] text-slate-900">
