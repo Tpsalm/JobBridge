@@ -1254,11 +1254,20 @@ ${pageState.domSummary || "No page context available."}`,
       onDone(cleanAssistantText(finalContent), sourceInfo);
       return;
     }
+  } catch (reasoningError: any) {
+    onError(
+      String(
+        reasoningError?.message ||
+          "An unexpected error occurred during reasoning. Please try again or contact support.",
+      ),
+    );
+    return;
   }
 
   onError(
     "Agent reached the maximum reasoning steps. Please try rephrasing your question or visit jobbridgesupport@gmail.com.",
   );
+  }
 }
 
 function extractSourcesFromLoop(

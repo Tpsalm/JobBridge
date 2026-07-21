@@ -225,7 +225,12 @@ export default function Payment() {
   const [error, setError] = useState<ReactNode>("");
   const [koraReady, setKoraReady] = useState(false);
   const [koraLoading, setKoraLoading] = useState(false);
+  const [checkoutStarted, setCheckoutStarted] = useState(false);
   const koraRetryCountRef = useRef(0);
+
+  const isGatewayLoading = !koraReady && koraLoading;
+  const isGatewayUnavailable = !koraReady && !koraLoading;
+  const isCheckoutOpening = checkoutStarted && !paymentReference;
   const [paymentReference, setPaymentReference] = useState<string>(() => {
     try {
       return sessionStorage.getItem(PENDING_PAYMENT_STORAGE_KEY) || "";
@@ -254,6 +259,7 @@ export default function Payment() {
     // modal from reopening.
     setKoraReady(false);
     setKoraLoading(false);
+    setCheckoutStarted(false);
   };
 
   const customerEmail = user?.email || "user@example.com";
@@ -304,6 +310,267 @@ export default function Payment() {
     }
   };
 
+  const initializePaymentState = () => {
+    setPaying(true);
+    setError("");
+    setPaid(false);
+    koraCompletedRef.current = false;
+  };
+
+  const loadPendingAdvert = () => {
+    if (!(plan as any).business) return null;
+    try {
+      const raw = sessionStorage.getItem('jb_pending_advert');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const buildPaymentMetadata = () => {
+    const metadata: Record<string, unknown> = {
+      source: 'korapay_checkout_standard',
+      plan_name: plan.name,
+    };
+
+    const pendingAdvert = loadPendingAdvert();
+    if (pendingAdvert) {
+      metadata.advert = pendingAdvert;
+    }
+
+    return metadata;
+  };
+
+  const recordPendingPayment = async (
+    reference: string,
+    paymentMetadata: Record<string, unknown>,
+  ) => {
+    await recordPayment({
+      user_id: user.id,
+      plan: planKey,
+      amount: plan.price,
+      reference,
+      status: 'pending',
+      currency: 'NGN',
+      metadata: paymentMetadata,
+    });
+
+    try {
+      sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, reference);
+    } catch {
+      // ignore storage failures
+    }
+
+    setPaymentReference(reference);
+  };
+
+  const notifyPendingPayment = async (reference: string) => {
+    try {
+      recordPaymentClick('pay_button');
+    } catch {
+      // ignore metrics failures
+    }
+
+    push({
+      message: `KoraPay checkout initialized. Complete your payment to activate ${plan.name}.`,
+      type: 'info',
+    });
+
+    if (user.email) {
+      sendEmail({
+        type: 'payment_initiated',
+        email: user.email,
+        name: customerName,
+        plan: plan.name,
+        amount: String(plan.price),
+      });
+    }
+  };
+
+  const handleSuccessfulPayment = async (
+    reference: string,
+    verifyPayment = true,
+  ) => {
+    setPaying(false);
+    setError("");
+    setPaid(true);
+    setStep("success");
+
+    push({
+      message: "✅ Payment successful! Redirecting to your new feature...",
+      type: "success",
+    });
+
+    let verified = false;
+    if (verifyPayment) {
+      try {
+        verified = await verifyPaymentReference(reference);
+      } catch (verifyErr) {
+        console.warn("[Payment] verifyPaymentReference failed:", verifyErr);
+      }
+    }
+
+    try {
+      if (verified) {
+        if (plan.ai) await fetchAiSubscription();
+        else await fetchSubscription();
+      }
+
+      if (!receiptSentRef.current.has(reference) && user?.email) {
+        receiptSentRef.current.add(reference);
+        sendEmail({
+          type: "payment",
+          email: user.email,
+          name: customerName,
+          plan: plan.name,
+          amount: String(plan.price),
+        });
+      }
+
+      if ((plan as any).business) {
+        try {
+          const raw = sessionStorage.getItem('jb_pending_advert');
+          if (raw) {
+            const pending = JSON.parse(raw);
+            const normalizedPackage = planKey.replace(/^business_/, "");
+            const existingAds = await fetchAdvertisementsByOwner(user.id);
+            const hasDuplicate = existingAds.some(
+              (ad) =>
+                ad.title === pending.title &&
+                ad.package === normalizedPackage &&
+                ad.owner_id === user.id,
+            );
+
+            if (!hasDuplicate) {
+              const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
+              const starts_at = new Date().toISOString();
+              const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+              const advert = await createAdvertisement({
+                owner_id: user.id,
+                business_name: pending.businessName || user.user_metadata?.full_name || user.email,
+                title: pending.title,
+                description: pending.description,
+                category: pending.category || 'Other',
+                package: normalizedPackage,
+                is_featured: planKey === 'business_featured' || pending.featured || false,
+                starts_at,
+                expires_at,
+                amount_paid: plan.price,
+              });
+
+              if (user?.email) {
+                try {
+                  sendEmail({
+                    type: 'advert_created',
+                    email: user.email,
+                    name: customerName,
+                    advertId: advert?.id ?? null,
+                  } as any);
+                } catch (e) {
+                  console.warn('Failed to send advert created email:', e);
+                }
+              }
+            }
+
+            try {
+              sessionStorage.removeItem('jb_pending_advert');
+            } catch {
+              // ignore storage failures
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to create advertisement after payment:', e);
+        }
+      }
+    } catch (backgroundErr) {
+      console.warn("[Payment] Post-success refresh failed:", backgroundErr);
+    } finally {
+      try {
+        clearPendingReference();
+      } catch {
+        // ignore
+      }
+      cleanupKora();
+      window.location.replace(successTarget);
+    }
+  };
+
+  const onKoraSuccess = async (data: {
+    reference: string;
+    payment_reference?: string;
+    transaction_reference?: string;
+    amount: string;
+    status: string;
+  }, reference: string) => {
+    koraCompletedRef.current = true;
+    const nextReference =
+      data.reference ||
+      data.payment_reference ||
+      data.transaction_reference ||
+      reference;
+
+    if (nextReference !== reference) {
+      try {
+        sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, nextReference);
+      } catch {
+        // ignore storage failures
+      }
+    }
+
+    setPaymentReference(nextReference);
+
+    await handleSuccessfulPayment(nextReference, true);
+  };
+
+  const onKoraFailed = (data: {
+    reference: string;
+    payment_reference?: string;
+    transaction_reference?: string;
+    status: string;
+  }, reference: string) => {
+    koraCompletedRef.current = true;
+    const failedReference =
+      data.reference || data.payment_reference || data.transaction_reference || reference;
+
+    setPaymentReference(failedReference);
+    setStep("processing");
+    setPaying(true);
+    setError(
+      `KoraPay reported a failed payment. We are verifying it now. Ref: ${failedReference}`,
+    );
+    push({
+      message: "KoraPay reported a failed payment. We are verifying it now.",
+      type: "error",
+    });
+    cleanupKora();
+  };
+
+  const onKoraPending = (reference: string) => {
+    koraCompletedRef.current = true;
+    setStep("processing");
+    setPaying(true);
+    setError(
+      `Payment submitted. Waiting for secure verification for ref: ${reference}`,
+    );
+    push({
+      message: "Payment is pending. We are verifying it in the background.",
+      type: "info",
+    });
+    cleanupKora();
+  };
+
+  const onKoraClose = () => {
+    koraCompletedRef.current = true;
+    cleanupKora();
+
+    if (!paid) {
+      clearPendingReference();
+      setPaying(false);
+      setStep("kora-checkout");
+      setError("Payment cancelled before completion.");
+    }
+  };
+
   const loadKoraScript = () => {
     if (typeof window === "undefined") return;
     if (window.Korapay) {
@@ -314,10 +581,12 @@ export default function Payment() {
     }
 
     if (document.getElementById("kora-script")) {
+      setKoraReady(false);
       setKoraLoading(true);
       return;
     }
 
+    setKoraReady(false);
     setKoraLoading(true);
     const script = document.createElement("script");
     script.id = "kora-script";
@@ -402,10 +671,10 @@ export default function Payment() {
   }, []);
 
   useEffect(() => {
-    if (!paymentReference) return;
+    if (!paymentReference || !checkoutStarted) return;
     setStep((current) => (current === "success" ? current : "processing"));
     setPaying(true);
-  }, [paymentReference]);
+  }, [paymentReference, checkoutStarted]);
 
   useEffect(() => {
     if (!paymentReference || step !== "processing") return;
@@ -434,79 +703,7 @@ export default function Payment() {
         const status = String(payment.status || "").toLowerCase();
 
         if (status === "verified" || status === "completed") {
-          if (plan.ai) await fetchAiSubscription();
-          else await fetchSubscription();
-
-          if (!receiptSentRef.current.has(paymentReference) && user?.email) {
-            receiptSentRef.current.add(paymentReference);
-            sendEmail({
-              type: "payment",
-              email: user.email,
-              name: customerName,
-              plan: plan.name,
-              amount: String(plan.price),
-            });
-          }
-          // If this was a business advert purchase, create the advert from pending data
-          if ((plan as any).business) {
-            try {
-              const raw = sessionStorage.getItem('jb_pending_advert');
-              if (raw) {
-                const pending = JSON.parse(raw);
-                const normalizedPackage = planKey.replace(/^business_/, "");
-
-                // Avoid duplicate advert creation if the webhook already inserted it.
-                const existingAds = await fetchAdvertisementsByOwner(user.id);
-                const hasDuplicate = existingAds.some(
-                  (ad) =>
-                    ad.title === pending.title &&
-                    ad.package === normalizedPackage &&
-                    ad.owner_id === user.id,
-                );
-
-                if (!hasDuplicate) {
-                  const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
-                  const starts_at = new Date().toISOString();
-                  const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-                  const advert = await createAdvertisement({
-                    owner_id: user.id,
-                    business_name: pending.businessName || user.user_metadata?.full_name || user.email,
-                    title: pending.title,
-                    description: pending.description,
-                    category: pending.category || 'Other',
-                    package: normalizedPackage,
-                    is_featured: pending.featured || false,
-                    starts_at,
-                    expires_at,
-                    amount_paid: plan.price,
-                  });
-
-                  if (user?.email) {
-                    try {
-                      sendEmail({
-                        type: 'advert_created',
-                        email: user.email,
-                        name: customerName,
-                        advertId: advert?.id ?? null,
-                      } as any);
-                    } catch (e) {
-                      console.warn('Failed to send advert created email:', e);
-                    }
-                  }
-                }
-
-                try { sessionStorage.removeItem('jb_pending_advert'); } catch {}
-              }
-            } catch (e) {
-              console.warn('Failed to create advertisement after payment:', e);
-            }
-          }
-
-          clearPendingReference();
-          setPaying(false);
-          setError("");
-          setPaid(true);
-          setStep("success");
+          await handleSuccessfulPayment(paymentReference, false);
           return;
         }
 
@@ -595,63 +792,13 @@ export default function Payment() {
       ? `${functionsBaseUrl}/kora-webhook`
       : undefined;
 
-    setPaying(true);
-    setError("");
-    setStep("processing");
-    setPaid(false);
-    koraCompletedRef.current = false;
+    initializePaymentState();
+
+    const paymentMetadata = buildPaymentMetadata();
 
     try {
-      const pendingAdvert = (() => {
-        if (!(plan as any).business) return null;
-        try {
-          const raw = sessionStorage.getItem('jb_pending_advert');
-          return raw ? JSON.parse(raw) : null;
-        } catch {
-          return null;
-        }
-      })();
-
-      const paymentMetadata: Record<string, unknown> = {
-        source: 'korapay_checkout_standard',
-        plan_name: plan.name,
-      };
-      if (pendingAdvert) {
-        paymentMetadata.advert = pendingAdvert;
-      }
-
-      await recordPayment({
-        user_id: user.id,
-        plan: planKey,
-        amount: plan.price,
-        reference,
-        status: 'pending',
-        currency: 'NGN',
-        metadata: paymentMetadata,
-      });
-
-      try {
-        sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, reference);
-      } catch {
-        // ignore storage failures
-      }
-      setPaymentReference(reference);
-      // record user tapping Pay
-      try { recordPaymentClick('pay_button'); } catch {}
-      push({
-        message: `KoraPay checkout initialized. Complete your payment to activate ${plan.name}.`,
-        type: "info",
-      });
-
-      if (user.email) {
-        sendEmail({
-          type: "payment_initiated",
-          email: user.email,
-          name: customerName,
-          plan: plan.name,
-          amount: String(plan.price),
-        });
-      }
+      await recordPendingPayment(reference, paymentMetadata);
+      await notifyPendingPayment(reference);
     } catch (recordError) {
       console.error("[Payment] Failed to create pending payment:", recordError);
       setPaying(false);
@@ -661,6 +808,7 @@ export default function Payment() {
     }
 
     try {
+      setCheckoutStarted(true);
       window.Korapay.initialize({
         key: publicKey,
         reference,
@@ -677,170 +825,28 @@ export default function Payment() {
         },
         onSuccess: async (data) => {
           try {
-            koraCompletedRef.current = true;
-            const nextReference =
-              data.reference ||
-              data.payment_reference ||
-              data.transaction_reference ||
-              reference;
-            if (nextReference !== reference) {
-              try {
-                sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, nextReference);
-              } catch {
-                // ignore storage failures
-              }
-            }
-            setPaymentReference(nextReference);
-            
-            // ✅ IMMEDIATELY MARK SUCCESS AND REDIRECT — NO WAITING FOR BACKEND
-            // This fixes the issue where users stayed on the payment page too long
-            setPaying(false);
-            setError("");
-            setPaid(true);
-            setStep("success");
-
-            push({
-              message: "✅ Payment successful! Redirecting to your new feature...",
-              type: "success",
-            });
-
-            // Verify payment before redirecting so app state and subscription
-            // refresh are more deterministic on the destination page.
-            let verified = false;
-            try {
-              verified = await verifyPaymentReference(nextReference);
-            } catch (verifyErr) {
-              console.warn("[Payment] verifyPaymentReference failed:", verifyErr);
-            }
-
-            try {
-              if (verified) {
-                if (plan.ai) await fetchAiSubscription();
-                else await fetchSubscription();
-              }
-
-              if (!receiptSentRef.current.has(nextReference) && user?.email) {
-                receiptSentRef.current.add(nextReference);
-                sendEmail({
-                  type: "payment",
-                  email: user.email,
-                  name: customerName,
-                  plan: plan.name,
-                  amount: String(plan.price),
-                });
-              }
-
-              if ((plan as any).business) {
-                try {
-                  const raw = sessionStorage.getItem('jb_pending_advert');
-                  if (raw) {
-                    const pending = JSON.parse(raw);
-                    const normalizedPackage = planKey.replace(/^business_/, "");
-                    const existingAds = await fetchAdvertisementsByOwner(user.id);
-                    const hasDuplicate = existingAds.some(
-                      (ad) =>
-                        ad.title === pending.title &&
-                        ad.package === normalizedPackage &&
-                        ad.owner_id === user.id,
-                    );
-
-                    if (!hasDuplicate) {
-                      const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
-                      const starts_at = new Date().toISOString();
-                      const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-                      const advert = await createAdvertisement({
-                        owner_id: user.id,
-                        business_name: pending.businessName || user.user_metadata?.full_name || user.email,
-                        title: pending.title,
-                        description: pending.description,
-                        category: pending.category || 'Other',
-                        package: normalizedPackage,
-                        is_featured: pending.featured || false,
-                        starts_at,
-                        expires_at,
-                        amount_paid: plan.price,
-                      });
-
-                      if (user?.email) {
-                        try {
-                          sendEmail({
-                            type: 'advert_created',
-                            email: user.email,
-                            name: customerName,
-                            advertId: advert?.id ?? null,
-                          } as any);
-                        } catch (e) {
-                          console.warn('Failed to send advert created email:', e);
-                        }
-                      }
-                    }
-                    try { sessionStorage.removeItem('jb_pending_advert'); } catch {}
-                  }
-                } catch (e) {
-                  console.warn('Failed to create advertisement after payment:', e);
-                }
-              }
-            } catch (backgroundErr) {
-              console.warn("[Payment] Post-success refresh failed:", backgroundErr);
-            } finally {
-              try { clearPendingReference(); } catch {}
-              cleanupKora();
-              window.location.replace(successTarget);
-            }
+            await onKoraSuccess(data, reference);
           } catch (e) {
             console.error("[Payment] Error in onSuccess callback:", e);
           }
         },
         onFailed: (data) => {
           try {
-            koraCompletedRef.current = true;
-            const failedReference =
-              data.reference || data.payment_reference || data.transaction_reference || reference;
-            setPaymentReference(failedReference);
-            setStep("processing");
-            setPaying(true);
-            setError(
-              `KoraPay reported a failed payment. We are verifying it now. Ref: ${failedReference}`,
-            );
-            push({
-              message: "KoraPay reported a failed payment. We are verifying it now.",
-              type: "error",
-            });
+            onKoraFailed(data, reference);
           } catch (e) {
             console.error("[Payment] Error in onFailed callback:", e);
-          } finally {
-            cleanupKora();
           }
         },
         onPending: () => {
           try {
-            koraCompletedRef.current = true;
-            setStep("processing");
-            setPaying(true);
-            setError(
-              `Payment submitted. Waiting for secure verification for ref: ${reference}`,
-            );
-            push({
-              message: "Payment is pending. We are verifying it in the background.",
-              type: "info",
-            });
+            onKoraPending(reference);
           } catch (e) {
             console.error("[Payment] Error in onPending callback:", e);
-          } finally {
-            cleanupKora();
           }
         },
         onClose: () => {
           try {
-            koraCompletedRef.current = true;
-            cleanupKora();
-            // Only treat this as a cancellation if the user has not already paid.
-            if (!paid) {
-              clearPendingReference();
-              setPaying(false);
-              setStep("kora-checkout");
-              setError("Payment cancelled before completion.");
-            }
+            onKoraClose();
           } catch (e) {
             console.error("[Payment] Error in onClose callback:", e);
           }
@@ -1028,7 +1034,7 @@ export default function Payment() {
 
         <button
           onClick={handlePayWithKora}
-          disabled={paying || (!koraReady && koraLoading) || isProcessing}
+          disabled={paying || isProcessing || checkoutStarted || isGatewayLoading || isGatewayUnavailable}
           className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base
                      transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
                      shadow-lg shadow-[#1A4BCE]/25 hover:shadow-xl hover:shadow-[#1A4BCE]/30
@@ -1039,10 +1045,20 @@ export default function Payment() {
               <Loader2 className="w-5 h-5 animate-spin" />
               {isProcessing ? "Verifying payment..." : "Processing..."}
             </span>
-          ) : !koraReady ? (
+          ) : isCheckoutOpening ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin" />
-              {koraLoading ? "Loading payment gateway..." : "Retrying gateway setup..."}
+              Starting checkout...
+            </span>
+          ) : isGatewayLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Loading payment gateway...
+            </span>
+          ) : isGatewayUnavailable ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Retrying gateway setup...
             </span>
           ) : (
             <span className="inline-flex items-center gap-2">

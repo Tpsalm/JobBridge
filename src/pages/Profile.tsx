@@ -213,6 +213,13 @@ export default function Profile() {
     return "Job Seeker";
   }, [userProfile?.role]);
 
+  const providerBadge = useMemo(() => {
+    if (userProfile?.role !== "provider") return null;
+    if (userProfile?.is_featured) return "Featured Provider";
+    if (userProfile?.is_verified) return "Verified Provider";
+    return "Monthly Listing";
+  }, [userProfile?.role, userProfile?.is_featured, userProfile?.is_verified]);
+
   const filledFieldsCount = useMemo(
     () => activeFields.filter(([key]) => !!form[key]?.trim()).length,
     [activeFields, form],
@@ -556,6 +563,11 @@ export default function Profile() {
                     <p className="mt-1 text-sm text-slate-600">{profileHeadline}</p>
                     <p className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-slate-500 sm:justify-start">
                       <span className="rounded-full bg-slate-100 px-3 py-1">{roleLabel}</span>
+                      {providerBadge && (
+                        <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700 border border-blue-100">
+                          {providerBadge}
+                        </span>
+                      )}
                       <span className="text-slate-400">•</span>
                       <span>{primaryLocation}</span>
                     </p>
