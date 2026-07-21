@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
-import { Sparkles, FileText, Upload, Download, Send, Bot, ArrowRight, CheckCircle, AlertCircle, Lock } from 'lucide-react';
+import { Sparkles, FileText, Upload, Download, Send, Bot, CheckCircle, AlertCircle, Lock } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { aiGenerateResume, aiGenerateCoverLetter } from '../lib/aiBackend';
 
-// Load PDF.js worker
+// Load PDF.js worker lazily
 let pdfWorkerInitialized = false;
 const initPdfWorker = async () => {
   if (pdfWorkerInitialized) return;
@@ -23,7 +24,7 @@ async function extractPdfText(file: File): Promise<string> {
   try {
     await initPdfWorker();
     const { default: pdfjsLib } = await import('pdfjs-dist');
-    
+
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     let fullText = '';
@@ -41,58 +42,6 @@ async function extractPdfText(file: File): Promise<string> {
   } catch (error) {
     console.error('PDF extraction error:', error);
     throw new Error('Could not extract text from PDF. Try uploading a text-based PDF.');
-  }
-}
-
-// AI features use direct OpenAI calls or local placeholders.
-const AI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
-const AI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
-
-async function callOpenAI(systemPrompt: string, userMessage: string): Promise<string> {
-  if (!AI_API_KEY) {
-    if (systemPrompt.includes('extract')) {
-      const words = userMessage.split(/\s+/);
-      const likelySkills = words.filter(w => w.length > 3 && /^(React|Node|Python|Java|AWS|Docker|Figma|SQL|TypeScript|JavaScript|CSS|HTML|Git|Agile|API|MongoDB)/i.test(w));
-      return JSON.stringify({ skills: [...new Set(likelySkills)].slice(0, 15) });
-    }
-    if (systemPrompt.includes('tailor')) {
-      return `Tailored resume for ${userMessage.split('\n')[0] || 'the role'}:\n\n• Led cross-functional teams to deliver projects on time and under budget\n• Improved key metrics by 35% through data-driven decision making\n• Developed and implemented strategic initiatives that drove 20% revenue growth\n• Collaborated with stakeholders to define requirements and deliver solutions\n• Mentored junior team members and fostered a culture of continuous improvement`;
-    }
-    if (systemPrompt.includes('cover')) {
-      return `Dear Hiring Manager,\n\nI am writing to express my strong interest in the position. With my background and skills, I am confident I can make a significant contribution to your team.\n\nThroughout my career, I have developed expertise in delivering high-impact results. My experience includes leading projects, driving innovation, and collaborating effectively with cross-functional teams.\n\nI am excited about the opportunity to bring my skills to your organization.\n\nBest regards,\nApplicant`;
-    }
-    return 'AI service not configured. Set VITE_OPENAI_API_KEY in .env.local or your deployment environment to enable AI features.';
-  }
-
-  try {
-    const res = await fetch(AI_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${AI_API_KEY}` },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
-        ],
-        temperature: 0.7,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      const errorMessage =
-        data?.error?.message || data?.error || `OpenAI request failed with status ${res.status}`;
-      console.error('[AIResume] OpenAI error:', res.status, data);
-      throw new Error(errorMessage);
-    }
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      console.error('[AIResume] OpenAI returned no content', data);
-      throw new Error('AI service returned an empty response');
-    }
-    return content;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'AI service unavailable';
-    throw new Error(message);
   }
 }
 
@@ -121,7 +70,7 @@ export default function AIResume() {
     setError('');
     try {
       let text = '';
-      
+
       // Handle PDF files separately
       if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
         text = await extractPdfText(file);
@@ -129,12 +78,12 @@ export default function AIResume() {
         // For text, doc, docx files
         text = await file.text();
       }
-      
+
       if (!text.trim()) {
         setError('Could not extract text from file. Try pasting the text directly.');
         return;
       }
-      
+
       setResumeText(text);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not read file. Try pasting the text directly.';
@@ -149,12 +98,24 @@ export default function AIResume() {
     setExtracting(true);
     setError('');
     try {
-      const result = await callOpenAI(
-        'Extract technical and professional skills from the following resume text. Return them as a JSON array of strings under a "skills" key.',
-        resumeText
-      );
-      const parsed = JSON.parse(result);
-      if (parsed.skills) setSkills(parsed.skills);
+      // Lightweight local skill extraction; keeps costs down and avoids blocking the UI
+      const commonSkills = [
+        'JavaScript', 'TypeScript', 'Python', 'Java', 'C#', 'C++', 'Go', 'Rust', 'PHP', 'Ruby', 'Swift', 'Kotlin',
+        'React', 'Vue', 'Angular', 'Svelte', 'Next.js', 'Node.js', 'Express', 'NestJS', 'Django', 'Flask', 'Spring',
+        'HTML', 'CSS', 'SASS', 'Tailwind', 'Bootstrap', 'Material UI', 'Redux', 'Zustand', 'React Query',
+        'SQL', 'MySQL', 'PostgreSQL', 'MongoDB', 'Firebase', 'Redis', 'Elasticsearch', 'Prisma', 'Sequelize',
+        'AWS', 'Azure', 'Google Cloud', 'GCP', 'Docker', 'Kubernetes', 'Jenkins', 'GitHub Actions', 'CI/CD',
+        'Git', 'GitHub', 'GitLab', 'Bitbucket', 'Jira', 'Confluence', 'Trello', 'Agile', 'Scrum', 'Kanban',
+        'Figma', 'Sketch', 'Adobe XD', 'Photoshop', 'Illustrator', 'Canva', 'UI/UX', 'Wireframing', 'Prototyping',
+        'REST API', 'GraphQL', 'SOAP', 'gRPC', 'WebSockets', 'Microservices', 'Serverless', 'Lambda',
+        'Machine Learning', 'Deep Learning', 'TensorFlow', 'PyTorch', 'Data Analysis', 'Data Science', 'Pandas', 'NumPy',
+        'Excel', 'PowerPoint', 'Word', 'Outlook', 'Power BI', 'Tableau', 'SAP', 'Salesforce', 'HubSpot', 'CRM',
+        'SEO', 'SEM', 'Content Marketing', 'Social Media Marketing', 'Email Marketing', 'Copywriting', 'Google Analytics',
+        'Customer Service', 'Sales', 'Negotiation', 'Leadership', 'Project Management', 'Product Management', 'Operations'
+      ];
+      const lower = resumeText.toLowerCase();
+      const found = commonSkills.filter(skill => lower.includes(skill.toLowerCase()));
+      setSkills([...new Set(found)].slice(0, 20));
     } catch {
       setError('Could not extract skills');
     }
@@ -167,13 +128,10 @@ export default function AIResume() {
     setLoading('tailor');
     setError('');
     try {
-      const result = await callOpenAI(
-        'You are a professional resume writer. Tailor the following resume for the specified job title and description. Return only the tailored resume text.',
-        `Job Title: ${jobTitle}\nJob Description: ${jobDesc}\n\nResume:\n${resumeText}`
-      );
+      const result = await aiGenerateResume(resumeText, jobTitle, jobDesc);
       setTailoredResume(result);
-    } catch {
-      setError('Could not tailor resume');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not tailor resume');
     }
     setLoading('');
   }
@@ -184,13 +142,10 @@ export default function AIResume() {
     setLoading('cover');
     setError('');
     try {
-      const result = await callOpenAI(
-        'You are a professional cover letter writer. Generate a compelling cover letter based on the resume and job details provided.',
-        `Job Title: ${jobTitle}\nCompany: ${companyName}\nJob Description: ${jobDesc}\n\nResume:\n${resumeText}`
-      );
+      const result = await aiGenerateCoverLetter(resumeText, jobTitle, jobDesc, companyName);
       setCoverLetter(result);
-    } catch {
-      setError('Could not generate cover letter');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate cover letter');
     }
     setLoading('');
   }
@@ -199,7 +154,8 @@ export default function AIResume() {
     if (!fromPayment || autoGenerated) return;
     if (aiSubscription.ai_status !== 'active') return;
 
-    const defaultResume = `John Doe\nSoftware Engineer with 5 years of experience in React, Node.js, AWS, and TypeScript. Delivered customer-facing web applications, collaborated with cross-functional teams, and improved product performance.`;
+    const defaultResume = `John Doe
+Software Engineer with 5 years of experience in React, Node.js, AWS, and TypeScript. Delivered customer-facing web applications, collaborated with cross-functional teams, and improved product performance.`;
     const defaultJobTitle = 'Frontend Engineer';
     const defaultCompanyName = 'Acme';
     const defaultJobDesc = 'Build responsive web applications using React and TypeScript. Collaborate with design and backend teams to deliver polished user experiences.';
@@ -214,24 +170,18 @@ export default function AIResume() {
       setLoading('tailor');
       setError('');
       try {
-        const tailored = await callOpenAI(
-          'You are a professional resume writer. Tailor the following resume for the specified job title and description. Return only the tailored resume text.',
-          `Job Title: ${defaultJobTitle}\nJob Description: ${defaultJobDesc}\n\nResume:\n${defaultResume}`
-        );
+        const tailored = await aiGenerateResume(defaultResume, defaultJobTitle, defaultJobDesc);
         setTailoredResume(tailored);
-      } catch {
-        setError('Could not tailor resume automatically.');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not tailor resume automatically.');
       }
 
       setLoading('cover');
       try {
-        const cover = await callOpenAI(
-          'You are a professional cover letter writer. Generate a compelling cover letter based on the resume and job details provided.',
-          `Job Title: ${defaultJobTitle}\nCompany: ${defaultCompanyName}\nJob Description: ${defaultJobDesc}\n\nResume:\n${defaultResume}`
-        );
+        const cover = await aiGenerateCoverLetter(defaultResume, defaultJobTitle, defaultJobDesc, defaultCompanyName);
         setCoverLetter(cover);
-      } catch {
-        setError('Could not generate cover letter automatically.');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not generate cover letter automatically.');
       }
 
       setLoading('');
@@ -254,39 +204,6 @@ export default function AIResume() {
           </div>
         </div>
 
-        <div className="mb-4 flex gap-2">
-          <button
-            onClick={async () => {
-              // Quick CV generation smoke test using sample text
-              const sample = `John Doe\nSoftware Engineer with 5 years experience in React, Node.js, AWS. Led teams and shipped products.`;
-              setResumeText(sample);
-              setJobTitle('Frontend Engineer');
-              setJobDesc('Build responsive web applications using React and TypeScript.');
-              setError('');
-              try {
-                setLoading('tailor');
-                const tailored = await callOpenAI(
-                  'You are a professional resume writer. Tailor the following resume for the specified job title and description. Return only the tailored resume text.',
-                  `Job Title: Frontend Engineer\nJob Description: Build responsive web applications using React and TypeScript.\n\nResume:\n${sample}`
-                );
-                setTailoredResume(tailored);
-                const cover = await callOpenAI(
-                  'You are a professional cover letter writer. Generate a compelling cover letter based on the resume and job details provided.',
-                  `Job Title: Frontend Engineer\nCompany: Acme\nJob Description: Build responsive web applications using React and TypeScript.\n\nResume:\n${sample}`
-                );
-                setCoverLetter(cover);
-              } catch (e) {
-                setError('CV test failed: ' + (e instanceof Error ? e.message : String(e)));
-              } finally {
-                setLoading('');
-              }
-            }}
-            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition"
-          >
-            Run CV generation test
-          </button>
-        </div>
-
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
             <AlertCircle className="w-4 h-4 shrink-0" /> {error}
@@ -307,7 +224,7 @@ export default function AIResume() {
               View Pricing
             </button>
             <p className="mt-4 text-xs text-gray-500">
-              If you want to test AI locally, add <code className="font-medium">VITE_OPENAI_API_KEY=YOUR_OPENAI_KEY</code> to <code className="font-medium">.env.local</code>, restart the dev server, and rebuild the site.
+              The AI service is powered securely through JobBridge servers.
             </p>
           </div>
         )}

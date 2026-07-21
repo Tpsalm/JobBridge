@@ -199,7 +199,7 @@ const MAX_KORA_SCRIPT_LOAD_RETRIES = 3;
 const PENDING_PAYMENT_STORAGE_KEY = "jobbridge_pending_payment_ref";
 
 function getSuccessTarget(plan: (typeof PLANS)[string], planKey: string): string {
-  if (plan.ai) return "/ai-resume";
+  if (plan.ai) return "/ai-resume?fromPayment=true";
   if (plan.service) return "/profile";
   if ((plan as any).business) return `/business?create=true&paidPackage=${planKey}`;
   return "/recruiter?postJob=true";
