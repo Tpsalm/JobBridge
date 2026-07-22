@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { buildSeedPaymentPayload, buildSeedProfilePayload, normalizeSeedUserId, shouldAutoSeedPayment } from "../_shared/payment-seeding.ts";
 
 const KORA_SECRET_KEY =
   Deno.env.get("KORA_SECRET_KEY") || Deno.env.get("VITE_KORA_SECRET_KEY") || "";
@@ -110,6 +111,85 @@ function planLabel(plan: string): string {
     default:
       return "JobBridge Plan";
   }
+}
+
+async function ensureSeedUser(
+  supabase: ReturnType<typeof createClient>,
+  payload: KoraWebhookPayload,
+): Promise<{ id: string; createUserResult?: unknown; createUserError?: unknown }> {
+  const data = payload.data || {};
+  const metadata = (data.metadata as Record<string, unknown> | undefined) || {};
+  const providedUserId = normalizeSeedUserId(metadata.user_id || data.user_id || "");
+  if (providedUserId) {
+    const { data: existingProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", providedUserId)
+      .maybeSingle();
+
+    if (!profileError && existingProfile?.id) {
+      return { id: providedUserId };
+    }
+  }
+
+  const email = String(metadata.email || data.email || "").trim();
+  if (!email) {
+    return providedUserId;
+  }
+
+  const password = `${Math.random().toString(36).slice(2)}A!1`;
+  const fullName = String(metadata.full_name || metadata.name || email.split("@")[0] || "Simulated User");
+  const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: fullName,
+      role: "job_seeker",
+    },
+  });
+
+  if (createUserError || !createdUser?.user?.id) {
+    console.error("[Kora Webhook] Failed to create seed auth user:", createUserError?.message || "unknown");
+
+    // If the error indicates the email already exists, try to resolve the existing
+    // auth user id by checking `profiles` or using the admin listUsers if available.
+    try {
+      // 1) Try to find an existing profile with this email
+      if (email) {
+        const { data: existingProfileByEmail, error: profErr } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("email", email)
+          .maybeSingle();
+        if (!profErr && existingProfileByEmail?.id) {
+          return { id: existingProfileByEmail.id, createUserResult: createdUser || null, createUserError: createUserError || null };
+        }
+      }
+
+      // 2) If admin.listUsers is available, try to find user by email
+      // Protect calls in try/catch since method may not exist in this runtime
+      const adminAny: any = (supabase as any).auth?.admin;
+      if (adminAny && typeof adminAny.listUsers === "function") {
+        try {
+          const listRes = await adminAny.listUsers();
+          const users = listRes?.data?.users || listRes?.users || [];
+          const found = users.find((u: any) => String(u.email || "").toLowerCase() === email.toLowerCase());
+          if (found && found.id) {
+            return { id: found.id, createUserResult: createdUser || null, createUserError: createUserError || null };
+          }
+        } catch (e) {
+          console.warn("[Kora Webhook] listUsers lookup failed:", e);
+        }
+      }
+    } catch (lookupErr) {
+      console.warn("[Kora Webhook] fallback lookup after createUser failed:", lookupErr);
+    }
+
+    return { id: providedUserId || "", createUserResult: createdUser || null, createUserError: createUserError || null };
+  }
+
+  return { id: createdUser.user.id, createUserResult: createdUser, createUserError: null };
 }
 
 async function insertNotification(
@@ -487,6 +567,114 @@ serve(async (req: Request) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    if (shouldAutoSeedPayment(payload)) {
+      const ensureRes = await ensureSeedUser(supabase, payload);
+      const resolvedUserId = ensureRes?.id || '';
+      let seedPayment = buildSeedPaymentPayload(payload);
+      let seedProfile = buildSeedProfilePayload(payload);
+
+      // If helper returned null but we resolved a user id, build minimal seeds
+      const pdata = (payload.data || {}) as Record<string, unknown>;
+      const pmeta = ((pdata.metadata as Record<string, unknown>) || {}) as Record<string, unknown>;
+      if (!seedPayment && resolvedUserId) {
+        const reference = String(pdata.reference || pdata.payment_reference || pdata.transaction_reference || 'JB-TEST-SEED');
+        const amount = Number(pdata.amount_paid ?? pdata.amount_expected ?? pdata.amount ?? 1500);
+        seedPayment = {
+          user_id: resolvedUserId,
+          plan: String(pmeta.plan || pdata.plan || 'ai_monthly'),
+          status: 'pending',
+          amount: Number.isFinite(amount) ? amount : 1500,
+          currency: String(pdata.currency || 'NGN'),
+          reference,
+          metadata: { ...(pmeta || {}), source: pmeta.source || 'simulated_webhook_seed', seeded_by: 'kora-webhook' },
+        };
+      }
+
+      if (!seedProfile && resolvedUserId) {
+        seedProfile = {
+          id: resolvedUserId,
+          email: String(pmeta.email || pdata.email || `${resolvedUserId}@jobbridge.test`),
+          full_name: String(pmeta.full_name || pmeta.name || pdata.name || 'Simulated User'),
+          role: 'job_seeker',
+          credits: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }
+
+      const seedResults: Record<string, unknown> = {};
+
+      // If user was created/ensured, prefer that auth id for seeded rows
+      const createdUserId = (ensureRes as any)?.id || (ensureRes as any)?.createUserResult?.user?.id;
+      if (createdUserId) {
+        if (seedPayment) {
+          seedPayment.user_id = createdUserId;
+          // ensure metadata has the resolved user id
+          seedPayment.metadata = { ...(seedPayment.metadata || {}), user_id: createdUserId };
+        }
+        if (seedProfile) {
+          seedProfile.id = createdUserId;
+          seedProfile.email = (ensureRes as any)?.createUserResult?.user?.email || seedProfile.email;
+          seedProfile.full_name = (ensureRes as any)?.createUserResult?.user?.user_metadata?.full_name || seedProfile.full_name;
+        }
+      }
+
+      // include createUser debug info if available
+      if ((ensureRes as any)?.createUserResult || (ensureRes as any)?.createUserError) {
+        seedResults.createUser = {
+          result: (ensureRes as any)?.createUserResult || null,
+          error: (ensureRes as any)?.createUserError || null,
+        };
+      }
+
+      if (seedPayment) {
+        try {
+          // Remove any stale payment rows for this reference to avoid FK mismatches
+          try {
+            await supabase.from("payments").delete().eq("reference", seedPayment.reference);
+          } catch (e) {
+            // ignore
+          }
+          const res = await supabase.from("payments").insert(seedPayment);
+          seedResults.payment = res;
+          if (res.error) {
+            console.error("[Kora Webhook] Failed to seed payment row:", res.error.message);
+          } else {
+            console.log("[Kora Webhook] Seeded payment row for reference", seedPayment.reference);
+          }
+        } catch (seedErr) {
+          seedResults.payment = { error: String(seedErr) };
+          console.error("[Kora Webhook] Payment seeding error:", seedErr);
+        }
+      }
+
+      if (seedProfile) {
+        try {
+          // Remove stale profile records that might reference missing auth users
+          try {
+            await supabase.from("profiles").delete().eq("id", seedProfile.id);
+          } catch (e) {
+            // ignore
+          }
+          const res = await supabase.from("profiles").insert(seedProfile);
+          seedResults.profile = res;
+          if (res.error) {
+            console.error("[Kora Webhook] Failed to seed profile row:", res.error.message);
+          } else {
+            console.log("[Kora Webhook] Seeded profile row for id", seedProfile.id);
+          }
+        } catch (seedErr) {
+          seedResults.profile = { error: String(seedErr) };
+          console.error("[Kora Webhook] Profile seeding error:", seedErr);
+        }
+      }
+
+      // If caller requested debug seed feedback, return it directly
+      if (payload.data && (payload.data as Record<string, unknown>).debug_seed) {
+        return new Response(JSON.stringify({ seeded: true, results: seedResults }), { status: 200, headers: corsHeaders });
+      }
+    }
 
     // Primary lookup: match by JobBridge reference
     let { data: payment, error: findError } = await supabase

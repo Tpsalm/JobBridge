@@ -43,8 +43,23 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
 
   try {
     if (!FUNC_URL) {
-      console.error('[Email] sendEmail error: invalid Supabase functions URL');
-      return false;
+      // Fallback: call Vercel serverless endpoint if Supabase Functions URL is not configured
+      try {
+        const fallbackResp = await fetch(`/api/send-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload }),
+        });
+        if (!fallbackResp.ok) {
+          const text = await fallbackResp.text().catch(() => '');
+          console.warn('[Email] fallback /api/send-email failed:', fallbackResp.status, text);
+          return false;
+        }
+        return true;
+      } catch (e) {
+        console.error('[Email] fallback sendEmail error:', e);
+        return false;
+      }
     }
 
     const response = await fetch(FUNC_URL, {
@@ -62,6 +77,17 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     if (!response.ok) {
       const text = await response.text();
       console.warn('[Email] sendEmail failed:', response.status, text);
+      // Try Vercel fallback if Supabase function rejected the request
+      try {
+        const fallbackResp = await fetch(`/api/send-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload }),
+        });
+        if (fallbackResp.ok) return true;
+      } catch (e) {
+        // ignore
+      }
       return false;
     }
 

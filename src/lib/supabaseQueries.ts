@@ -159,16 +159,38 @@ export async function fetchProfile(userId: string) {
 }
 
 export async function fetchProviders() {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("role", "provider")
-    .neq("is_active", false)
-    .order("is_featured", { ascending: false })
-    .order("is_verified", { ascending: false })
-    .order("reviews_count", { ascending: false });
-  if (error) throw error;
-  return (data || []) as Profile[];
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("role", "provider")
+      .neq("is_active", false)
+      .order("is_featured", { ascending: false })
+      .order("is_verified", { ascending: false })
+      .order("reviews_count", { ascending: false });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data as Profile[];
+    }
+  } catch (e) {
+    // Fallthrough to fallback fetch below
+    console.warn('[fetchProviders] supabase client fetch failed, attempting fallback', e);
+  }
+
+  // Fallback: try server-side proxy (Vercel) which uses SUPABASE_SERVICE_ROLE_KEY
+  try {
+    const resp = await fetch('/api/get-providers');
+    if (resp.ok) {
+      const json = await resp.json();
+      if (Array.isArray(json)) return json as Profile[];
+    } else {
+      console.warn('[fetchProviders] /api/get-providers failed:', resp.status);
+    }
+  } catch (e) {
+    console.warn('[fetchProviders] fallback fetch error:', e);
+  }
+
+  return [] as Profile[];
 }
 
 export async function updateProfile(
