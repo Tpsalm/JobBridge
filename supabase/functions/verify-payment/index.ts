@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { buildReferenceCandidates, isChargeNotFoundError } from "../_shared/reference-normalization.ts";
 
 const KORA_SECRET_KEY = Deno.env.get("KORA_SECRET_KEY") || Deno.env.get("VITE_KORA_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -47,22 +48,12 @@ serve(async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const reference = String(body?.reference || body?.ref || "").trim();
-    const fallbackReference = String(body?.fallback_reference || body?.fallbackRef || "").trim();
-    const originalReference = String(body?.original_reference || body?.originalRef || "").trim();
-    if (!reference && !fallbackReference && !originalReference) {
+    const candidateRefs = buildReferenceCandidates(body as Record<string, unknown>);
+    if (candidateRefs.length === 0) {
       return new Response(JSON.stringify({ error: "Missing reference" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    const candidateRefs = Array.from(
-      new Set(
-        [reference, fallbackReference, originalReference]
-          .map((item) => String(item || "").trim())
-          .filter((item) => item.length > 0),
-      ),
-    );
 
     if (candidateRefs.length === 0) {
       return new Response(JSON.stringify({ error: "Missing reference" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -118,7 +109,9 @@ serve(async (req: Request) => {
     }
 
     if (!chargeResponse) {
-      return new Response(JSON.stringify({ verified: false, detail: lastVerifyError }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const detail = (lastVerifyError && typeof lastVerifyError === 'object' && 'message' in lastVerifyError) ? lastVerifyError : { message: String(lastVerifyError || 'Verification failed') };
+      const responseBody = { verified: false, detail, charge_not_found: isChargeNotFoundError(detail) };
+      return new Response(JSON.stringify(responseBody), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const charge = chargeResponse.data || {};

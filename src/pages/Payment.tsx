@@ -310,6 +310,53 @@ export default function Payment() {
     }
   };
 
+  const pollPaymentUntilVerified = async (reference: string) => {
+    const functionsBaseUrl = getSupabaseFunctionsUrl();
+    if (!functionsBaseUrl) return false;
+
+    const maxAttempts = 8;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const res = await fetch(`${functionsBaseUrl}/verify-payment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reference,
+            fallback_reference: originalPaymentReferenceRef.current || reference,
+            original_reference: originalPaymentReferenceRef.current || reference,
+          }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok && body?.verified === true) {
+          return true;
+        }
+
+        if (body?.charge_not_found === true) {
+          if (attempt < maxAttempts) {
+            await new Promise((resolve) => window.setTimeout(resolve, 3000));
+            continue;
+          }
+          return false;
+        }
+
+        if (body?.verified === false && body?.status === "success") {
+          return false;
+        }
+
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => window.setTimeout(resolve, 2500));
+        }
+      } catch (err) {
+        console.warn("[Payment] Polling verification failed:", err);
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => window.setTimeout(resolve, 2500));
+        }
+      }
+    }
+
+    return false;
+  };
+
   const initializePaymentState = () => {
     setPaying(true);
     setError("");
@@ -404,7 +451,7 @@ export default function Payment() {
     let verified = false;
     if (verifyPayment) {
       try {
-        verified = await verifyPaymentReference(reference);
+        verified = await pollPaymentUntilVerified(reference);
       } catch (verifyErr) {
         console.warn("[Payment] verifyPaymentReference failed:", verifyErr);
       }
