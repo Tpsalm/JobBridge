@@ -62,15 +62,7 @@ const FALLBACK_FROM_EMAIL = 'JobBridge <onboarding@resend.dev>';
 function resolveSafeResendFrom(rawFrom: string | undefined | null): string {
   const fallback = FALLBACK_FROM_EMAIL;
   const candidate = (rawFrom || '').trim();
-  if (!candidate) return fallback;
-
-  const normalized = candidate.toLowerCase();
-  if (normalized.includes('@jobbridge.com.ng') || normalized.includes('@www.jobbridge.com.ng')) {
-    console.warn('[Send Email] RESEND_FROM is unverified. Falling back to safe resend.dev sender:', candidate);
-    return fallback;
-  }
-
-  return candidate;
+  return candidate || fallback;
 }
 
 function isUnverifiedSenderError(message: unknown): boolean {
