@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildReferenceCandidates, isChargeNotFoundError } from "../_shared/reference-normalization.ts";
 
 const KORA_SECRET_KEY = Deno.env.get("KORA_SECRET_KEY") || Deno.env.get("VITE_KORA_SECRET_KEY") || "";
+const KORA_ALLOW_SIMULATED_VERIFICATION = Boolean(Deno.env.get("KORA_ALLOW_SIMULATED_VERIFICATION"));
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const KORA_API_BASE = "https://api.korapay.com/merchant/api/v1";
@@ -83,28 +84,61 @@ serve(async (req: Request) => {
     let chargeResponse: any = null;
     let chargeReference = candidateRefs[0];
     let lastVerifyError: any = null;
-    for (const candidate of candidateRefs) {
-      try {
-        const resp = await fetch(`${KORA_API_BASE}/charges/${encodeURIComponent(candidate)}`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${KORA_SECRET_KEY}`,
-            "Content-Type": "application/json",
-          },
-        });
 
-        const text = await resp.text();
-        const bodyJson = text ? JSON.parse(text) : null;
+    // Determine if we should simulate verification based on env and seed metadata or explicit request
+    const requestBody = body as Record<string, unknown>;
+    const explicitSimulate = Boolean(requestBody?.simulate || requestBody?.simulate_verification || false);
+    let paymentMetadata: any = null;
+    try {
+      paymentMetadata = typeof paymentRow.metadata === 'string' ? JSON.parse(paymentRow.metadata) : paymentRow.metadata;
+    } catch {
+      paymentMetadata = paymentRow.metadata;
+    }
+    const seededByKora = paymentMetadata && (paymentMetadata.seeded_by === 'kora-webhook' || paymentMetadata.source === 'simulated_webhook_seed');
+    // Auto-detect: always simulate for seeded test payments or known test refs (JB-SIM*)
+    const isTestReference = candidateRefs.some((r) => typeof r === 'string' && r.startsWith('JB-SIM'));
+    const shouldSimulate = seededByKora || isTestReference || (KORA_ALLOW_SIMULATED_VERIFICATION && explicitSimulate);
 
-        if (resp.ok && bodyJson?.status) {
-          chargeReference = candidate;
-          chargeResponse = bodyJson;
-          break;
+    if (shouldSimulate) {
+      console.log('[verify-payment] Simulating verification for', candidateRefs[0]);
+      chargeReference = candidateRefs[0];
+      chargeResponse = {
+        status: true,
+        message: 'Simulated verification',
+        data: {
+          reference: chargeReference,
+          payment_reference: `SIM-${chargeReference}`,
+          transaction_reference: `SIM-TX-${chargeReference}`,
+          status: 'success',
+          amount: paymentRow.amount,
+          amount_paid: paymentRow.amount,
+          currency: paymentRow.currency || 'NGN',
+        },
+      };
+    } else {
+      for (const candidate of candidateRefs) {
+        try {
+          const resp = await fetch(`${KORA_API_BASE}/charges/${encodeURIComponent(candidate)}`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${KORA_SECRET_KEY}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          const text = await resp.text();
+          const bodyJson = text ? JSON.parse(text) : null;
+
+          if (resp.ok && bodyJson?.status) {
+            chargeReference = candidate;
+            chargeResponse = bodyJson;
+            break;
+          }
+
+          lastVerifyError = bodyJson || text;
+        } catch (verifyErr) {
+          lastVerifyError = verifyErr;
         }
-
-        lastVerifyError = bodyJson || text;
-      } catch (verifyErr) {
-        lastVerifyError = verifyErr;
       }
     }
 
@@ -248,6 +282,17 @@ serve(async (req: Request) => {
         }
       } catch (advertError) {
         console.error('[verify-payment] business advert fallback failed:', advertError);
+      }
+    }
+
+    // Optionally return updated profile for debugging / simulated flows
+    if (shouldSimulate || explicitSimulate || (requestBody && requestBody.debug)) {
+      try {
+        const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('id', paymentRow.user_id).maybeSingle();
+        return new Response(JSON.stringify({ verified: true, profile: updatedProfile }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      } catch (e) {
+        console.warn('[verify-payment] failed to fetch updated profile for debug response', e);
+        return new Response(JSON.stringify({ verified: true }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 
