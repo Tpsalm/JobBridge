@@ -5,6 +5,7 @@ import './index.css';
 import { ToastProvider } from './contexts/ToastContext';
 import ToastContainer from './components/ToastContainer';
 import ErrorBoundary from './components/ErrorBoundary';
+import { registerServiceWorker } from './lib/push';
 
 // Apply persisted dark mode preference before React mounts so initial render matches
 try {
@@ -43,4 +44,9 @@ root.render(
     </ErrorBoundary>
   </StrictMode>
 );
+
+// Register service worker in production (non-blocking)
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator && !import.meta.env.DEV) {
+  void registerServiceWorker().catch(() => {});
+}
 
