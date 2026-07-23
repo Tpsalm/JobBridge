@@ -47,7 +47,12 @@ async function extractPdfText(file: File): Promise<string> {
 }
 
 export default function AIResume() {
-  const { user, profile, aiSubscription } = useAuth();
+  const {
+    user,
+    profile,
+    aiSubscription,
+    fetchAiSubscription = async () => {},
+  } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fromPayment = searchParams.get('fromPayment') === 'true';
@@ -228,7 +233,7 @@ Software Engineer with 5 years of experience in React, Node.js, AWS, and TypeScr
             const body = await resp.json().catch(() => ({}));
             if (resp.ok && body?.verified === true) {
               // Verified — refresh subscription immediately
-              await fetchAiSubscription();
+              await fetchAiSubscription?.();
               try {
                 sessionStorage.removeItem('jobbridge_pending_payment_ref');
               } catch {}
@@ -240,8 +245,8 @@ Software Engineer with 5 years of experience in React, Node.js, AWS, and TypeScr
         }
 
         // Even without a reference, refresh the subscription to pick up server-side activation
-        await fetchAiSubscription();
-        if (aiSubscription.ai_status === 'active') return;
+        await fetchAiSubscription?.();
+        if (aiSubscription?.ai_status === 'active') return;
       } catch (err) {
         // ignore
       } finally {
