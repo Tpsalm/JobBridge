@@ -457,6 +457,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [buildProfile]);
 
+  // Re-hydrate profile + subscription state whenever the authenticated user changes.
+  // This closes the gap where a user signs in, lands on a gated route, and the UI
+  // still renders the paywall until an unrelated auth event triggers another refresh.
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const p = await buildProfile(user);
+      if (!cancelled) {
+        setProfile(p);
+      }
+
+      await fetchSubscription(user.id);
+      await fetchAiSubscription(user.id);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, buildProfile, fetchSubscription, fetchAiSubscription]);
+
   // Separate effect for visibility/focus — re-runs when user changes
   useEffect(() => {
     const handleVisibilityChange = () => {

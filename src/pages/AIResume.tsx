@@ -53,6 +53,11 @@ export default function AIResume() {
     aiSubscription,
     fetchAiSubscription = async () => {},
   } = useAuth();
+
+  useEffect(() => {
+    if (!user?.id) return;
+    void fetchAiSubscription(user.id);
+  }, [user?.id, fetchAiSubscription]);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fromPayment = searchParams.get('fromPayment') === 'true';
