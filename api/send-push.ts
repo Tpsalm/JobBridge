@@ -9,6 +9,18 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // 1. Handle CORS Preflight (OPTIONS) requests
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', 'https://jobbridge.com.ng'); 
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(204).end();
+  }
+
+  // 2. Set origin header for standard requests
+  res.setHeader('Access-Control-Allow-Origin', 'https://jobbridge.com.ng');
+
+  // 3. Enforce POST constraint
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) return res.status(500).json({ error: 'VAPID keys not configured' });
 

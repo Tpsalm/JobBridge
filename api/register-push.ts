@@ -1,6 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // 1. Handle CORS Preflight (OPTIONS) requests
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', 'https://jobbridge.com.ng'); 
+    res.setHeader('Access-Control-Allow-Methods', 'POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(204).end();
+  }
+
+  // 2. Set origin header for standard requests (POST, DELETE, etc.)
+  res.setHeader('Access-Control-Allow-Origin', 'https://jobbridge.com.ng');
+
   const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
