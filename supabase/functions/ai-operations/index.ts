@@ -5,10 +5,17 @@ import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
 const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY') || '';
 const GEMINI_API_KEY = Deno.env.get('VITE_GEMINI_API_KEY') || Deno.env.get('GEMINI_API_KEY') || '';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.0-flash';
 
 // Smart fallback configuration prioritizing free Gemini
 const USE_GEMINI = !!GEMINI_API_KEY;
 const USE_DEEPSEEK = !USE_GEMINI && !!DEEPSEEK_API_KEY;
+const GEMINI_MODEL_FALLBACKS = Array.from(new Set([
+  GEMINI_MODEL,
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+]));
 
 interface AIRequest {
   type: 'chat' | 'embed' | 'resume' | 'cover-letter';
@@ -52,38 +59,54 @@ async function chat(messages: Array<{ role: string; content: string }>): Promise
     const systemMessage = messages.find(msg => msg.role === 'system');
     const systemInstruction = systemMessage ? { parts: [{ text: systemMessage.content }] } : undefined;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: geminiContents,
-          systemInstruction: systemInstruction,
-          generationConfig: {
-            maxOutputTokens: 4000,
-            temperature: 0.7,
+    let lastError = '';
+
+    for (const model of GEMINI_MODEL_FALLBACKS) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: geminiContents,
+              systemInstruction: systemInstruction,
+              generationConfig: {
+                maxOutputTokens: 4000,
+                temperature: 0.7,
+              }
+            }),
           }
-        }),
+        );
+
+        if (!response.ok) {
+          const error = await response.text();
+          lastError = `Gemini API error: ${response.status} ${error}`;
+          if (response.status !== 404) {
+            throw new Error(lastError);
+          }
+          continue;
+        }
+
+        const data = await response.json();
+
+        // Surface Gemini safety / blocking info so it is visible in logs
+        if (data?.promptFeedback?.blockReason) {
+          throw new Error(`Gemini blocked request: ${data.promptFeedback.blockReason}`);
+        }
+        const candidate = data?.candidates?.[0];
+        if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+          console.warn('[ai-operations] Gemini finishReason:', candidate.finishReason);
+        }
+        return candidate?.content?.parts?.[0]?.text || '';
+      } catch (error) {
+        if (error instanceof Error) {
+          lastError = error.message;
+        }
       }
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini API error: ${response.status} ${error}`);
     }
 
-    const data = await response.json();
-
-    // Surface Gemini safety / blocking info so it is visible in logs
-    if (data?.promptFeedback?.blockReason) {
-      throw new Error(`Gemini blocked request: ${data.promptFeedback.blockReason}`);
-    }
-    const candidate = data?.candidates?.[0];
-    if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
-      console.warn('[ai-operations] Gemini finishReason:', candidate.finishReason);
-    }
-    return candidate?.content?.parts?.[0]?.text || '';
+    throw new Error(lastError || 'Gemini request failed');
   }
 
   // 2. OpenAI / DeepSeek Backup Pipeline

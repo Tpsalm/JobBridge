@@ -34,9 +34,9 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   subscription: SubscriptionInfo;
-  fetchSubscription: () => Promise<void>;
+  fetchSubscription: (userId?: string) => Promise<void>;
   aiSubscription: AiSubscriptionInfo;
-  fetchAiSubscription: () => Promise<void>;
+  fetchAiSubscription: (userId?: string) => Promise<void>;
   subscriptionLoaded: boolean;
   aiSubscriptionLoaded: boolean;
   savedJobs: string[];
@@ -73,9 +73,9 @@ const AuthContext = createContext<AuthContextType>({
     expires_at: null,
     credits: 0,
   },
-  fetchSubscription: async () => {},
+  fetchSubscription: async (userId?: string) => {},
   aiSubscription: { ai_tier: null, ai_status: "inactive", ai_expires_at: null },
-  fetchAiSubscription: async () => {},
+  fetchAiSubscription: async (userId?: string) => {},
   subscriptionLoaded: false,
   aiSubscriptionLoaded: false,
   savedJobs: [],

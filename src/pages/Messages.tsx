@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import AppLayout from '../components/AppLayout';
 import { useAuth } from '../contexts/AuthContext';
+import { fetchNotifications, createNotification } from '../lib/supabaseQueries';
 import { Send, Search, MoreVertical, Lock, Check, CheckCheck, CircleDot } from 'lucide-react';
 import CompanyLogo from '../components/CompanyLogo';
 import { IMG } from '../lib/media';
@@ -55,17 +56,82 @@ const MOCK_MESSAGES: Record<string, MessageItem[]> = {
 };
 
 export default function Messages() {
-  const { isAuthenticated, profile } = useAuth();
+  const { isAuthenticated, profile, user } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newMessage, setNewMessage] = useState('');
-  const [messages, setMessages] = useState<Record<string, MessageItem[]>>(MOCK_MESSAGES);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const selectedConversation = MOCK_CONVERSATIONS.find(c => c.id === selectedId);
+  // Fetch notifications and convert to conversations
+  useEffect(() => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const loadNotifications = async () => {
+      try {
+        const notifications = await fetchNotifications(user.id);
+        
+        // Group notifications by related_id (sender) and convert to conversations
+        const convMap = new Map<string, Conversation>();
+        const msgMap = new Map<string, MessageItem[]>();
+
+        notifications.forEach(notif => {
+          const convId = notif.related_id || notif.id;
+          if (!convMap.has(convId)) {
+            convMap.set(convId, {
+              id: convId,
+              company: notif.title.replace('New message from ', ''),
+              logo_initial: (notif.title.charAt(0) || 'U'),
+              color: 'bg-blue-600',
+              lastMessage: notif.description || 'New message',
+              timestamp: new Date(notif.created_at).toLocaleDateString(),
+              unread: notif.is_read ? 0 : 1,
+            });
+          }
+
+          if (!msgMap.has(convId)) {
+            msgMap.set(convId, []);
+          }
+
+          msgMap.get(convId)?.push({
+            id: notif.id,
+            sender: 'them',
+            text: notif.description || notif.title,
+            time: new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            read: notif.is_read,
+          });
+        });
+
+        // Merge with mock data if no real notifications
+        const allConversations = Array.from(convMap.values());
+        if (allConversations.length === 0) {
+          setConversations(MOCK_CONVERSATIONS);
+          setMessages(MOCK_MESSAGES);
+        } else {
+          setConversations(allConversations);
+          setMessages(Object.fromEntries(msgMap));
+        }
+      } catch (error) {
+        console.error('[Messages] error loading notifications:', error);
+        setConversations(MOCK_CONVERSATIONS);
+        setMessages(MOCK_MESSAGES);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadNotifications();
+  }, [user?.id]);
+
+  const selectedConversation = conversations.find(c => c.id === selectedId);
   const currentMessages = selectedId ? (messages[selectedId] || []) : [];
 
-  const filtered = MOCK_CONVERSATIONS.filter(c =>
+  const filtered = conversations.filter(c =>
     c.company.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -124,10 +190,19 @@ export default function Messages() {
                 <p className="text-sm text-gray-500 mb-3">Sign in to see your messages</p>
                 <a href="/login" className="text-blue-600 text-sm font-medium hover:underline">Sign in</a>
               </div>
+            ) : loading ? (
+              <div className="p-6 text-center">
+                <div className="animate-pulse space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-12 bg-gray-100 rounded-lg" />
+                  ))}
+                </div>
+              </div>
             ) : filtered.length === 0 ? (
               <div className="p-6 text-center">
                 <img src={IMG.empty.noMessages} alt="" className="w-full max-w-[200px] mx-auto rounded-lg mb-3 opacity-80" />
-                <p className="text-sm text-gray-400">No conversations found</p>
+                <p className="text-sm text-gray-400">No message notifications yet</p>
+                <p className="text-xs text-gray-400 mt-2">When recruiters and job seekers message you, they will appear here.</p>
               </div>
             ) : (
               filtered.map(conv => (

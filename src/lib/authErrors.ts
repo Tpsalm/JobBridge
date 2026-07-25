@@ -167,7 +167,7 @@ export function normalizeAuthError(
       lowerMsg.includes("email_not_confirmed")
     ) {
       fullMsg =
-        "Your email address hasn't been confirmed yet. Please check your inbox (and spam folder) for the confirmation link, then try signing in again.";
+        "Please confirm your email first. Check your inbox (and spam folder) for the confirmation link, then try signing in.";
     } else if (
       lowerMsg.includes("user not found") ||
       lowerMsg.includes("no user found")
@@ -241,7 +241,7 @@ export function normalizeAuthError(
       token_expired:
         "Your confirmation link has expired. Please sign up again or use the resend option.",
       email_not_confirmed:
-        "Your email address hasn't been confirmed yet. Please check your inbox for the confirmation link.",
+        "Please confirm your email first. Check your inbox for the confirmation link.",
     };
 
     const codeKey = errCode.toLowerCase();

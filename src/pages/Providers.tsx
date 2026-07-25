@@ -4,7 +4,8 @@ import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
 import { useAuthRequired } from '../hooks/useAuthRequired';
-import { fetchProviders } from '../lib/supabaseQueries';
+import { useAuth } from '../contexts/AuthContext';
+import { fetchProviders, createNotification } from '../lib/supabaseQueries';
 import type { Profile } from '../lib/supabase';
 import { Search, ChevronLeft, ChevronRight, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, Sparkles } from 'lucide-react';
 import FloatingDecorations from '../components/FloatingDecorations';
@@ -63,6 +64,7 @@ const categories = ['All', ...categoryList];
 export default function Providers() {
   const { openModal } = useModal();
   const { openProtectedModal, executeIfAuthenticated } = useAuthRequired();
+  const { user } = useAuth();
   const [providers, setProviders] = useState<ProviderDisplay[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,12 +119,26 @@ export default function Providers() {
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !chatProvider) return;
+    if (!newMessage.trim() || !chatProvider || !user?.id) return;
+    
     setMessages(prev => [...prev, { id: prev.length + 1, text: newMessage, sender: 'user', timestamp: new Date() }]);
+    const messageText = newMessage;
     setNewMessage('');
+
+    // Send notification to service provider
+    createNotification({
+      user_id: chatProvider.id,
+      type: 'message',
+      title: `New message from ${user.full_name || 'A user'}`,
+      description: messageText.substring(0, 100) + (messageText.length > 100 ? '...' : ''),
+      link: `/messages?provider=${chatProvider.id}`,
+      related_id: user.id,
+    }).catch(err => console.error('[sendMessage] notification failed:', err));
+
+    // Simulate provider response
     setTimeout(() => {
       setMessages(prev => [...prev, {
-        id: prev.length + 2,
+        id: prev.length + 1,
         text: "Thank you for your message! I'd be happy to discuss your project requirements.",
         sender: 'provider',
         timestamp: new Date(),

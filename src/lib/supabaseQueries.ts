@@ -160,11 +160,11 @@ export async function fetchProfile(userId: string) {
 
 export async function fetchProviders() {
   try {
+    // Fetch all providers regardless of is_active status to show newly signed up providers
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("role", "provider")
-      .neq("is_active", false)
       .order("is_featured", { ascending: false })
       .order("is_verified", { ascending: false })
       .order("reviews_count", { ascending: false });
@@ -503,6 +503,39 @@ export async function deleteNotification(notificationId: string) {
     .delete()
     .eq("id", notificationId);
   if (error) throw error;
+}
+
+export async function createNotification(notification: {
+  user_id: string;
+  type: string;
+  title: string;
+  description?: string;
+  link?: string;
+  related_id?: string;
+}) {
+  try {
+    const { data, error } = await supabase
+      .from("notifications")
+      .insert([
+        {
+          user_id: notification.user_id,
+          type: notification.type,
+          title: notification.title,
+          description: notification.description || '',
+          link: notification.link || '',
+          related_id: notification.related_id,
+          is_read: false,
+        }
+      ])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('[createNotification] error:', error);
+    throw error;
+  }
 }
 
 export async function decrementCredits(userId: string) {
