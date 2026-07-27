@@ -29,7 +29,9 @@ import {
   Search,
   X,
   Loader2,
+  ArrowRight,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import PageHero from "../components/PageHero";
 import { HERO_CAROUSELS } from "../lib/media";
 
@@ -99,6 +101,7 @@ function formatRelativeTime(value: string): string {
 
 export default function Notifications() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [alerts, setAlerts] = useState<JobAlertWithCount[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -577,12 +580,17 @@ export default function Notifications() {
                 return (
                   <div
                     key={notif.id}
-                    className={`rounded-xl border p-4 transition-all hover:shadow-sm cursor-pointer ${
+                    className={`rounded-xl border p-4 transition-all hover:shadow-sm ${
                       notif.is_read
                         ? "bg-white border-gray-100"
                         : "bg-blue-50/40 border-blue-100"
-                    }`}
-                    onClick={() => handleMarkRead(notif.id)}
+                    } ${notif.type === 'message' ? 'cursor-pointer hover:border-blue-200' : 'cursor-pointer'}`}
+                    onClick={() => {
+                      handleMarkRead(notif.id);
+                      if (notif.type === 'message') {
+                        navigate('/messages');
+                      }
+                    }}
                   >
                     <div className="flex items-start gap-3">
                       <div
@@ -620,9 +628,14 @@ export default function Notifications() {
                             </button>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1.5">
-                          {formatRelativeTime(notif.created_at)}
-                        </p>
+                          <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
+                            {formatRelativeTime(notif.created_at)}
+                            {notif.type === 'message' && (
+                              <span className="inline-flex items-center gap-0.5 text-blue-600 text-xs font-medium ml-1">
+                                Open messages <ArrowRight className="w-3 h-3" />
+                              </span>
+                            )}
+                          </p>
                       </div>
                     </div>
                   </div>

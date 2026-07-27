@@ -8,7 +8,11 @@ export default function ToastContainer() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`px-4 py-3 rounded-3xl shadow-xl max-w-sm text-sm ring-1 ring-slate-200 ${
+          onClick={() => {
+            window.location.href = '/messages';
+            remove(t.id);
+          }}
+          className={`px-4 py-3 rounded-3xl shadow-xl max-w-sm text-sm ring-1 ring-slate-200 cursor-pointer hover:opacity-90 transition-opacity ${
             t.type === 'success'
               ? 'bg-blue-600 text-white'
               : t.type === 'error'
@@ -18,7 +22,15 @@ export default function ToastContainer() {
         >
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 leading-5">{t.message}</div>
-            <button onClick={() => remove(t.id)} className="ml-3 opacity-80 hover:opacity-100">✕</button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                remove(t.id);
+              }}
+              className="ml-3 opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
           </div>
         </div>
       ))}
