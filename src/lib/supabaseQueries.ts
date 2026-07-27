@@ -1,4 +1,4 @@
-import { supabase, Job, JobAlert, Profile, Advertisement } from "./supabase";
+import { supabase, Job, JobAlert, Profile, Advertisement, SubscriptionInfo } from "./supabase";
 
 // ─── Jobs ───────────────────────────────────────────────────────────────────
 
@@ -159,35 +159,99 @@ export async function fetchProfile(userId: string) {
 }
 
 export async function fetchProviders() {
-  try {
-    // Fetch all providers regardless of is_active status to show newly signed up providers
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("role", "provider")
-      .order("is_featured", { ascending: false })
-      .order("is_verified", { ascending: false })
-      .order("reviews_count", { ascending: false });
-
-    if (!error && Array.isArray(data) && data.length > 0) {
-      return data as Profile[];
-    }
-  } catch (e) {
-    // Fallthrough to fallback fetch below
-    console.warn('[fetchProviders] supabase client fetch failed, attempting fallback', e);
-  }
-
-  // Fallback: try server-side proxy (Vercel) which uses SUPABASE_SERVICE_ROLE_KEY
+  // Prefer the server-side API because RLS on service_providers only allows
+  // admin reads by default. The API uses the service role key so all visitors
+  // (signed in or not) can see the provider directory.
   try {
     const resp = await fetch('/api/get-providers');
     if (resp.ok) {
       const json = await resp.json();
-      if (Array.isArray(json)) return json as Profile[];
-    } else {
-      console.warn('[fetchProviders] /api/get-providers failed:', resp.status);
+      if (Array.isArray(json) && json.length > 0) {
+        return json as Profile[];
+      }
+    }
+    console.warn('[fetchProviders] /api/get-providers failed or empty:', resp.status);
+  } catch (e) {
+    console.warn('[fetchProviders] /api/get-providers network error:', e);
+  }
+
+  // Client-side fallbacks if the API is unreachable.
+  const mapServiceProvider = (record: any): Profile => {
+    const profile = record.profile || {};
+    return {
+      id: profile.id || record.profile_id || record.id,
+      email: profile.email || '',
+      full_name: profile.full_name || '',
+      role: profile.role || 'provider',
+      company: profile.company,
+      phone: profile.phone,
+      avatar_url: profile.avatar_url,
+      cover_url: profile.cover_url,
+      location: profile.location,
+      bio: profile.bio,
+      is_premium: profile.is_premium,
+      subscription_tier: profile.subscription_tier,
+      subscription_expires_at: profile.subscription_expires_at,
+      profile_reminder_sent_at: profile.profile_reminder_sent_at,
+      credits: profile.credits,
+      created_at: profile.created_at || record.created_at,
+      updated_at: profile.updated_at || record.updated_at,
+      specialty: record.specialty || profile.specialty || profile.service_category,
+      hourly_rate: record.hourly_rate ?? profile.hourly_rate,
+      reviews_count: record.reviews_count ?? profile.reviews_count ?? 0,
+      is_verified: record.is_verified ?? profile.is_verified ?? false,
+      is_featured: profile.is_featured ?? false,
+      is_active: profile.is_active ?? true,
+      service_category: profile.service_category,
+      skills: profile.skills || [],
+      subscription: profile.subscription as SubscriptionInfo | undefined,
+    } as Profile;
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('service_providers')
+      .select('*, profile:profiles(*)');
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const providers = data.map(mapServiceProvider);
+      providers.sort((a, b) => {
+        if ((b.is_featured ? 1 : 0) !== (a.is_featured ? 1 : 0)) {
+          return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
+        }
+        if ((b.is_verified ? 1 : 0) !== (a.is_verified ? 1 : 0)) {
+          return (b.is_verified ? 1 : 0) - (a.is_verified ? 1 : 0);
+        }
+        return (b.reviews_count || 0) - (a.reviews_count || 0);
+      });
+      return providers;
+    }
+
+    if (error) {
+      console.warn('[fetchProviders] service_providers client fetch failed:', error);
     }
   } catch (e) {
-    console.warn('[fetchProviders] fallback fetch error:', e);
+    console.warn('[fetchProviders] service_providers client fetch failed, attempting fallback', e);
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'provider')
+      .order('is_featured', { ascending: false })
+      .order('is_verified', { ascending: false })
+      .order('reviews_count', { ascending: false });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data as Profile[];
+    }
+
+    if (error) {
+      console.warn('[fetchProviders] profiles client fetch failed:', error);
+    }
+  } catch (e) {
+    console.warn('[fetchProviders] profiles client fetch failed', e);
   }
 
   return [] as Profile[];
@@ -285,6 +349,173 @@ export async function fetchNotifications(userId: string) {
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data || [];
+}
+
+export async function fetchConversations(userId: string) {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('*, participant1:profiles(id, full_name, email), participant2:profiles(id, full_name, email)')
+    .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`)
+    .order('last_message_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchConversationMessages(conversationId: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+async function findOrCreateConversation(participant1_id: string, participant2_id: string) {
+  const ordered = [participant1_id, participant2_id].sort();
+  const participantsFilter = `or(and(participant1_id.eq.${ordered[0]},participant2_id.eq.${ordered[1]}),and(participant1_id.eq.${ordered[1]},participant2_id.eq.${ordered[0]}))`;
+
+  const { data: existingConversation, error: selectError } = await supabase
+    .from("conversations")
+    .select("*")
+    .or(participantsFilter)
+    .maybeSingle();
+
+  if (selectError) {
+    console.warn('[findOrCreateConversation] select failed:', selectError);
+  }
+
+  if (existingConversation) {
+    return existingConversation;
+  }
+
+  const { data: insertedConversation, error: insertError } = await supabase
+    .from("conversations")
+    .insert([
+      {
+        participant1_id: participant1_id,
+        participant2_id: participant2_id,
+        last_message: null,
+        last_message_at: null,
+      },
+    ])
+    .select()
+    .single();
+
+  if (insertError) {
+    console.warn('[findOrCreateConversation] insert failed:', insertError);
+    return null;
+  }
+
+  return insertedConversation;
+}
+
+export async function createConversationMessage(params: {
+  senderId: string;
+  senderName: string;
+  recipientId: string;
+  recipientName: string;
+  recipientEmail?: string;
+  message: string;
+}) {
+  const { senderId, senderName, recipientId, recipientName, recipientEmail, message } = params;
+  let conversationId: string | null = null;
+
+  try {
+    const conversation = await findOrCreateConversation(senderId, recipientId);
+    if (conversation?.id) {
+      conversationId = conversation.id;
+      await supabase
+        .from('conversations')
+        .update({ last_message: message, last_message_at: new Date().toISOString() })
+        .eq('id', conversation.id);
+
+      await supabase
+        .from('messages')
+        .insert([
+          {
+            conversation_id: conversation.id,
+            sender_id: senderId,
+            sender_name: senderName,
+            recipient_id: recipientId,
+            recipient_name: recipientName,
+            content: message,
+            is_read: false,
+          },
+        ]);
+    }
+  } catch (conversationError) {
+    console.warn('[createConversationMessage] conversation save failed:', conversationError);
+  }
+
+  // Build notification payloads and send them via a secure server-side
+  // endpoint so inserts use the Supabase service role (bypassing RLS).
+  const recipientNotification = {
+    user_id: recipientId,
+    type: 'message',
+    title: `New message from ${senderName}`,
+    content: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
+    data: {
+      conversation_id: conversationId,
+      sender_id: senderId,
+      recipient_id: recipientId,
+      direction: 'incoming',
+      related_id: senderId,
+      sender_name: senderName,
+      recipient_name: recipientName,
+    },
+  };
+
+  const senderNotification = {
+    user_id: senderId,
+    type: 'message',
+    title: `Message sent to ${recipientName}`,
+    content: message,
+    data: {
+      conversation_id: conversationId,
+      sender_id: senderId,
+      recipient_id: recipientId,
+      direction: 'outgoing',
+      related_id: recipientId,
+      sender_name: senderName,
+      recipient_name: recipientName,
+    },
+  };
+
+  try {
+    // Call server endpoint to create notifications with service role key
+    await fetch('/api/create-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(recipientNotification),
+    });
+  } catch (e) {
+    console.warn('[createConversationMessage] failed to create recipient notification via API:', e);
+  }
+
+  try {
+    await fetch('/api/create-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(senderNotification),
+    });
+  } catch (e) {
+    console.warn('[createConversationMessage] failed to create sender notification via API:', e);
+  }
+
+  if (recipientEmail) {
+    try {
+      await import('./email').then(({ sendEmail }) =>
+        sendEmail({
+          type: 'message_alert',
+          email: recipientEmail,
+          name: recipientName,
+        }),
+      );
+    } catch (emailError) {
+      console.warn('[createConversationMessage] email alert failed:', emailError);
+    }
+  }
 }
 
 export async function createAdvertisement(ad: {
@@ -509,9 +740,8 @@ export async function createNotification(notification: {
   user_id: string;
   type: string;
   title: string;
-  description?: string;
-  link?: string;
-  related_id?: string;
+  content: string;
+  data?: Record<string, unknown>;
 }) {
   try {
     const { data, error } = await supabase
@@ -521,9 +751,8 @@ export async function createNotification(notification: {
           user_id: notification.user_id,
           type: notification.type,
           title: notification.title,
-          description: notification.description || '',
-          link: notification.link || '',
-          related_id: notification.related_id,
+          content: notification.content,
+          data: notification.data || {},
           is_read: false,
         }
       ])
