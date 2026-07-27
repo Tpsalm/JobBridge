@@ -260,54 +260,68 @@ function MessageModal({ data, onClose }: { data: { name?: string; role?: string 
   );
 }
 
-function ProfileModal({ data, onClose }: { data: { name?: string; role?: string; match?: string }; onClose: () => void }) {
+function ProfileModal({ data, onClose }: { data: { name?: string; role?: string; match?: string; specialty?: string; skills?: string[]; bio?: string; location?: string; hourlyRate?: number; email?: string; verified?: boolean; reviews?: number }; onClose: () => void }) {
   const { openModal } = useModal();
+  const displaySkills = data.skills || (data.role ? [data.role] : []);
+  const displayLocation = data.location || 'Available for Remote / Hybrid';
+  const displayRole = data.specialty || data.role || 'Service Provider';
   return (
     <>
-      <ModalHeader title="Candidate Profile" onClose={onClose} />
+      <ModalHeader title="Service Provider Profile" onClose={onClose} />
       <div className="p-5 space-y-5">
         <div className="flex items-start gap-4">
           <div className="w-16 h-16 rounded-xl bg-secondary-container flex items-center justify-center font-bold text-on-secondary-container text-xl flex-shrink-0">
-            {(data.name || 'C').split(' ').map(n => n[0]).join('').slice(0, 2)}
+            {(data.name || 'P').split(' ').map(n => n[0]).join('').slice(0, 2)}
           </div>
           <div className="flex-1">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="font-bold text-lg">{data.name || 'Candidate'}</h3>
-                <p className="text-sm text-on-surface-variant">{data.role || 'Professional'}</p>
+                <h3 className="font-bold text-lg">{data.name || 'Provider'}</h3>
+                <p className="text-sm text-on-surface-variant">{displayRole}</p>
               </div>
-              {data.match && <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">{data.match}</span>}
+              <div className="flex items-center gap-1.5">
+                {data.verified && <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-0.5"><span className="material-symbols-outlined text-xs">verified</span>Verified</span>}
+                {data.match && <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">{data.match}</span>}
+              </div>
             </div>
+            {data.bio && <p className="text-sm text-gray-600 mt-2 leading-relaxed">{data.bio}</p>}
             <div className="flex items-center gap-2 mt-2">
               <span className="material-symbols-outlined text-sm text-on-surface-variant">location_on</span>
-              <span className="text-xs text-on-surface-variant">Available for Remote / Hybrid</span>
+              <span className="text-xs text-on-surface-variant">{displayLocation}</span>
             </div>
+            {data.hourlyRate && data.hourlyRate > 0 && (
+              <div className="flex items-center gap-2 mt-1">
+                <span className="material-symbols-outlined text-sm text-on-surface-variant">payments</span>
+                <span className="text-xs font-semibold text-blue-700">₦{data.hourlyRate.toLocaleString()}/hr</span>
+              </div>
+            )}
+            {data.reviews !== undefined && (
+              <div className="flex items-center gap-1 mt-1">
+                <span className="material-symbols-outlined text-sm text-amber-500">star</span>
+                <span className="text-xs text-gray-500">{data.reviews} reviews</span>
+              </div>
+            )}
           </div>
         </div>
-        <div>
-          <h4 className="text-xs font-bold text-on-surface-variant uppercase mb-2">Key Skills</h4>
-          <div className="flex flex-wrap gap-2">
-            {['Figma', 'User Research', 'Design Systems', 'Prototyping', 'B2B SaaS'].map(s => (
-              <span key={s} className="px-3 py-1 bg-surface-container rounded-full text-xs font-medium text-on-surface-variant">{s}</span>
-            ))}
-          </div>
-        </div>
-        <div>
-          <h4 className="text-xs font-bold text-on-surface-variant uppercase mb-2">Experience</h4>
-          <div className="space-y-3">
-            <div className="flex gap-3">
-              <div className="w-8 h-8 bg-surface-container rounded flex items-center justify-center flex-shrink-0"><span className="material-symbols-outlined text-sm text-on-surface-variant">work</span></div>
-              <div><p className="text-sm font-semibold">Senior UX Designer</p><p className="text-xs text-on-surface-variant">TechStream Inc. • 2021 – Present</p></div>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-8 h-8 bg-surface-container rounded flex items-center justify-center flex-shrink-0"><span className="material-symbols-outlined text-sm text-on-surface-variant">work</span></div>
-              <div><p className="text-sm font-semibold">Product Designer</p><p className="text-xs text-on-surface-variant">Innovate UX • 2018 – 2021</p></div>
+        {displaySkills.length > 0 && (
+          <div>
+            <h4 className="text-xs font-bold text-on-surface-variant uppercase mb-2">Skills & Specializations</h4>
+            <div className="flex flex-wrap gap-2">
+              {displaySkills.map(s => (
+                <span key={s} className="px-3 py-1 bg-surface-container rounded-full text-xs font-medium text-on-surface-variant">{s}</span>
+              ))}
             </div>
           </div>
-        </div>
+        )}
         <div className="flex gap-3 pt-2">
-          <button onClick={() => { onClose(); setTimeout(() => openModal('schedule-interview', data), 100); }} className="flex-1 border border-primary text-primary py-2.5 rounded-lg font-semibold hover:bg-primary-fixed transition-colors text-sm">Schedule Interview</button>
-          <button onClick={() => { onClose(); setTimeout(() => openModal('message', data), 100); }} className="flex-1 bg-primary text-white py-2.5 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm">Send Message</button>
+          <button onClick={() => { onClose(); setTimeout(() => openModal('message', data), 100); }} className="flex-1 bg-primary text-white py-2.5 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm flex items-center justify-center gap-1.5">
+            <span className="material-symbols-outlined text-lg">send</span> Send Message
+          </button>
+          {data.email && (
+            <a href={`mailto:${data.email}`} className="flex-1 border border-primary text-primary py-2.5 rounded-lg font-semibold hover:bg-primary-fixed transition-colors text-sm flex items-center justify-center gap-1.5">
+              <span className="material-symbols-outlined text-lg">mail</span> Email
+            </a>
+          )}
         </div>
       </div>
     </>

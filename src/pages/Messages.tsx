@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import AppLayout from '../components/AppLayout';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchNotifications, createNotification } from '../lib/supabaseQueries';
+import { fetchConversations, fetchConversationMessages, createConversationMessage } from '../lib/supabaseQueries';
+import { supabase } from '../lib/supabase';
 import { Send, Search, MoreVertical, Lock, Check, CheckCheck, CircleDot } from 'lucide-react';
 import CompanyLogo from '../components/CompanyLogo';
 import { IMG } from '../lib/media';
@@ -16,6 +17,9 @@ interface Conversation {
   unread: number;
   locked?: boolean;
   online?: boolean;
+  recipientId: string;
+  recipientName: string;
+  recipientEmail?: string;
 }
 
 interface MessageItem {
@@ -27,13 +31,13 @@ interface MessageItem {
 }
 
 const MOCK_CONVERSATIONS: Conversation[] = [
-  { id: '1', company: 'Flutterwave', logo_initial: 'F', color: 'bg-orange-500', lastMessage: 'Thank you for your application. We would like to schedule an interview...', timestamp: '18 Jun 2025', unread: 2, online: true },
-  { id: '2', company: 'Andela', logo_initial: 'A', color: 'bg-blue-600', lastMessage: 'Your application for Senior Developer has been received.', timestamp: '10 Jun 2025', unread: 0 },
-  { id: '3', company: 'Paystack', logo_initial: 'P', color: 'bg-green-600', lastMessage: 'We have reviewed your portfolio and are impressed with your work.', timestamp: '2 Jun 2025', unread: 1, online: true },
-  { id: '4', company: 'Kuda Bank', logo_initial: 'K', color: 'bg-purple-600', lastMessage: 'This conversation is no longer active.', timestamp: '15 May 2025', unread: 0, locked: true },
-  { id: '5', company: 'MTN Nigeria', logo_initial: 'M', color: 'bg-yellow-500', lastMessage: 'Thank you for your interest in the Product Manager role.', timestamp: '28 Apr 2025', unread: 0 },
-  { id: '6', company: 'Jumia', logo_initial: 'J', color: 'bg-orange-600', lastMessage: 'This conversation is no longer active.', timestamp: '12 Apr 2025', unread: 0, locked: true },
-  { id: '7', company: 'OPay', logo_initial: 'O', color: 'bg-emerald-600', lastMessage: 'Welcome to OPay! We are excited to connect with you.', timestamp: '1 Jan 2025', unread: 0 },
+  { id: '1', company: 'Flutterwave', logo_initial: 'F', color: 'bg-orange-500', lastMessage: 'Thank you for your application. We would like to schedule an interview...', timestamp: '18 Jun 2025', unread: 2, online: true, recipientId: '', recipientName: 'Flutterwave' },
+  { id: '2', company: 'Andela', logo_initial: 'A', color: 'bg-blue-600', lastMessage: 'Your application for Senior Developer has been received.', timestamp: '10 Jun 2025', unread: 0, recipientId: '', recipientName: 'Andela' },
+  { id: '3', company: 'Paystack', logo_initial: 'P', color: 'bg-green-600', lastMessage: 'We have reviewed your portfolio and are impressed with your work.', timestamp: '2 Jun 2025', unread: 1, online: true, recipientId: '', recipientName: 'Paystack' },
+  { id: '4', company: 'Kuda Bank', logo_initial: 'K', color: 'bg-purple-600', lastMessage: 'This conversation is no longer active.', timestamp: '15 May 2025', unread: 0, locked: true, recipientId: '', recipientName: 'Kuda Bank' },
+  { id: '5', company: 'MTN Nigeria', logo_initial: 'M', color: 'bg-yellow-500', lastMessage: 'Thank you for your interest in the Product Manager role.', timestamp: '28 Apr 2025', unread: 0, recipientId: '', recipientName: 'MTN Nigeria' },
+  { id: '6', company: 'Jumia', logo_initial: 'J', color: 'bg-orange-600', lastMessage: 'This conversation is no longer active.', timestamp: '12 Apr 2025', unread: 0, locked: true, recipientId: '', recipientName: 'Jumia' },
+  { id: '7', company: 'OPay', logo_initial: 'O', color: 'bg-emerald-600', lastMessage: 'Welcome to OPay! We are excited to connect with you.', timestamp: '1 Jan 2025', unread: 0, recipientId: '', recipientName: 'OPay' },
 ];
 
 const MOCK_MESSAGES: Record<string, MessageItem[]> = {
@@ -63,61 +67,60 @@ export default function Messages() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch notifications and convert to conversations
+  // Fetch conversation threads and messages
   useEffect(() => {
     if (!user?.id) {
       setLoading(false);
       return;
     }
 
-    const loadNotifications = async () => {
+    const loadConversations = async () => {
       try {
-        const notifications = await fetchNotifications(user.id);
-        
-        // Group notifications by related_id (sender) and convert to conversations
-        const convMap = new Map<string, Conversation>();
+        const convs = await fetchConversations(user.id);
+        const convItems: Conversation[] = [];
         const msgMap = new Map<string, MessageItem[]>();
 
-        notifications.forEach(notif => {
-          const convId = notif.related_id || notif.id;
-          if (!convMap.has(convId)) {
-            convMap.set(convId, {
-              id: convId,
-              company: notif.title.replace('New message from ', ''),
-              logo_initial: (notif.title.charAt(0) || 'U'),
-              color: 'bg-blue-600',
-              lastMessage: notif.description || 'New message',
-              timestamp: new Date(notif.created_at).toLocaleDateString(),
-              unread: notif.is_read ? 0 : 1,
-            });
-          }
+        for (const conv of convs) {
+          const otherParticipant = conv.participant1_id === user.id ? conv.participant2 : conv.participant1;
+          const convId = conv.id;
+          const name = otherParticipant?.full_name || 'Conversation';
+          const otherId = otherParticipant?.id || '';
 
-          if (!msgMap.has(convId)) {
-            msgMap.set(convId, []);
-          }
-
-          msgMap.get(convId)?.push({
-            id: notif.id,
-            sender: 'them',
-            text: notif.description || notif.title,
-            time: new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            read: notif.is_read,
+          convItems.push({
+            id: convId,
+            company: name,
+            logo_initial: (name.charAt(0) || 'U'),
+            color: 'bg-blue-600',
+            lastMessage: conv.last_message || 'New conversation',
+            timestamp: conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : new Date(conv.created_at).toLocaleDateString(),
+            unread: 0,
+            recipientId: otherId,
+            recipientName: name,
+            recipientEmail: otherParticipant?.email || undefined,
           });
-        });
 
-        // Merge with mock data if no real notifications
-        const allConversations = Array.from(convMap.values());
-        if (allConversations.length === 0) {
+          const msgs = await fetchConversationMessages(convId);
+          msgMap.set(convId, msgs.map(msg => ({
+            id: msg.id,
+            sender: msg.sender_id === user.id ? 'me' : 'them',
+            text: msg.content,
+            time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            read: msg.is_read,
+          })));
+        }
+
+        if (convItems.length === 0) {
           setConversations(MOCK_CONVERSATIONS);
           setMessages(MOCK_MESSAGES);
         } else {
-          setConversations(allConversations);
+          setConversations(convItems);
           setMessages(Object.fromEntries(msgMap));
         }
       } catch (error) {
-        console.error('[Messages] error loading notifications:', error);
+        console.error('[Messages] error loading conversations:', error);
         setConversations(MOCK_CONVERSATIONS);
         setMessages(MOCK_MESSAGES);
       } finally {
@@ -125,7 +128,128 @@ export default function Messages() {
       }
     };
 
-    loadNotifications();
+    loadConversations();
+  }, [user?.id]);
+
+  // Real-time subscription for new messages in the selected conversation
+  useEffect(() => {
+    if (!selectedId || !user?.id) return;
+
+    const channel = supabase
+      .channel(`messages-live:${selectedId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${selectedId}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as any;
+          // Only add if it's from the other participant (not our own message)
+          if (newMsg.sender_id !== user.id) {
+            setMessages(prev => {
+              const existing = prev[selectedId] || [];
+              // Avoid duplicates
+              if (existing.some(m => m.id === newMsg.id)) return prev;
+              return {
+                ...prev,
+                [selectedId]: [...existing, {
+                  id: newMsg.id,
+                  sender: 'them' as const,
+                  text: newMsg.content,
+                  time: new Date(newMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  read: newMsg.is_read,
+                }],
+              };
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedId, user?.id]);
+
+  // Real-time subscription for new conversations
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`conversations-live:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversations',
+          filter: `participant1_id=eq.${user.id}`,
+        },
+        () => {
+          // Reload conversations when a new one appears
+          fetchConversations(user.id).then(convs => {
+            const convItems: Conversation[] = [];
+            for (const conv of convs) {
+              const otherParticipant = conv.participant1_id === user.id ? conv.participant2 : conv.participant1;
+              const name = otherParticipant?.full_name || 'Conversation';
+              const otherId = otherParticipant?.id || '';
+              convItems.push({
+                id: conv.id,
+                company: name,
+                logo_initial: (name.charAt(0) || 'U'),
+                color: 'bg-blue-600',
+                lastMessage: conv.last_message || 'New conversation',
+                timestamp: conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : new Date(conv.created_at).toLocaleDateString(),
+                unread: 0,
+                recipientId: otherId,
+                recipientName: name,
+                recipientEmail: otherParticipant?.email || undefined,
+              });
+            }
+            setConversations(convItems);
+          }).catch(() => {});
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversations',
+          filter: `participant2_id=eq.${user.id}`,
+        },
+        () => {
+          fetchConversations(user.id).then(convs => {
+            const convItems: Conversation[] = [];
+            for (const conv of convs) {
+              const otherParticipant = conv.participant1_id === user.id ? conv.participant2 : conv.participant1;
+              const name = otherParticipant?.full_name || 'Conversation';
+              const otherId = otherParticipant?.id || '';
+              convItems.push({
+                id: conv.id,
+                company: name,
+                logo_initial: (name.charAt(0) || 'U'),
+                color: 'bg-blue-600',
+                lastMessage: conv.last_message || 'New conversation',
+                timestamp: conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : new Date(conv.created_at).toLocaleDateString(),
+                unread: 0,
+                recipientId: otherId,
+                recipientName: name,
+                recipientEmail: otherParticipant?.email || undefined,
+              });
+            }
+            setConversations(convItems);
+          }).catch(() => {});
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user?.id]);
 
   const selectedConversation = conversations.find(c => c.id === selectedId);
@@ -139,21 +263,58 @@ export default function Messages() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentMessages.length, selectedId]);
 
-  const handleSend = () => {
-    if (!newMessage.trim() || !selectedId) return;
-    const msg: MessageItem = {
-      id: `msg-${Date.now()}`,
+  const handleSend = useCallback(async () => {
+    if (!newMessage.trim() || !selectedId || !user?.id || !profile?.full_name || sending) return;
+
+    const selectedConv = conversations.find(c => c.id === selectedId);
+    if (!selectedConv) return;
+
+    const messageText = newMessage.trim();
+    setNewMessage('');
+
+    // Optimistically add to local state
+    const tempId = `msg-${Date.now()}`;
+    const optimisticMsg: MessageItem = {
+      id: tempId,
       sender: 'me',
-      text: newMessage.trim(),
+      text: messageText,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       read: false,
     };
     setMessages(prev => ({
       ...prev,
-      [selectedId]: [...(prev[selectedId] || []), msg],
+      [selectedId]: [...(prev[selectedId] || []), optimisticMsg],
     }));
-    setNewMessage('');
-  };
+
+    setSending(true);
+
+    try {
+      await createConversationMessage({
+        senderId: user.id,
+        senderName: profile.full_name,
+        recipientId: selectedConv.recipientId,
+        recipientName: selectedConv.recipientName,
+        recipientEmail: selectedConv.recipientEmail,
+        message: messageText,
+      });
+
+      // Update the conversation's last message in local state
+      setConversations(prev => prev.map(c =>
+        c.id === selectedId
+          ? { ...c, lastMessage: messageText, timestamp: new Date().toLocaleDateString() }
+          : c
+      ));
+    } catch (error) {
+      console.error('[Messages] handleSend failed:', error);
+      // Remove optimistic message on failure
+      setMessages(prev => ({
+        ...prev,
+        [selectedId]: (prev[selectedId] || []).filter(m => m.id !== tempId),
+      }));
+    } finally {
+      setSending(false);
+    }
+  }, [newMessage, selectedId, user?.id, profile?.full_name, conversations, sending]);
 
   return (
     <AppLayout>
@@ -343,7 +504,7 @@ export default function Messages() {
                     />
                     <button
                       onClick={handleSend}
-                      disabled={!newMessage.trim()}
+                      disabled={!newMessage.trim() || sending}
                       className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Send className="w-4 h-4" />

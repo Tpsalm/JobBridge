@@ -5,7 +5,7 @@ import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
 import { useAuthRequired } from '../hooks/useAuthRequired';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchProviders, createNotification } from '../lib/supabaseQueries';
+import { fetchProviders, createConversationMessage } from '../lib/supabaseQueries';
 import type { Profile } from '../lib/supabase';
 import { Search, ChevronLeft, ChevronRight, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, Sparkles } from 'lucide-react';
 import FloatingDecorations from '../components/FloatingDecorations';
@@ -20,6 +20,7 @@ interface Message {
 
 interface ProviderDisplay {
   id: string;
+  email: string;
   name: string;
   specialty: string;
   rating: number;
@@ -46,17 +47,131 @@ function getBgColor(id: string) {
 }
 
 const categoryList: string[] = [
-  'Design', 'Development', 'Marketing', 'Finance', 'Legal', 'Photography', 'Consulting',
+  'Technology', 'Creative & Media', 'Business & Administration',
+  'Sales & Marketing', 'Engineering & Construction', 'Skilled Trades',
+  'Beauty & Fashion', 'Food & Hospitality', 'Health & Wellness',
+  'Education', 'Transportation & Logistics', 'Home & Property Services',
+  'Professional Services', 'Events & Entertainment', 'Agriculture',
+  'Cleaning & Maintenance',
 ];
 
-const categoryKeywords: Record<string, string[]> = {
-  'Design': ['design', 'graphic', 'ui', 'ux', 'visual', 'creative'],
-  'Development': ['developer', 'web', 'mobile', 'software', 'programming', 'coding', 'frontend', 'backend'],
-  'Marketing': ['marketing', 'digital', 'social media', 'seo', 'content'],
-  'Finance': ['finance', 'financial', 'accounting', 'accountant', 'tax'],
-  'Legal': ['legal', 'law', 'lawyer', 'consultant', 'attorney'],
-  'Photography': ['photography', 'photographer', 'photo', 'video'],
-  'Consulting': ['consulting', 'consultant', 'business', 'strategy'],
+const SERVICE_KEYWORDS: Record<string, string[]> = {
+  'Technology': ['software', 'developer', 'web', 'mobile', 'programming', 'coding', 'frontend', 'backend', 'fullstack', 'app', 'data analyst', 'data scientist', 'virtual assistant', 'it', 'computer', 'phone repair', 'tech', 'ui/ux', 'ui ux'],
+  'Creative & Media': ['design', 'graphic', 'ui', 'ux', 'video', 'editor', 'photographer', 'photography', 'content creator', 'social media manager', 'copywriter', 'musician', 'saxophonist', 'dj', 'music', 'creative', 'animator', 'branding'],
+  'Business & Administration': ['administrative', 'virtual assistant', 'hr', 'human resources', 'project manager', 'accountant', 'accounting', 'business development', 'tax', 'admin', 'customer support', 'secretary'],
+  'Sales & Marketing': ['sales', 'marketing', 'digital marketing', 'social media', 'seo', 'content', 'copywriter', 'brand', 'advertising', 'business development', 'affiliate'],
+  'Engineering & Construction': ['civil engineer', 'mechanical engineer', 'electrical engineer', 'architect', 'quantity surveyor', 'building', 'construction', 'mason', 'interior design', 'landscaping', 'furniture', 'welder', 'engineer'],
+  'Skilled Trades': ['electrician', 'plumber', 'carpenter', 'welder', 'mason', 'painter', 'panel beater', 'generator repair', 'appliance repair', 'mechanic', 'auto mechanic', 'ac installer', 'borehole driller', 'repair', 'maintenance'],
+  'Beauty & Fashion': ['barber', 'hair stylist', 'makeup artist', 'nail tech', 'beauty salon', 'barbing salon', 'spa', 'wellness', 'fashion designer', 'tailor', 'fashion house', 'nail', 'makeup', 'hair', 'salon'],
+  'Food & Hospitality': ['chef', 'baker', 'caterer', 'catering', 'cook', 'restaurant', 'food', 'hospitality'],
+  'Health & Wellness': ['nurse', 'doctor', 'pharmacist', 'medical', 'clinic', 'pharmacy', 'fitness trainer', 'gym', 'wellness', 'spa', 'healthcare'],
+  'Education': ['teacher', 'tutor', 'private tutor', 'coaching', 'training', 'translator', 'education', 'instructor'],
+  'Transportation & Logistics': ['driver', 'dispatcher', 'rider', 'courier', 'delivery', 'logistics', 'car rental', 'transport', 'travel', 'tours'],
+  'Home & Property Services': ['cleaner', 'cleaning', 'sofa cleaner', 'dry cleaner', 'laundry', 'pest control', 'gardening', 'landscaping', 'painting', 'plumber', 'electrician', 'carpenter', 'real estate', 'property', 'home'],
+  'Professional Services': ['lawyer', 'legal', 'accountant', 'accounting', 'tax', 'consulting', 'consultant', 'real estate agent', 'visa', 'immigration', 'translator', 'printing', 'coworking', 'security guard'],
+  'Events & Entertainment': ['dj', 'musician', 'saxophonist', 'mc', 'compere', 'event planner', 'photography', 'videography', 'entertainment', 'event', 'wedding'],
+  'Agriculture': ['agriculture', 'farming', 'farm', 'agro', 'poultry', 'fishery', 'crop', 'livestock'],
+  'Cleaning & Maintenance': ['cleaner', 'cleaning', 'sofa cleaner', 'dry cleaner', 'laundry', 'pest control', 'cleaning equipment', 'maintenance', 'janitorial', 'equipment rental'],
+};
+
+// ALL services from both lists combined, organized by categories
+const ALL_SERVICES: Record<string, string[]> = {
+  'Technology': [
+    'Software Developer', 'Web Developer', 'UI/UX Designer',
+    'Graphic Designer', 'Data Analyst', 'Data Scientist',
+    'Virtual Assistant', 'Customer Support Representative',
+    'Phone Repair', 'Computer Repair',
+    'Software Development Company', 'Web Design Agency',
+  ],
+  'Creative & Media': [
+    'Graphic Designer', 'Video Editor', 'Photographer', 'Content Creator',
+    'Social Media Manager', 'Digital Marketer', 'Copywriter',
+    'Musician', 'Saxophonist', 'DJ',
+    'Photography Studio', 'Videography Services', 'Printing & Branding',
+    'Digital Marketing Agency',
+  ],
+  'Business & Administration': [
+    'Administrative Assistant', 'Project Manager', 'Human Resources (HR) Officer',
+    'Business Development Officer', 'Accountant', 'Virtual Assistant',
+    'Customer Support Representative', 'Accounting & Tax Services',
+    'Sales Executive',
+  ],
+  'Sales & Marketing': [
+    'Sales Executive', 'Digital Marketer', 'Social Media Manager',
+    'Content Creator', 'Copywriter', 'Digital Marketing Agency',
+    'Business Development Officer',
+  ],
+  'Engineering & Construction': [
+    'Civil Engineer', 'Mechanical Engineer', 'Electrical Engineer',
+    'Architect', 'Quantity Surveyor', 'Mason',
+    'Building & Construction', 'Interior Design', 'Furniture Making',
+    'Landscaping & Gardening', 'Welder',
+  ],
+  'Skilled Trades': [
+    'Electrician', 'Plumber', 'Carpenter', 'Welder', 'Mason', 'Painter',
+    'Panel Beater', 'Panel Beaters', 'Generator Repairer', 'Generator Repairers',
+    'AC Installer', 'AC Installers', 'Borehole Driller', 'Borehole Drillers',
+    'Auto Mechanic Workshop', 'Appliance Repair',
+    'Electrical Services', 'Plumbing Services', 'Painting Services',
+    'Generator Repair', 'Painters', 'Mechanics',
+  ],
+  'Beauty & Fashion': [
+    'Barber', 'Hair Stylist', 'Makeup Artist', 'Nail Tech',
+    'Fashion Designer', 'Tailor',
+    'Beauty Salon', 'Barbing Salon', 'Spa & Wellness',
+    'Fashion House', 'Tailoring Services',
+  ],
+  'Food & Hospitality': [
+    'Chef', 'Baker', 'Caterer',
+    'Catering Services', 'Waiter', 'Restaurant Staff',
+  ],
+  'Health & Wellness': [
+    'Nurse', 'Doctor', 'Pharmacist',
+    'Medical Clinic', 'Pharmacy',
+    'Fitness Trainer', 'Spa & Wellness',
+  ],
+  'Education': [
+    'Teacher', 'Tutor', 'Private Tutor', 'Private Tutors',
+    'Translator', 'Training & Coaching', 'Language Instructor',
+  ],
+  'Transportation & Logistics': [
+    'Driver', 'Dispatcher/Rider',
+    'Courier Services', 'Logistics & Delivery',
+    'Car Rental', 'Travel & Tours', 'Bike Rider',
+    'Translation Services',
+  ],
+  'Home & Property Services': [
+    'Cleaner', 'Sofa Cleaners', 'Dry Cleaners', 'Dry cleaners',
+    'Laundry & Dry Cleaning', 'Pest Control',
+    'Landscaping & Gardening', 'Painting Services',
+    'Plumber', 'Electrician', 'Carpenter',
+    'Real Estate Agency', 'Real Estate Agent',
+    'Equipment & Tool Rental', 'Cleaning Equipment Rental',
+  ],
+  'Professional Services': [
+    'Lawyer', 'Accountant', 'Security Guard',
+    'Visa & Immigration Consulting', 'Translator', 'Translation Services',
+    'Printing Press', 'Coworking Space',
+    'Legal Services', 'Accounting & Tax Services',
+    'Security Services', 'Real Estate Agency',
+  ],
+  'Events & Entertainment': [
+    'DJ', 'Musician', 'Saxophonist', 'MC/Compere',
+    'Event Planner', 'Event Planning',
+    'Photographer', 'Photography Studio', 'Videography Services',
+  ],
+  'Agriculture': [
+    'Agriculture & Farm Services', 'Poultry Farming', 'Fishery',
+    'Crop Farming', 'Livestock',
+  ],
+  'Cleaning & Maintenance': [
+    'Cleaner', 'Cleaning Services',
+    'Sofa Cleaners', 'Dry Cleaners', 'Dry cleaners',
+    'Laundry & Dry Cleaning', 'Pest Control',
+    'Cleaning Equipment Rental', 'Equipment & Tool Rental',
+    'Waste Management', 'Car Wash & Auto Detailing',
+    'Janitorial Services',
+  ],
 };
 
 const categories = ['All', ...categoryList];
@@ -64,7 +179,7 @@ const categories = ['All', ...categoryList];
 export default function Providers() {
   const { openModal } = useModal();
   const { openProtectedModal, executeIfAuthenticated } = useAuthRequired();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [providers, setProviders] = useState<ProviderDisplay[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,6 +199,7 @@ export default function Providers() {
 
         return {
           id: p.id,
+          email: p.email || '',
           name: p.full_name || 'Provider',
           specialty,
           rating: 4.8,
@@ -117,33 +233,26 @@ export default function Providers() {
 
   const closeChat = () => { setChatProvider(null); setMessages([]); setNewMessage(''); };
 
-  const sendMessage = (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !chatProvider || !user?.id) return;
-    
-    setMessages(prev => [...prev, { id: prev.length + 1, text: newMessage, sender: 'user', timestamp: new Date() }]);
-    const messageText = newMessage;
+
+    const messageText = newMessage.trim();
     setNewMessage('');
+    setMessages(prev => [...prev, { id: prev.length + 1, text: messageText, sender: 'user', timestamp: new Date() }]);
 
-    // Send notification to service provider
-    createNotification({
-      user_id: chatProvider.id,
-      type: 'message',
-      title: `New message from ${user.full_name || 'A user'}`,
-      description: messageText.substring(0, 100) + (messageText.length > 100 ? '...' : ''),
-      link: `/messages?provider=${chatProvider.id}`,
-      related_id: user.id,
-    }).catch(err => console.error('[sendMessage] notification failed:', err));
-
-    // Simulate provider response
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: prev.length + 1,
-        text: "Thank you for your message! I'd be happy to discuss your project requirements.",
-        sender: 'provider',
-        timestamp: new Date(),
-      }]);
-    }, 1000);
+    try {
+      await createConversationMessage({
+        senderId: user.id,
+        senderName: profile?.full_name || user.email || 'A user',
+        recipientId: chatProvider.id,
+        recipientName: chatProvider.name,
+        recipientEmail: chatProvider.email,
+        message: messageText,
+      });
+    } catch (error) {
+      console.error('[sendMessage] conversation save failed:', error);
+    }
   };
 
   const scroll = (direction: 'left' | 'right') => {
@@ -154,9 +263,9 @@ export default function Providers() {
 
   const matchCategory = (provider: ProviderDisplay, category: string): boolean => {
     if (category === 'All') return true;
-    const keywords = categoryKeywords[category] || [];
+    const keywords = SERVICE_KEYWORDS[category] || [];
     const text = `${provider.specialty} ${provider.specializations.join(' ')} ${provider.name}`.toLowerCase();
-    return keywords.some(k => text.includes(k));
+    return keywords.some((k: string) => text.includes(k));
   };
 
   const filteredProviders = providers.filter(p => {
@@ -222,7 +331,19 @@ export default function Providers() {
           <button onClick={() => openChat(provider)} className="flex-1 flex items-center justify-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-medium py-2.5 px-3 rounded-lg transition-colors text-sm">
             <MessageCircle className="w-4 h-4" /> Chat
           </button>
-          <button onClick={() => openModal('profile', { name: provider.name, role: provider.specialty, match: `${provider.rating}★` })} className="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2.5 px-3 rounded-lg transition-colors text-sm">
+          <button onClick={() => openModal('profile', {
+            name: provider.name,
+            role: provider.specialty,
+            specialty: provider.specialty,
+            match: `${provider.rating}★`,
+            skills: provider.specializations,
+            bio: '',
+            location: '',
+            hourlyRate: provider.hourlyRate,
+            email: provider.email,
+            verified: provider.verified,
+            reviews: provider.reviews,
+          })} className="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2.5 px-3 rounded-lg transition-colors text-sm">
             View Profile
           </button>
         </div>
@@ -292,17 +413,84 @@ export default function Providers() {
         {/* All Providers Grid */}
         <div className="mb-10">
           <h2 className="text-xl font-bold text-gray-900 mb-4">
-            All Providers
-            {selectedCategory !== 'All' && <span className="text-base font-normal text-gray-500 ml-2">in {selectedCategory}</span>}
+            {selectedCategory === 'All' ? 'All Service Providers' : `Service Providers in ${selectedCategory}`}
           </h2>
-          {sortedProviders.length === 0 ? (
-            <div className="bg-white rounded-xl p-10 text-center border border-gray-100">
-              <p className="text-gray-500 mb-3">No providers found in this category yet.</p>
-              <p className="text-sm text-gray-400">If you're a professional, <Link to="/pricing" className="text-blue-700 hover:underline font-medium">become a provider</Link> and get listed here.</p>
-            </div>
-          ) : (
+          {sortedProviders.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {sortedProviders.map(p => <ProviderCard key={p.id} provider={p} />)}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Browse All Services Directory - shown regardless of provider count */}
+        <div className="mb-10">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900">Browse All Services</h2>
+            <p className="text-sm text-gray-500">Find professionals for any service</p>
+          </div>
+
+          {selectedCategory === 'All' ? (
+            /* Show all categories in a grid */
+            <div className="space-y-8">
+              {categoryList.map(cat => {
+                const services = ALL_SERVICES[cat] || [];
+                return (
+                  <div key={cat} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-700 to-blue-600 px-5 py-3">
+                      <h3 className="font-bold text-white text-lg">{cat}</h3>
+                      <p className="text-blue-200 text-xs mt-0.5">{services.length} services available</p>
+                    </div>
+                    <div className="p-4">
+                      <div className="flex flex-wrap gap-2">
+                        {services.map(service => (
+                          <button
+                            key={service}
+                            onClick={() => {
+                              setSearchQuery(service);
+                              setSelectedCategory(cat);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="px-3.5 py-2 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-lg text-sm text-gray-700 transition-colors font-medium"
+                          >
+                            {service}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* Show services only for selected category */
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-700 to-blue-600 px-5 py-3">
+                <h3 className="font-bold text-white text-lg">{selectedCategory}</h3>
+                <p className="text-blue-200 text-xs mt-0.5">{(ALL_SERVICES[selectedCategory] || []).length} services available</p>
+              </div>
+              <div className="p-4">
+                <div className="flex flex-wrap gap-2">
+                  {(ALL_SERVICES[selectedCategory] || []).map(service => (
+                    <button
+                      key={service}
+                      onClick={() => {
+                        setSearchQuery(service);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="px-3.5 py-2 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-lg text-sm text-gray-700 transition-colors font-medium"
+                    >
+                      {service}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {sortedProviders.length === 0 && (
+            <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-5 text-center">
+              <p className="text-amber-800 font-medium mb-2">No providers listed in this category yet</p>
+              <p className="text-amber-700 text-sm">If you're a professional, <Link to="/pricing#services" className="text-blue-700 hover:underline font-semibold">become a provider</Link> and get listed here.</p>
             </div>
           )}
         </div>

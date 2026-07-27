@@ -28,6 +28,8 @@ BEGIN
   ) THEN
     EXECUTE 'DROP POLICY IF EXISTS "Admins can read providers" ON public.service_providers';
     EXECUTE 'CREATE POLICY "Admins can read providers" ON public.service_providers FOR SELECT USING (public.is_admin())';
+    EXECUTE 'DROP POLICY IF EXISTS "Anyone can read active providers" ON public.service_providers';
+    EXECUTE 'CREATE POLICY "Anyone can read active providers" ON public.service_providers FOR SELECT USING (is_active = true)';
     EXECUTE 'DROP POLICY IF EXISTS "Admins can insert providers" ON public.service_providers';
     EXECUTE 'CREATE POLICY "Admins can insert providers" ON public.service_providers FOR INSERT WITH CHECK (public.is_admin())';
   END IF;

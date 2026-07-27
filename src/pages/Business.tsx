@@ -4,8 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
+import { useAuthRequired } from '../hooks/useAuthRequired';
 import { fetchAdvertisementsByOwner, createAdvertisement } from '../lib/supabaseQueries';
-import { Building, Plus, Eye, Clock, CheckCircle, AlertCircle, CreditCard, TrendingUp, BarChart3, Star, ChevronRight, Edit, Trash2, ExternalLink } from 'lucide-react';
+import { Building, Plus, Eye, Clock, CheckCircle, AlertCircle, CreditCard, TrendingUp, BarChart3, Star, ChevronRight, Edit, Trash2, ExternalLink, Lock } from 'lucide-react';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, advertImage } from '../lib/media';
 import { sendEmail } from '../lib/email';
@@ -40,6 +41,7 @@ const categories = ['Restaurant', 'Fashion', 'Technology', 'Education', 'Health'
 
 export default function Business() {
   const { openModal } = useModal();
+  const { executeIfAuthenticated } = useAuthRequired();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
@@ -364,9 +366,12 @@ export default function Business() {
           </div>
         )}
 
-        {/* Create New Advert Button */}
+        {/* Create New Advert Button - requires authentication */}
         <button
-          onClick={() => setShowCreateForm(true)}
+          onClick={() => {
+            if (!executeIfAuthenticated({ action: 'message', modalData: { name: 'Business Advert', role: 'Business Owner' } })) return;
+            setShowCreateForm(true);
+          }}
           className="w-full flex items-center justify-center gap-2 bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors mb-8"
         >
           <Plus className="w-5 h-5" />

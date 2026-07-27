@@ -95,6 +95,10 @@ CREATE POLICY "Admins can delete payments"
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'service_providers') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Admins can read providers" ON public.service_providers';
+    EXECUTE 'CREATE POLICY "Admins can read providers" ON public.service_providers FOR SELECT USING (public.is_admin())';
+    EXECUTE 'DROP POLICY IF EXISTS "Anyone can read active providers" ON public.service_providers';
+    EXECUTE 'CREATE POLICY "Anyone can read active providers" ON public.service_providers FOR SELECT USING (is_active = true)';
     EXECUTE 'DROP POLICY IF EXISTS "Admins can insert providers" ON public.service_providers';
     EXECUTE 'CREATE POLICY "Admins can insert providers" ON public.service_providers FOR INSERT WITH CHECK (public.is_admin())';
     EXECUTE 'DROP POLICY IF EXISTS "Admins can update providers" ON public.service_providers';
@@ -139,6 +143,15 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'conversations') THEN
+    EXECUTE 'ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'DROP POLICY IF EXISTS "Users can insert conversations" ON public.conversations';
+    EXECUTE 'CREATE POLICY "Users can insert conversations" ON public.conversations FOR INSERT WITH CHECK (auth.uid() = participant1_id OR auth.uid() = participant2_id)';
+    EXECUTE 'DROP POLICY IF EXISTS "Users can read own conversations" ON public.conversations';
+    EXECUTE 'CREATE POLICY "Users can read own conversations" ON public.conversations FOR SELECT USING (auth.uid() = participant1_id OR auth.uid() = participant2_id)';
+    EXECUTE 'DROP POLICY IF EXISTS "Users can update own conversations" ON public.conversations';
+    EXECUTE 'CREATE POLICY "Users can update own conversations" ON public.conversations FOR UPDATE USING (auth.uid() = participant1_id OR auth.uid() = participant2_id) WITH CHECK (auth.uid() = participant1_id OR auth.uid() = participant2_id)';
+    EXECUTE 'DROP POLICY IF EXISTS "Users can delete own conversations" ON public.conversations';
+    EXECUTE 'CREATE POLICY "Users can delete own conversations" ON public.conversations FOR DELETE USING (auth.uid() = participant1_id OR auth.uid() = participant2_id)';
     EXECUTE 'DROP POLICY IF EXISTS "Admins can delete conversations" ON public.conversations';
     EXECUTE 'CREATE POLICY "Admins can delete conversations" ON public.conversations FOR DELETE USING (public.is_admin())';
   END IF;

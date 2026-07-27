@@ -40,12 +40,16 @@ function buildEmailHtml(type: string, name: string): { subject: string; html: st
     ? 'Welcome to JobBridge! 🚀'
     : type === 'profile_reminder'
     ? 'Complete your JobBridge profile to get discovered'
+    : type === 'message_alert'
+    ? 'New chat message on JobBridge'
     : 'Message from JobBridge';
 
   const body = type === 'welcome'
     ? welcomeTemplate(name)
     : type === 'profile_reminder'
     ? profileReminderTemplate(name)
+    : type === 'message_alert'
+    ? `<p style="margin:0 0 24px;font-size:17px;line-height:1.8;color:#0f172a;">Hi <strong>${name || 'there'}</strong>,</p><p style="margin:0 0 20px;font-size:16px;line-height:1.8;color:#334155;">You have a new message waiting in your JobBridge inbox. Log in to your account to continue the conversation and respond quickly.</p><div style="text-align:center;margin-bottom:28px;"><a href="https://www.jobbridge.com.ng/messages" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:12px;font-size:16px;font-weight:700;">View Message</a></div><p style="margin:0;font-size:15px;line-height:1.8;color:#475569;">If you need help, reply to this email or contact support at support@jobbridge.com.ng.</p>`
     : genericTemplate(name, type);
 
   return { subject, html: wrapHtml(body, subject) };
