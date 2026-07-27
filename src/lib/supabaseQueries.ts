@@ -767,6 +767,60 @@ export async function createNotification(notification: {
   }
 }
 
+export async function activateSubscription(userId: string, plan: string, credits: number, durationDays: number) {
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      is_premium: true,
+      subscription_tier: plan,
+      subscription_expires_at: expiresAt,
+      credits: credits,
+      updated_at: now,
+    })
+    .eq("id", userId);
+  if (error) {
+    console.error("[activateSubscription] error:", error);
+    throw error;
+  }
+}
+
+export async function activateAiSubscription(userId: string, durationDays: number) {
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      is_premium: true,
+      subscription_tier: "ai_tools",
+      subscription_expires_at: expiresAt,
+      credits: 0,
+      updated_at: now,
+    })
+    .eq("id", userId);
+  if (error) {
+    console.error("[activateAiSubscription] error:", error);
+    throw error;
+  }
+}
+
+export async function addCredits(userId: string, creditsToAdd: number) {
+  const { data: profile, error: fetchError } = await supabase
+    .from("profiles")
+    .select("credits")
+    .eq("id", userId)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+  const currentCredits = profile?.credits || 0;
+  const newCredits = currentCredits + creditsToAdd;
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ credits: newCredits, updated_at: new Date().toISOString() })
+    .eq("id", userId);
+  if (updateError) throw updateError;
+}
+
 export async function decrementCredits(userId: string) {
   const { error } = await supabase.rpc("decrement_credits", {
     user_id: userId,

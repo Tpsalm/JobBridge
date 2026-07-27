@@ -15,6 +15,9 @@ import {
 import {
   createAdvertisement,
   fetchAdvertisementsByOwner,
+  activateSubscription,
+  activateAiSubscription as activateAiDb,
+  addCredits,
 } from "../lib/supabaseQueries";
 import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
@@ -458,10 +461,22 @@ export default function Payment() {
     }
 
     try {
-      if (verified) {
-        if (plan.ai) await fetchAiSubscription();
-        else await fetchSubscription();
+      // Permanently persist subscription activation to the DB BEFORE redirect
+      // This ensures the target page sees active status even if the webhook is slow
+      if (plan.ai) {
+        const durationDays = plan.duration?.includes('365') ? 365 : 30;
+        await activateAiDb(user?.id || '', durationDays).catch(e => console.warn("[Payment] AI DB activation failed:", e));
+        await fetchAiSubscription().catch(() => {});
+      } else if ((plan as any).service) {
+        const durationDays = 30;
+        await activateSubscription(user?.id || '', 'service_monthly', 0, durationDays).catch(e => console.warn("[Payment] service DB activation failed:", e));
+        await fetchSubscription().catch(() => {});
+      } else if (!(plan as any).business) {
+        // Recruiter plan: add credits
+        await addCredits(user?.id || '', plan.credits).catch(e => console.warn("[Payment] credits DB activation failed:", e));
+        await fetchSubscription().catch(() => {});
       }
+      // Business ads are handled separately below
 
       if (!receiptSentRef.current.has(reference) && user?.email) {
         receiptSentRef.current.add(reference);
