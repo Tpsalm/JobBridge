@@ -53,14 +53,22 @@ export default function AIResume() {
     aiSubscription,
     fetchAiSubscription = async () => {},
   } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromPayment = searchParams.get('fromPayment') === 'true';
 
+  // Fetch AI subscription on mount and when auth state changes
   useEffect(() => {
     if (!user?.id) return;
     void fetchAiSubscription(user.id);
   }, [user?.id, fetchAiSubscription]);
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const fromPayment = searchParams.get('fromPayment') === 'true';
+
+  // If redirected from a successful payment, force-refresh subscription immediately
+  // so the UI unlocks faster than the polling loop below.
+  useEffect(() => {
+    if (!fromPayment || !user?.id) return;
+    fetchAiSubscription(user.id).catch(() => {});
+  }, [fromPayment, user?.id, fetchAiSubscription]);
   const [resumeText, setResumeText] = useState('');
   const [resumeFileName, setResumeFileName] = useState('');
   const [skills, setSkills] = useState<string[]>([]);

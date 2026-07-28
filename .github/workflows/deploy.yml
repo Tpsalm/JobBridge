@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+ name: Deploy to GitHub Pages
 
 on:
   push:
@@ -31,6 +31,7 @@ jobs:
           VITE_SUPABASE_FUNCTIONS_URL: ${{ secrets.VITE_SUPABASE_FUNCTIONS_URL }}
           VITE_KORA_PUBLIC_KEY: ${{ secrets.VITE_KORA_PUBLIC_KEY }}
           VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       - name: Fix SPA routing
         run: cp dist/index.html dist/404.html
       - uses: actions/configure-pages@v4

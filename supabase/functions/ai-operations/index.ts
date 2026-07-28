@@ -2,20 +2,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
 
 // Read keys from Supabase secret environment
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
 const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY') || '';
-const GEMINI_API_KEY = Deno.env.get('VITE_GEMINI_API_KEY') || Deno.env.get('GEMINI_API_KEY') || '';
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-2.0-flash';
-
-// Smart fallback configuration prioritizing free Gemini
-const USE_GEMINI = !!GEMINI_API_KEY;
-const USE_DEEPSEEK = !USE_GEMINI && !!DEEPSEEK_API_KEY;
-const GEMINI_MODEL_FALLBACKS = Array.from(new Set([
-  GEMINI_MODEL,
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-]));
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
 
 interface AIRequest {
   type: 'chat' | 'embed' | 'resume' | 'cover-letter';
@@ -38,94 +26,18 @@ interface AIResponse {
 }
 
 async function chat(messages: Array<{ role: string; content: string }>): Promise<string> {
-  // 1. Google Gemini Native Fetch Implementation (Free Tier)
-  if (USE_GEMINI) {
-    // Transform OpenAI array structure to Google Gemini contents structure.
-    // Gemini expects alternating user/model turns; merge consecutive messages
-    // with the same effective role and keep system instructions separate.
-    const geminiContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
-
-    for (const msg of messages) {
-      const effectiveRole: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user';
-      const last = geminiContents[geminiContents.length - 1];
-      if (last && last.role === effectiveRole) {
-        last.parts[0].text += '\n\n' + msg.content;
-      } else {
-        geminiContents.push({ role: effectiveRole, parts: [{ text: msg.content }] });
-      }
-    }
-
-    // Extract system instructions if present in messages array
-    const systemMessage = messages.find(msg => msg.role === 'system');
-    const systemInstruction = systemMessage ? { parts: [{ text: systemMessage.content }] } : undefined;
-
-    let lastError = '';
-
-    for (const model of GEMINI_MODEL_FALLBACKS) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: geminiContents,
-              systemInstruction: systemInstruction,
-              generationConfig: {
-                maxOutputTokens: 4000,
-                temperature: 0.7,
-              }
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const error = await response.text();
-          lastError = `Gemini API error: ${response.status} ${error}`;
-          if (response.status !== 404) {
-            throw new Error(lastError);
-          }
-          continue;
-        }
-
-        const data = await response.json();
-
-        // Surface Gemini safety / blocking info so it is visible in logs
-        if (data?.promptFeedback?.blockReason) {
-          throw new Error(`Gemini blocked request: ${data.promptFeedback.blockReason}`);
-        }
-        const candidate = data?.candidates?.[0];
-        if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
-          console.warn('[ai-operations] Gemini finishReason:', candidate.finishReason);
-        }
-        return candidate?.content?.parts?.[0]?.text || '';
-      } catch (error) {
-        if (error instanceof Error) {
-          lastError = error.message;
-        }
-      }
-    }
-
-    throw new Error(lastError || 'Gemini request failed');
-  }
-
-  // 2. OpenAI / DeepSeek Backup Pipeline
-  const LLM_API_KEY = DEEPSEEK_API_KEY || OPENAI_API_KEY;
-  if (!LLM_API_KEY) {
+  if (!DEEPSEEK_API_KEY) {
     throw new Error('AI_NOT_CONFIGURED');
   }
 
-  const LLM_BASE_URL = USE_DEEPSEEK ? 'https://api.deepseek.com/v1' : 'https://api.openai.com/v1';
-  const LLM_MODEL = USE_DEEPSEEK ? 'deepseek-chat' : 'gpt-4o-mini';
-
-  const response = await fetch(`${LLM_BASE_URL}/chat/completions`, {
+  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${LLM_API_KEY}`,
+      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
     },
     body: JSON.stringify({
-      model: LLM_MODEL,
+      model: 'deepseek-chat',
       messages: messages,
       max_tokens: 4000,
       temperature: 0.7,
@@ -134,7 +46,7 @@ async function chat(messages: Array<{ role: string; content: string }>): Promise
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`LLM API error: ${response.status} ${error}`);
+    throw new Error(`DeepSeek API error (${response.status}): ${error}`);
   }
 
   const data = await response.json();
@@ -297,7 +209,7 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
     if (errorMessage === 'AI_NOT_CONFIGURED') {
       return {
         ok: false,
-        error: 'AI service not configured. Please set GEMINI_API_KEY or OPENAI_API_KEY.',
+        error: 'AI service not configured. Please set DEEPSEEK_API_KEY in Supabase secrets.',
       };
     }
 

@@ -465,7 +465,29 @@ export default function Payment() {
       // This ensures the target page sees active status even if the webhook is slow
       if (plan.ai) {
         const durationDays = plan.duration?.includes('365') ? 365 : 30;
+        // 1) Client-side DB write as primary (anon key — works if RLS permits)
         await activateAiDb(user?.id || '', durationDays).catch(e => console.warn("[Payment] AI DB activation failed:", e));
+        // 2) ALSO call server-side activation via the verify-payment endpoint
+        // (uses service role, bypasses RLS — ensures the write definitely takes effect)
+        try {
+          const functionsBase = getSupabaseFunctionsUrl();
+          if (functionsBase) {
+            await fetch(`${functionsBase}/verify-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                reference: reference || '',
+                fallback_reference: reference || '',
+                original_reference: originalPaymentReferenceRef.current || reference,
+                activate_ai: true,
+                user_id: user?.id || '',
+                duration_days: durationDays,
+              }),
+            });
+          }
+        } catch (serverErr) {
+          console.warn("[Payment] Server-side AI activation failed:", serverErr);
+        }
         await fetchAiSubscription().catch(() => {});
       } else if ((plan as any).service) {
         const durationDays = 30;

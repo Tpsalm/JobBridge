@@ -7,8 +7,8 @@ import { aiChat, aiChatStream, aiEmbed } from "./aiBackend";
 
 // All AI operations are now handled through the secure backend.
 // API keys are server-side only and never exposed to the client.
-const LLM_MODEL = "gemini-2.0-flash";
-const LLM_PROVIDER = "Google Gemini";
+const LLM_MODEL = "deepseek-chat";
+const LLM_PROVIDER = "DeepSeek";
 
 const TOP_K = 8;
 const MAX_HISTORY = 30;
@@ -1369,7 +1369,7 @@ export async function streamAnswer(
     const msg = err?.message || "";
     if (msg.includes("401")) {
       onError(
-        `The Google Gemini API key is invalid. Please verify your GEMINI_API_KEY environment variable in Supabase secrets.`,
+        `Authentication failed. Please verify your DEEPSEEK_API_KEY environment variable in Supabase secrets.`,
       );
     } else if (msg.includes("429")) {
       onError("Rate limit exceeded. Please try again in a few moments.");

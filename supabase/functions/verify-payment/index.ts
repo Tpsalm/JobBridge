@@ -49,13 +49,39 @@ serve(async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const candidateRefs = buildReferenceCandidates(body as Record<string, unknown>);
-    if (candidateRefs.length === 0) {
-      return new Response(JSON.stringify({ error: "Missing reference" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // ── DIRECT AI ACTIVATION MODE ──────────────────────────────────────────────
+    // Called from Payment.tsx after successful KoraPay checkout to immediately
+    // activate the AI subscription via the service role (bypasses RLS).
+    const requestBody = body as Record<string, unknown>;
+    if (requestBody?.activate_ai === true && requestBody?.user_id) {
+      const userId = String(requestBody.user_id);
+      const durationDays = Number(requestBody.duration_days) || 30;
+      const now = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+      
+      const { error: activateErr } = await supabase
+        .from("profiles")
+        .update({
+          is_premium: true,
+          subscription_tier: "ai_tools",
+          subscription_expires_at: expiresAt,
+          credits: 0,
+          updated_at: now,
+        })
+        .eq("id", userId);
+
+      if (activateErr) {
+        console.error("[verify-payment] Direct AI activation failed:", activateErr.message);
+        return new Response(JSON.stringify({ verified: false, error: "Activation failed" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      console.log(`[verify-payment] Direct AI activation successful for user ${userId}, duration ${durationDays} days`);
+      return new Response(JSON.stringify({ verified: true, activated: "ai_tools" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const candidateRefs = buildReferenceCandidates(body as Record<string, unknown>);
     if (candidateRefs.length === 0) {
       return new Response(JSON.stringify({ error: "Missing reference" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -85,8 +111,6 @@ serve(async (req: Request) => {
     let chargeReference = candidateRefs[0];
     let lastVerifyError: any = null;
 
-    // Determine if we should simulate verification based on env and seed metadata or explicit request
-    const requestBody = body as Record<string, unknown>;
     const explicitSimulate = Boolean(requestBody?.simulate || requestBody?.simulate_verification || false);
     let paymentMetadata: any = null;
     try {
@@ -159,12 +183,12 @@ serve(async (req: Request) => {
 
     if (actualAmount !== null && expectedAmount && actualAmount !== expectedAmount) {
       // mismatch
-      await supabase.from("payments").update({ status: "failed", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || reference, metadata: { verification_response: charge } }).eq("id", paymentRow.id);
+      await supabase.from("payments").update({ status: "failed", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || chargeReference, metadata: { verification_response: charge } }).eq("id", paymentRow.id);
       return new Response(JSON.stringify({ verified: false, reason: "amount_mismatch" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Update payment to verified
-    const { error: updateErr } = await supabase.from("payments").update({ status: "verified", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || reference, currency: charge.currency || paymentRow.currency || "NGN", metadata: { verification_response: charge } }).eq("id", paymentRow.id).neq("status", "verified");
+    const { error: updateErr } = await supabase.from("payments").update({ status: "verified", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || chargeReference, currency: charge.currency || paymentRow.currency || "NGN", metadata: { verification_response: charge } }).eq("id", paymentRow.id).neq("status", "verified");
     if (updateErr) console.error("[verify-payment] update error", updateErr.message);
 
     // Activate profile similar to webhook
