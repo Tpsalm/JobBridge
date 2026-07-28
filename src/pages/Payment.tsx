@@ -531,6 +531,10 @@ export default function Payment() {
         }
       }
 
+      // Wait for DB write propagation before redirecting
+      // This ensures the target page reads the updated subscription data
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+
       // Refresh subscription state
       if (plan.ai) {
         await fetchAiSubscription().catch(() => {});
