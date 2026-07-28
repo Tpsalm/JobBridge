@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
+import { useToasts } from '../contexts/ToastContext';
 import { useAuthRequired } from '../hooks/useAuthRequired';
 import { fetchAdvertisementsByOwner, createAdvertisement } from '../lib/supabaseQueries';
 import { Building, Plus, Eye, Clock, CheckCircle, AlertCircle, CreditCard, TrendingUp, BarChart3, Star, ChevronRight, Edit, Trash2, ExternalLink, Lock } from 'lucide-react';
@@ -45,9 +46,11 @@ export default function Business() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { push } = useToasts();
   const [adverts, setAdverts] = useState<Advert[]>(initialAdverts);
   const [loadingAdverts, setLoadingAdverts] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [formData, setFormData] = useState({
     businessName: '',
     title: '',
@@ -58,6 +61,7 @@ export default function Business() {
   });
 
   const paidPackage = searchParams.get('paidPackage') || '';
+  const fromPayment = searchParams.get('fromPayment') === 'true';
   const paidPackageOption = paidPackage === 'business_weekly'
     ? 'Weekly Ad'
     : paidPackage === 'business_monthly'
@@ -74,6 +78,61 @@ export default function Business() {
       }
     }
   }, [searchParams, paidPackageOption]);
+
+  // ─── Payment redirect handling ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!fromPayment || !user?.id) return;
+    setPaymentSuccess(true);
+
+    // Poll for the new advert to appear (verify-payment edge function creates it)
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 8;
+
+    const pollAdvert = async () => {
+      attempts += 1;
+      try {
+        const data = await fetchAdvertisementsByOwner(user.id);
+        if (!cancelled && data.length > 0) {
+          setAdverts(
+            data.map((ad) => ({
+              id: ad.id,
+              businessName: ad.business_name,
+              title: ad.title,
+              description: ad.description,
+              category: ad.category,
+              duration: ad.package === 'weekly' ? 'Weekly' : ad.package === 'monthly' ? 'Monthly' : 'Featured',
+              price: ad.amount_paid || (ad.package === 'weekly' ? 2000 : ad.package === 'monthly' ? 7500 : 15000),
+              status: ad.status,
+              startDate: ad.starts_at ? ad.starts_at.split('T')[0] : '',
+              endDate: ad.expires_at ? ad.expires_at.split('T')[0] : '',
+              views: ad.views || 0,
+              clicks: ad.clicks || 0,
+              featured: ad.is_featured || false,
+            })),
+          );
+          return; // Found adverts, stop polling
+        }
+      } catch {
+        // ignore
+      }
+      if (!cancelled && attempts < maxAttempts) {
+        setTimeout(pollAdvert, 2000);
+      }
+    };
+
+    pollAdvert();
+    return () => { cancelled = true; };
+  }, [fromPayment, user?.id]);
+
+  // Remove the fromPayment param from URL after handling
+  useEffect(() => {
+    if (fromPayment) {
+      const params = new URLSearchParams(searchParams);
+      params.delete('fromPayment');
+      navigate({ search: params.toString() }, { replace: true });
+    }
+  }, []);
 
   useEffect(() => {
     if (!user?.id) {
@@ -188,6 +247,17 @@ export default function Business() {
       />
 
       <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* Payment success banner */}
+        {paymentSuccess && (
+          <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+            <div>
+              <p className="font-semibold text-emerald-800 text-sm">Payment successful!</p>
+              <p className="text-xs text-emerald-700">Your advert is being created. It will appear here shortly.</p>
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <div className="bg-white rounded-xl p-4 border border-gray-100">

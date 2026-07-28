@@ -209,10 +209,12 @@ Software Engineer with 5 years of experience in React, Node.js, AWS, and TypeScr
 
     let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 6;
+    const maxAttempts = 10;
 
     const tryVerify = async () => {
+      if (cancelled) return;
       attempts += 1;
+
       try {
         const ref = (() => {
           try {
@@ -237,28 +239,29 @@ Software Engineer with 5 years of experience in React, Node.js, AWS, and TypeScr
             window.clearTimeout(to);
             const body = await resp.json().catch(() => ({}));
             if (resp.ok && body?.verified === true) {
-              // Verified — refresh subscription immediately
-              await fetchAiSubscription?.();
               try {
                 sessionStorage.removeItem('jobbridge_pending_payment_ref');
               } catch {}
-              return;
+              // Refresh subscription — the next render will see active status
+              await fetchAiSubscription?.();
+              return; // Exit polling; next effect re-run handles UI unlock
             }
           } catch (err) {
             // fall through to subscription fetch below
           }
         }
 
-        // Even without a reference, refresh the subscription to pick up server-side activation
+        // Refresh the subscription — React will re-render and effect re-runs
+        // with updated aiSubscription.ai_status
         await fetchAiSubscription?.();
-        if (aiSubscription?.ai_status === 'active') return;
-      } catch (err) {
+      } catch {
         // ignore
-      } finally {
-        if (cancelled) return;
-        if (attempts < maxAttempts && aiSubscription.ai_status !== 'active') {
-          setTimeout(tryVerify, 1500);
-        }
+      }
+
+      // Don't check aiSubscription here (stale closure). Let the next
+      // effect re-run handle it when state updates.
+      if (!cancelled && attempts < maxAttempts) {
+        setTimeout(tryVerify, 2000);
       }
     };
 

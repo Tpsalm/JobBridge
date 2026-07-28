@@ -581,7 +581,9 @@ export default function Payment() {
 
     setPaymentReference(nextReference);
 
-    await handleSuccessfulPayment(nextReference, true);
+    // KoraPay already confirmed success — skip polling to speed up the flow.
+    // DB activation happens inside handleSuccessfulPayment immediately.
+    await handleSuccessfulPayment(nextReference, false);
   };
 
   const onKoraFailed = (data: {
