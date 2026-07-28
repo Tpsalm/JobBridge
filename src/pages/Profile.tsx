@@ -30,6 +30,13 @@ import {
   ShieldCheck,
   Sparkles,
   Users2,
+  Plus,
+  Trash2,
+  Pencil,
+  X,
+  GraduationCap,
+  Medal,
+  LanguagesIcon,
 } from "lucide-react";
 
 const PROFILE_FIELDS = {
@@ -47,6 +54,39 @@ const PROFILE_FIELDS = {
 const DEFAULT_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><rect width="160" height="160" fill="#E3E2DF"/><circle cx="80" cy="62" r="28" fill="#C3C6D6"/><path d="M28 146c8-24 29-38 52-38s44 14 52 38" fill="#C3C6D6"/></svg>',
 )}`;
+
+// ─── Types for dynamic profile sections ─────────────────────────────────────
+interface ExperienceEntry {
+  id: string;
+  title: string;
+  company: string;
+  period: string;
+  description: string;
+}
+
+interface EducationEntry {
+  id: string;
+  institution: string;
+  degree: string;
+  period: string;
+}
+
+interface HonorEntry {
+  id: string;
+  title: string;
+  date: string;
+  description: string;
+}
+
+interface LanguageEntry {
+  id: string;
+  language: string;
+  proficiency: string;
+}
+
+function generateId() {
+  return `sec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
 
 function ProfileCompletionRing({ percentage }: { percentage: number }) {
   const radius = 38;
@@ -102,6 +142,92 @@ export default function Profile() {
   const securityRef = useRef<HTMLDivElement | null>(null);
   const activityRef = useRef<HTMLDivElement | null>(null);
 
+  // ─── Dynamic section data ──────────────────────────────────────────────────
+  const [experience, setExperience] = useState<ExperienceEntry[]>([]);
+  const [education, setEducation] = useState<EducationEntry[]>([]);
+  const [honors, setHonors] = useState<HonorEntry[]>([]);
+  const [languages, setLanguages] = useState<LanguageEntry[]>([]);
+
+  // Editing modal state
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null);
+  const [showSectionModal, setShowSectionModal] = useState(false);
+
+  const openSectionEditor = (section: string, item: Record<string, unknown> | null = null) => {
+    setEditingSection(section);
+    setEditingItem(item);
+    setShowSectionModal(true);
+  };
+
+  const closeSectionEditor = () => {
+    setEditingSection(null);
+    setEditingItem(null);
+    setShowSectionModal(false);
+  };
+
+  const saveSectionItem = (section: string, data: Record<string, unknown>) => {
+    switch (section) {
+      case 'experience': {
+        setExperience(prev => {
+          const existing = editingItem?.id
+            ? prev.map(e => e.id === editingItem.id ? { ...e, ...data } as ExperienceEntry : e)
+            : [...prev, { id: generateId(), ...data } as unknown as ExperienceEntry];
+          return existing;
+        });
+        break;
+      }
+      case 'education': {
+        setEducation(prev => {
+          const existing = editingItem?.id
+            ? prev.map(e => e.id === editingItem.id ? { ...e, ...data } as EducationEntry : e)
+            : [...prev, { id: generateId(), ...data } as unknown as EducationEntry];
+          return existing;
+        });
+        break;
+      }
+      case 'honors': {
+        setHonors(prev => {
+          const existing = editingItem?.id
+            ? prev.map(e => e.id === editingItem.id ? { ...e, ...data } as HonorEntry : e)
+            : [...prev, { id: generateId(), ...data } as unknown as HonorEntry];
+          return existing;
+        });
+        break;
+      }
+      case 'languages': {
+        setLanguages(prev => {
+          const existing = editingItem?.id
+            ? prev.map(e => e.id === editingItem.id ? { ...e, ...data } as LanguageEntry : e)
+            : [...prev, { id: generateId(), ...data } as unknown as LanguageEntry];
+          return existing;
+        });
+        break;
+      }
+    }
+    closeSectionEditor();
+  };
+
+  const deleteSectionItem = (section: string, id: string) => {
+    switch (section) {
+      case 'experience': setExperience(prev => prev.filter(e => e.id !== id)); break;
+      case 'education': setEducation(prev => prev.filter(e => e.id !== id)); break;
+      case 'honors': setHonors(prev => prev.filter(e => e.id !== id)); break;
+      case 'languages': setLanguages(prev => prev.filter(e => e.id !== id)); break;
+    }
+    push({ message: `${section} entry removed.`, type: 'info' });
+  };
+
+  // Load section data from profile
+  const loadSectionData = (freshRecord: Record<string, unknown>) => {
+    const sections = freshRecord.profile_sections as Record<string, unknown> | undefined;
+    if (sections) {
+      if (Array.isArray(sections.experience)) setExperience(sections.experience as ExperienceEntry[]);
+      if (Array.isArray(sections.education)) setEducation(sections.education as EducationEntry[]);
+      if (Array.isArray(sections.honors)) setHonors(sections.honors as HonorEntry[]);
+      if (Array.isArray(sections.languages)) setLanguages(sections.languages as LanguageEntry[]);
+    }
+  };
+
   const normalizeAvatarUrl = (raw?: string) => {
     const value = (raw || "").trim();
     if (!value || value === "null" || value === "undefined") return "";
@@ -151,6 +277,7 @@ export default function Profile() {
           fields.email = fresh.email || user?.email || "";
           setForm(fields);
           initialFormRef.current = fields;
+          loadSectionData(freshRecord);
         } else {
           const fallbackFields = {
             full_name: user.user_metadata?.full_name || "",
@@ -429,6 +556,14 @@ export default function Profile() {
       if (form.avatar_url) updates.avatar_url = form.avatar_url;
       else updates.avatar_url = null;
 
+      // Save dynamic section data
+      updates.profile_sections = {
+        experience,
+        education,
+        honors,
+        languages,
+      };
+
       await updateProfile(user.id, updates);
       const normalizedPhone = phoneCheck.normalized ? formatPhoneInput(phoneCheck.normalized) : "";
       const updatedForm = {
@@ -660,7 +795,7 @@ export default function Profile() {
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm shadow-sm">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Connections</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-900">3,245</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-900">{experience.length + education.length + honors.length + languages.length || 0}</p>
                   </div>
                   <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm shadow-sm">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Profile strength</p>
@@ -712,47 +847,73 @@ export default function Profile() {
               <div className="mt-6 space-y-4 text-sm text-slate-600">
                 <div className="rounded-3xl bg-slate-50 p-4">
                   <p className="font-semibold text-slate-900">Profile views</p>
-                  <p className="mt-1">Your profile was viewed 128 times in the last 14 days.</p>
+                  <p className="mt-1">Your profile is visible to recruiters and providers across JobBridge.</p>
                 </div>
                 <div className="rounded-3xl bg-slate-50 p-4">
-                  <p className="font-semibold text-slate-900">Top match</p>
-                  <p className="mt-1">You are in the top 10% for recruiters searching for your skill set.</p>
+                  <p className="font-semibold text-slate-900">Profile strength</p>
+                  <p className="mt-1">{completionPct}% complete — {activeFields.length - filledFieldsCount} field{activeFields.length - filledFieldsCount !== 1 ? 's' : ''} remaining to reach 100%.</p>
                 </div>
               </div>
             </div>
 
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold text-slate-900">Experience</p>
-              <div className="mt-5 space-y-5 text-sm text-slate-600">
-                <div className="flex items-start gap-4">
-                  <div className="mt-1 h-3 w-3 rounded-full bg-blue-600" />
-                  <div>
-                    <p className="font-semibold text-slate-900">{profileHeadline || 'Creative Director'}</p>
-                    <p className="mt-1">{form.years_of_experience ? `${form.years_of_experience} years experience` : '3 years experience'}</p>
-                    <p className="mt-2 text-slate-500">The Company Media Office · Full Time</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="mt-1 h-3 w-3 rounded-full bg-slate-300" />
-                  <div>
-                    <p className="font-semibold text-slate-900">SEO Specialist</p>
-                    <p className="mt-1 text-slate-500">The Company Media Office · Freelance</p>
-                  </div>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-slate-900">Experience</p>
+                <button
+                  type="button"
+                  onClick={() => openSectionEditor('experience')}
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add
+                </button>
               </div>
-
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold text-slate-900">Notifications</p>
-                <p className="mt-2 text-sm text-slate-600">Enable browser push notifications to receive job alerts and messages directly.</p>
-                <div className="mt-4 flex items-center gap-3">
-                  {!pushSupported ? (
-                    <div className="text-sm text-slate-500">Push not supported or not configured.</div>
-                  ) : pushSubscribed ? (
-                    <button onClick={handleUnsubscribeClick} className="rounded-full bg-red-50 text-red-700 px-4 py-2 text-sm font-semibold border border-red-100">Disable Notifications</button>
-                  ) : (
-                    <button onClick={handleSubscribeClick} className="rounded-full bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700">Enable Notifications</button>
-                  )}
+              {experience.length === 0 ? (
+                <div className="mt-4 rounded-3xl bg-slate-50 p-4 text-sm text-slate-500 text-center">
+                  No experience entries yet. Click "Add" to include your work history.
                 </div>
+              ) : (
+                <div className="mt-5 space-y-3 text-sm text-slate-600">
+                  {experience.map((entry) => (
+                    <div key={entry.id} className="group flex items-start gap-4 rounded-3xl bg-slate-50 p-4 transition hover:bg-slate-100">
+                      <div className="mt-1 h-3 w-3 rounded-full bg-blue-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-900">{entry.title}</p>
+                        <p className="mt-0.5 text-slate-500">{entry.company}{entry.period ? ` · ${entry.period}` : ''}</p>
+                        {entry.description && <p className="mt-1 text-slate-500">{entry.description}</p>}
+                      </div>
+                      <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition">
+                        <button
+                          type="button"
+                          onClick={() => openSectionEditor('experience', entry as unknown as Record<string, unknown>)}
+                          className="rounded-full bg-white p-1.5 text-slate-500 hover:text-blue-600 shadow-sm border border-slate-200"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteSectionItem('experience', entry.id)}
+                          className="rounded-full bg-white p-1.5 text-slate-500 hover:text-red-600 shadow-sm border border-slate-200"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">Notifications</p>
+              <p className="mt-2 text-sm text-slate-600">Enable browser push notifications to receive job alerts and messages directly.</p>
+              <div className="mt-4 flex items-center gap-3">
+                {!pushSupported ? (
+                  <div className="text-sm text-slate-500">Push not supported or not configured.</div>
+                ) : pushSubscribed ? (
+                  <button onClick={handleUnsubscribeClick} className="rounded-full bg-red-50 text-red-700 px-4 py-2 text-sm font-semibold border border-red-100">Disable Notifications</button>
+                ) : (
+                  <button onClick={handleSubscribeClick} className="rounded-full bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700">Enable Notifications</button>
+                )}
               </div>
             </div>
           </aside>
@@ -966,17 +1127,54 @@ export default function Profile() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
+              {/* ─── Education ─── */}
               <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
-                <h3 className="text-base font-semibold text-slate-900">Education</h3>
-                <div className="mt-4 space-y-4 text-sm text-slate-600">
-                  <div className="rounded-3xl bg-slate-50 p-4">
-                    <p className="font-semibold text-slate-900">Lorem University</p>
-                    <p className="mt-1 text-slate-500">Master of Art</p>
-                    <p className="mt-2">2017-2019 · Master of Art</p>
-                  </div>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-slate-900">Education</h3>
+                  <button
+                    type="button"
+                    onClick={() => openSectionEditor('education')}
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </button>
                 </div>
+                {education.length === 0 ? (
+                  <div className="mt-4 rounded-3xl bg-slate-50 p-4 text-sm text-slate-500 text-center">
+                    No education entries yet. Click "Add" to include your academic background.
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {education.map((entry) => (
+                      <div key={entry.id} className="group flex items-start gap-4 rounded-3xl bg-slate-50 p-4 transition hover:bg-slate-100">
+                        <GraduationCap className="mt-0.5 h-5 w-5 shrink-0 text-blue-500" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900">{entry.institution}</p>
+                          <p className="mt-0.5 text-sm text-slate-500">{entry.degree}{entry.period ? ` · ${entry.period}` : ''}</p>
+                        </div>
+                        <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition">
+                          <button
+                            type="button"
+                            onClick={() => openSectionEditor('education', entry as unknown as Record<string, unknown>)}
+                            className="rounded-full bg-white p-1.5 text-slate-500 hover:text-blue-600 shadow-sm border border-slate-200"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteSectionItem('education', entry.id)}
+                            className="rounded-full bg-white p-1.5 text-slate-500 hover:text-red-600 shadow-sm border border-slate-200"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
+              {/* ─── Skills ─── */}
               <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
                 <h3 className="text-base font-semibold text-slate-900">Skills</h3>
                 <div className="mt-4 space-y-3">
@@ -984,7 +1182,13 @@ export default function Profile() {
                     <div key={skill} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-semibold text-slate-900">{skill}</p>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Endorse</span>
+                        <button
+                          type="button"
+                          onClick={() => push({ message: `You endorsed ${skill}!`, type: 'success' })}
+                          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition"
+                        >
+                          Endorse
+                        </button>
                       </div>
                       <p className="mt-2 text-sm text-slate-500">Brief skill description for recruiters and clients.</p>
                     </div>
@@ -992,31 +1196,263 @@ export default function Profile() {
                 </div>
               </div>
 
+              {/* ─── Honors & Awards ─── */}
               <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
-                <h3 className="text-base font-semibold text-slate-900">Honors & awards</h3>
-                <div className="mt-4 space-y-4 text-sm text-slate-600">
-                  <div className="rounded-3xl bg-slate-50 p-4">
-                    <p className="font-semibold text-slate-900">Gold Winner</p>
-                    <p className="mt-1 text-slate-500">January 2018</p>
-                    <p className="mt-2">Outstanding performance award for project leadership.</p>
-                  </div>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-slate-900">Honors & awards</h3>
+                  <button
+                    type="button"
+                    onClick={() => openSectionEditor('honors')}
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </button>
                 </div>
+                {honors.length === 0 ? (
+                  <div className="mt-4 rounded-3xl bg-slate-50 p-4 text-sm text-slate-500 text-center">
+                    No honors or awards listed yet. Click "Add" to showcase your achievements.
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {honors.map((entry) => (
+                      <div key={entry.id} className="group flex items-start gap-4 rounded-3xl bg-slate-50 p-4 transition hover:bg-slate-100">
+                        <Medal className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900">{entry.title}</p>
+                          {entry.date && <p className="mt-0.5 text-sm text-slate-500">{entry.date}</p>}
+                          {entry.description && <p className="mt-1 text-sm text-slate-500">{entry.description}</p>}
+                        </div>
+                        <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition">
+                          <button
+                            type="button"
+                            onClick={() => openSectionEditor('honors', entry as unknown as Record<string, unknown>)}
+                            className="rounded-full bg-white p-1.5 text-slate-500 hover:text-blue-600 shadow-sm border border-slate-200"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteSectionItem('honors', entry.id)}
+                            className="rounded-full bg-white p-1.5 text-slate-500 hover:text-red-600 shadow-sm border border-slate-200"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
+              {/* ─── Languages ─── */}
               <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
-                <h3 className="text-base font-semibold text-slate-900">Languages</h3>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <div className="rounded-3xl bg-slate-50 p-4">
-                    <p className="font-semibold text-slate-900">English</p>
-                    <p className="mt-1 text-slate-500">Full professional proficiency</p>
-                  </div>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-slate-900">Languages</h3>
+                  <button
+                    type="button"
+                    onClick={() => openSectionEditor('languages')}
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </button>
                 </div>
+                {languages.length === 0 ? (
+                  <div className="mt-4 rounded-3xl bg-slate-50 p-4 text-sm text-slate-500 text-center">
+                    No languages added yet. Click "Add" to list your language proficiencies.
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {languages.map((entry) => (
+                      <div key={entry.id} className="group flex items-start gap-4 rounded-3xl bg-slate-50 p-4 transition hover:bg-slate-100">
+                        <LanguagesIcon className="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900">{entry.language}</p>
+                          {entry.proficiency && <p className="mt-0.5 text-sm text-slate-500">{entry.proficiency}</p>}
+                        </div>
+                        <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition">
+                          <button
+                            type="button"
+                            onClick={() => openSectionEditor('languages', entry as unknown as Record<string, unknown>)}
+                            className="rounded-full bg-white p-1.5 text-slate-500 hover:text-blue-600 shadow-sm border border-slate-200"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteSectionItem('languages', entry.id)}
+                            className="rounded-full bg-white p-1.5 text-slate-500 hover:text-red-600 shadow-sm border border-slate-200"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </section>
         </div>
       </main>
+
+      {/* ─── Section Editor Modal ─── */}
+      {showSectionModal && (
+        <SectionEditorModal
+          section={editingSection || ''}
+          item={editingItem}
+          onSave={saveSectionItem}
+          onClose={closeSectionEditor}
+        />
+      )}
+
       <BottomNav />
+    </div>
+  );
+}
+
+/* ─── Section Editor Modal Component ───────────────────────────────────── */
+
+interface SectionField {
+  name: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select';
+  options?: { value: string; label: string }[];
+  required?: boolean;
+}
+
+const SECTION_FIELDS: Record<string, SectionField[]> = {
+  experience: [
+    { name: 'title', label: 'Job Title', type: 'text', required: true },
+    { name: 'company', label: 'Company', type: 'text', required: true },
+    { name: 'period', label: 'Period (e.g. Jan 2020 - Present)', type: 'text' },
+    { name: 'description', label: 'Description', type: 'textarea' },
+  ],
+  education: [
+    { name: 'institution', label: 'Institution', type: 'text', required: true },
+    { name: 'degree', label: 'Degree / Qualification', type: 'text', required: true },
+    { name: 'period', label: 'Period (e.g. 2017-2019)', type: 'text' },
+  ],
+  honors: [
+    { name: 'title', label: 'Award / Honor Title', type: 'text', required: true },
+    { name: 'date', label: 'Date (e.g. January 2018)', type: 'text' },
+    { name: 'description', label: 'Description', type: 'textarea' },
+  ],
+  languages: [
+    { name: 'language', label: 'Language', type: 'text', required: true },
+    {
+      name: 'proficiency',
+      label: 'Proficiency',
+      type: 'select',
+      required: true,
+      options: [
+        { value: 'Native', label: 'Native' },
+        { value: 'Full professional proficiency', label: 'Full professional proficiency' },
+        { value: 'Professional working proficiency', label: 'Professional working proficiency' },
+        { value: 'Limited working proficiency', label: 'Limited working proficiency' },
+        { value: 'Elementary proficiency', label: 'Elementary proficiency' },
+      ],
+    },
+  ],
+};
+
+function SectionEditorModal({
+  section,
+  item,
+  onSave,
+  onClose,
+}: {
+  section: string;
+  item: Record<string, unknown> | null;
+  onSave: (section: string, data: Record<string, unknown>) => void;
+  onClose: () => void;
+}) {
+  const fields = SECTION_FIELDS[section] || [];
+  const [formData, setFormData] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    fields.forEach((f) => {
+      initial[f.name] = item?.[f.name] ? String(item[f.name]) : '';
+    });
+    return initial;
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(section, formData);
+  };
+
+  const isEditing = !!item?.id;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-2xl">
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <h3 className="text-lg font-bold text-slate-900">
+            {isEditing ? 'Edit' : 'Add'} {section.charAt(0).toUpperCase() + section.slice(1)}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-slate-500 hover:bg-slate-100 transition"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {fields.map((field) => (
+            <div key={field.name}>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                {field.label}
+                {field.required && <span className="text-red-500 ml-0.5">*</span>}
+              </label>
+              {field.type === 'textarea' ? (
+                <textarea
+                  value={formData[field.name] || ''}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                  rows={3}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  placeholder={`Enter ${field.label.toLowerCase()}...`}
+                />
+              ) : field.type === 'select' ? (
+                <select
+                  value={formData[field.name] || ''}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Select...</option>
+                  {field.options?.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={formData[field.name] || ''}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  placeholder={`Enter ${field.label.toLowerCase()}...`}
+                />
+              )}
+            </div>
+          ))}
+
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition"
+            >
+              {isEditing ? 'Save changes' : 'Add entry'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
