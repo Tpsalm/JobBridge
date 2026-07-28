@@ -7,7 +7,7 @@ import { useAuthRequired } from '../hooks/useAuthRequired';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchProviders, createConversationMessage } from '../lib/supabaseQueries';
 import type { Profile } from '../lib/supabase';
-import { Search, ChevronLeft, ChevronRight, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, Sparkles } from 'lucide-react';
+import { Search, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, Sparkles, MapPin, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import FloatingDecorations from '../components/FloatingDecorations';
 import { IMG } from '../lib/media';
 
@@ -28,22 +28,10 @@ interface ProviderDisplay {
   hourlyRate: number;
   specializations: string[];
   img: string;
-  bgColor: string;
   verified: boolean;
   featured: boolean;
   tier: string;
-}
-
-const BG_COLORS = [
-  'bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-rose-600',
-  'bg-cyan-600', 'bg-indigo-600', 'bg-sky-600', 'bg-slate-600',
-  'bg-purple-600', 'bg-green-700', 'bg-teal-600', 'bg-orange-600',
-];
-
-function getBgColor(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
-  return BG_COLORS[Math.abs(hash) % BG_COLORS.length];
+  location: string;
 }
 
 const categoryList: string[] = [
@@ -74,106 +62,6 @@ const SERVICE_KEYWORDS: Record<string, string[]> = {
   'Cleaning & Maintenance': ['cleaner', 'cleaning', 'sofa cleaner', 'dry cleaner', 'laundry', 'pest control', 'cleaning equipment', 'maintenance', 'janitorial', 'equipment rental'],
 };
 
-// ALL services from both lists combined, organized by categories
-const ALL_SERVICES: Record<string, string[]> = {
-  'Technology': [
-    'Software Developer', 'Web Developer', 'UI/UX Designer',
-    'Graphic Designer', 'Data Analyst', 'Data Scientist',
-    'Virtual Assistant', 'Customer Support Representative',
-    'Phone Repair', 'Computer Repair',
-    'Software Development Company', 'Web Design Agency',
-  ],
-  'Creative & Media': [
-    'Graphic Designer', 'Video Editor', 'Photographer', 'Content Creator',
-    'Social Media Manager', 'Digital Marketer', 'Copywriter',
-    'Musician', 'Saxophonist', 'DJ',
-    'Photography Studio', 'Videography Services', 'Printing & Branding',
-    'Digital Marketing Agency',
-  ],
-  'Business & Administration': [
-    'Administrative Assistant', 'Project Manager', 'Human Resources (HR) Officer',
-    'Business Development Officer', 'Accountant', 'Virtual Assistant',
-    'Customer Support Representative', 'Accounting & Tax Services',
-    'Sales Executive',
-  ],
-  'Sales & Marketing': [
-    'Sales Executive', 'Digital Marketer', 'Social Media Manager',
-    'Content Creator', 'Copywriter', 'Digital Marketing Agency',
-    'Business Development Officer',
-  ],
-  'Engineering & Construction': [
-    'Civil Engineer', 'Mechanical Engineer', 'Electrical Engineer',
-    'Architect', 'Quantity Surveyor', 'Mason',
-    'Building & Construction', 'Interior Design', 'Furniture Making',
-    'Landscaping & Gardening', 'Welder',
-  ],
-  'Skilled Trades': [
-    'Electrician', 'Plumber', 'Carpenter', 'Welder', 'Mason', 'Painter',
-    'Panel Beater', 'Panel Beaters', 'Generator Repairer', 'Generator Repairers',
-    'AC Installer', 'AC Installers', 'Borehole Driller', 'Borehole Drillers',
-    'Auto Mechanic Workshop', 'Appliance Repair',
-    'Electrical Services', 'Plumbing Services', 'Painting Services',
-    'Generator Repair', 'Painters', 'Mechanics',
-  ],
-  'Beauty & Fashion': [
-    'Barber', 'Hair Stylist', 'Makeup Artist', 'Nail Tech',
-    'Fashion Designer', 'Tailor',
-    'Beauty Salon', 'Barbing Salon', 'Spa & Wellness',
-    'Fashion House', 'Tailoring Services',
-  ],
-  'Food & Hospitality': [
-    'Chef', 'Baker', 'Caterer',
-    'Catering Services', 'Waiter', 'Restaurant Staff',
-  ],
-  'Health & Wellness': [
-    'Nurse', 'Doctor', 'Pharmacist',
-    'Medical Clinic', 'Pharmacy',
-    'Fitness Trainer', 'Spa & Wellness',
-  ],
-  'Education': [
-    'Teacher', 'Tutor', 'Private Tutor', 'Private Tutors',
-    'Translator', 'Training & Coaching', 'Language Instructor',
-  ],
-  'Transportation & Logistics': [
-    'Driver', 'Dispatcher/Rider',
-    'Courier Services', 'Logistics & Delivery',
-    'Car Rental', 'Travel & Tours', 'Bike Rider',
-    'Translation Services',
-  ],
-  'Home & Property Services': [
-    'Cleaner', 'Sofa Cleaners', 'Dry Cleaners', 'Dry cleaners',
-    'Laundry & Dry Cleaning', 'Pest Control',
-    'Landscaping & Gardening', 'Painting Services',
-    'Plumber', 'Electrician', 'Carpenter',
-    'Real Estate Agency', 'Real Estate Agent',
-    'Equipment & Tool Rental', 'Cleaning Equipment Rental',
-  ],
-  'Professional Services': [
-    'Lawyer', 'Accountant', 'Security Guard',
-    'Visa & Immigration Consulting', 'Translator', 'Translation Services',
-    'Printing Press', 'Coworking Space',
-    'Legal Services', 'Accounting & Tax Services',
-    'Security Services', 'Real Estate Agency',
-  ],
-  'Events & Entertainment': [
-    'DJ', 'Musician', 'Saxophonist', 'MC/Compere',
-    'Event Planner', 'Event Planning',
-    'Photographer', 'Photography Studio', 'Videography Services',
-  ],
-  'Agriculture': [
-    'Agriculture & Farm Services', 'Poultry Farming', 'Fishery',
-    'Crop Farming', 'Livestock',
-  ],
-  'Cleaning & Maintenance': [
-    'Cleaner', 'Cleaning Services',
-    'Sofa Cleaners', 'Dry Cleaners', 'Dry cleaners',
-    'Laundry & Dry Cleaning', 'Pest Control',
-    'Cleaning Equipment Rental', 'Equipment & Tool Rental',
-    'Waste Management', 'Car Wash & Auto Detailing',
-    'Janitorial Services',
-  ],
-};
-
 const categories = ['All', ...categoryList];
 
 export default function Providers() {
@@ -186,8 +74,8 @@ export default function Providers() {
   const [chatProvider, setChatProvider] = useState<ProviderDisplay | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showDirectory, setShowDirectory] = useState(false);
 
   useEffect(() => {
     fetchProviders().then(data => {
@@ -206,11 +94,11 @@ export default function Providers() {
           reviews: p.reviews_count || 0,
           hourlyRate: p.hourly_rate || 0,
           specializations,
-          img: p.avatar_url || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2&fit=crop&crop=face',
-          bgColor: getBgColor(p.id),
+          img: p.avatar_url || '',
           verified: p.is_verified || false,
           featured: p.is_featured || false,
           tier: (p.subscription_tier as string) || p.subscription?.tier || 'basic',
+          location: p.location || '',
         };
       });
       setProviders(mapped);
@@ -255,12 +143,6 @@ export default function Providers() {
     }
   };
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollBy({ left: direction === 'left' ? -300 : 300, behavior: 'smooth' });
-    }
-  };
-
   const matchCategory = (provider: ProviderDisplay, category: string): boolean => {
     if (category === 'All') return true;
     const keywords = SERVICE_KEYWORDS[category] || [];
@@ -282,261 +164,309 @@ export default function Providers() {
     return b.reviews - a.reviews;
   });
 
-  const featuredProviders = sortedProviders.filter(p => p.featured);
-  const verifiedProviders = sortedProviders.filter(p => p.verified && !p.featured);
-  const basicProviders = sortedProviders.filter(p => !p.verified);
-
   const renderStars = (rating: number) => (
     <div className="flex items-center gap-0.5">
       {Array(5).fill(null).map((_, i) => (
-        <Star key={i} size={14} className={i < Math.floor(rating) ? 'fill-amber-400 text-amber-400' : 'text-gray-300'} />
+        <Star key={i} size={13} className={i < Math.floor(rating) ? 'fill-amber-400 text-amber-400' : 'text-gray-300'} />
       ))}
     </div>
   );
 
-  const ProviderCard = ({ provider }: { provider: ProviderDisplay }) => (
-    <div className={`bg-white rounded-xl shadow-sm hover:shadow-md transition-all overflow-hidden border ${provider.featured ? 'border-amber-200 ring-1 ring-amber-200' : provider.verified ? 'border-blue-100' : 'border-gray-100'}`}>
-      {provider.featured && (
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-semibold px-3 py-1.5 flex items-center justify-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5" /> Featured Professional
-        </div>
-      )}
-      <div className="p-5">
-        <div className="flex items-start gap-3 mb-3">
-          <img src={provider.img} alt={provider.name} className="w-11 h-11 rounded-xl object-cover border-2 border-gray-100 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h3 className="font-bold text-gray-900 truncate">{provider.name}</h3>
-              {provider.verified && <BadgeCheck className="w-4 h-4 text-blue-600 shrink-0" />}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
-              <span className="text-sm text-gray-600">{provider.specialty}</span>
-              <span className="rounded-full bg-gray-100 text-gray-600 px-2 py-0.5">{provider.tier}</span>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 mb-3">
-          {renderStars(provider.rating)}
-          <span className="text-xs text-gray-500">({provider.reviews} reviews)</span>
-        </div>
-        <div className="text-lg font-bold text-blue-700 mb-3">
-          {provider.hourlyRate > 0 ? `₦${provider.hourlyRate.toLocaleString()}/hr` : 'Rate negotiable'}
-        </div>
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {provider.specializations.slice(0, 3).map(spec => (
-            <span key={spec} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">{spec}</span>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => openChat(provider)} className="flex-1 flex items-center justify-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-medium py-2.5 px-3 rounded-lg transition-colors text-sm">
-            <MessageCircle className="w-4 h-4" /> Chat
-          </button>
-          <button onClick={() => openModal('profile', {
-            name: provider.name,
-            role: provider.specialty,
-            specialty: provider.specialty,
-            match: `${provider.rating}★`,
-            skills: provider.specializations,
-            bio: '',
-            location: '',
-            hourlyRate: provider.hourlyRate,
-            email: provider.email,
-            verified: provider.verified,
-            reviews: provider.reviews,
-          })} className="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2.5 px-3 rounded-lg transition-colors text-sm">
-            View Profile
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'PR';
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24">
       <Header />
       <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Hero Search */}
-        <div className="relative rounded-2xl shadow-lg overflow-hidden mb-6">
-          <FloatingDecorations className="opacity-70" />
-          <img src={IMG.hero.providers} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 via-blue-800/80 to-blue-700/70" />
-          <div className="relative p-6 sm:p-8">
+
+        {/* ─── Clean Hero ─── */}
+        <div className="relative rounded-2xl overflow-hidden mb-8 bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.12),_transparent_50%)]" />
+          <div className="relative px-6 sm:px-8 py-8 sm:py-10">
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Find Trusted Service Providers</h1>
-            <p className="text-blue-100 mb-4 text-sm max-w-xl">Looking for a graphic designer? A photographer? Any professional? Find them here.</p>
+            <p className="text-blue-100 text-sm sm:text-base mb-5 max-w-xl">
+              Browse our directory of verified professionals across Nigeria.
+            </p>
             <div className="relative max-w-xl">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-              <input type="text" placeholder="Search by name, specialty, or skill..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input
+                type="text"
+                placeholder="Search by name, specialty, or skill..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 rounded-xl bg-white/95 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm shadow-sm"
+              />
             </div>
           </div>
         </div>
 
-        {/* Category Pills */}
+        {/* ─── Category Pills ─── */}
         <div className="mb-6">
-          <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300">
             {categories.map(cat => (
-              <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-full whitespace-nowrap font-medium transition-colors text-sm ${selectedCategory === cat ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:border-blue-300'}`}>
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-4 py-2 rounded-full whitespace-nowrap font-medium transition-all text-sm ${
+                  selectedCategory === cat
+                    ? 'bg-blue-700 text-white shadow-md shadow-blue-200'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300 hover:text-blue-700'
+                }`}
+              >
                 {cat}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex flex-wrap gap-4 mb-6 text-xs text-gray-600">
-          <div className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-amber-500" /><span>Featured - ₦5,000/mo</span></div>
-          <div className="flex items-center gap-1.5"><BadgeCheck className="w-3.5 h-3.5 text-blue-600" /><span>Verified - ₦3,000/mo</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-gray-300" /><span>Basic - FREE at launch</span></div>
+        {/* ─── Results Summary ─── */}
+        <div className="flex items-center justify-between mb-5">
+          <p className="text-sm text-slate-600">
+            <span className="font-semibold text-slate-900">{sortedProviders.length}</span>{' '}
+            {sortedProviders.length === 1 ? 'provider' : 'providers'} found
+            {selectedCategory !== 'All' ? ` in ${selectedCategory}` : ''}
+          </p>
         </div>
 
-        {/* Featured Providers */}
-        {featuredProviders.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-5 h-5 text-amber-500" />
-              <h2 className="text-xl font-bold text-gray-900">Featured Professionals</h2>
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Top visibility</span>
-            </div>
-            <div className="relative">
-              <button onClick={() => scroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 bg-white rounded-full p-2 shadow-md hover:shadow-lg transition-shadow"><ChevronLeft size={18} className="text-gray-600" /></button>
-              <button onClick={() => scroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 bg-white rounded-full p-2 shadow-md hover:shadow-lg transition-shadow"><ChevronRight size={18} className="text-gray-600" /></button>
-              <div ref={scrollRef} className="overflow-x-auto scroll-smooth hide-scrollbar">
-                <div className="flex gap-4 pb-2">
-                  {featuredProviders.map(p => (
-                    <div key={p.id} className="w-72 shrink-0"><ProviderCard provider={p} /></div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* ─── Provider Grid (all providers in one unified grid) ─── */}
+        {sortedProviders.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+            {sortedProviders.map(p => (
+              <div
+                key={p.id}
+                className={`group bg-white rounded-xl border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden ${
+                  p.featured
+                    ? 'border-amber-200 shadow-sm hover:shadow-amber-100/50'
+                    : p.verified
+                    ? 'border-blue-100 shadow-sm hover:shadow-blue-100/30'
+                    : 'border-slate-100 shadow-sm'
+                }`}
+              >
+                {/* Featured banner */}
+                {p.featured && (
+                  <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2 flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-white shrink-0" />
+                    <span className="text-white text-xs font-semibold tracking-wide">Featured Professional</span>
+                  </div>
+                )}
 
-        {/* All Providers Grid */}
-        <div className="mb-10">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            {selectedCategory === 'All' ? 'All Service Providers' : `Service Providers in ${selectedCategory}`}
-          </h2>
-          {sortedProviders.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedProviders.map(p => <ProviderCard key={p.id} provider={p} />)}
-            </div>
-          ) : null}
-        </div>
-
-        {/* Browse All Services Directory - shown regardless of provider count */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Browse All Services</h2>
-            <p className="text-sm text-gray-500">Find professionals for any service</p>
-          </div>
-
-          {selectedCategory === 'All' ? (
-            /* Show all categories in a grid */
-            <div className="space-y-8">
-              {categoryList.map(cat => {
-                const services = ALL_SERVICES[cat] || [];
-                return (
-                  <div key={cat} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                    <div className="bg-gradient-to-r from-blue-700 to-blue-600 px-5 py-3">
-                      <h3 className="font-bold text-white text-lg">{cat}</h3>
-                      <p className="text-blue-200 text-xs mt-0.5">{services.length} services available</p>
-                    </div>
-                    <div className="p-4">
-                      <div className="flex flex-wrap gap-2">
-                        {services.map(service => (
-                          <button
-                            key={service}
-                            onClick={() => {
-                              setSearchQuery(service);
-                              setSelectedCategory(cat);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className="px-3.5 py-2 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-lg text-sm text-gray-700 transition-colors font-medium"
-                          >
-                            {service}
-                          </button>
-                        ))}
+                <div className="p-5">
+                  {/* Avatar + Name row */}
+                  <div className="flex items-start gap-4 mb-4">
+                    {p.img ? (
+                      <img
+                        src={p.img}
+                        alt={p.name}
+                        className="w-14 h-14 rounded-xl object-cover border-2 border-slate-100 shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <div className={`${p.img ? '' : ''} ${!p.img ? 'flex items-center gap-3' : ''}`}>
+                      {!p.img && (
+                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
+                          {getInitials(p.name)}
+                        </div>
+                      )}
+                      <div className={p.img ? '' : ''}>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-bold text-slate-900 truncate text-base">{p.name}</h3>
+                          {p.verified && <BadgeCheck className="w-4 h-4 text-blue-600 shrink-0" />}
+                        </div>
+                        <p className="text-sm text-slate-600 mt-0.5">{p.specialty}</p>
+                        {p.location && (
+                          <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                            <MapPin className="w-3 h-3" /> {p.location}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            /* Show services only for selected category */
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-700 to-blue-600 px-5 py-3">
-                <h3 className="font-bold text-white text-lg">{selectedCategory}</h3>
-                <p className="text-blue-200 text-xs mt-0.5">{(ALL_SERVICES[selectedCategory] || []).length} services available</p>
-              </div>
-              <div className="p-4">
-                <div className="flex flex-wrap gap-2">
-                  {(ALL_SERVICES[selectedCategory] || []).map(service => (
+
+                  {/* Rating */}
+                  <div className="flex items-center gap-2 mb-3">
+                    {renderStars(p.rating)}
+                    <span className="text-xs text-slate-400">
+                      {p.rating.toFixed(1)} ({p.reviews} {p.reviews === 1 ? 'review' : 'reviews'})
+                    </span>
+                  </div>
+
+                  {/* Rate */}
+                  <div className="text-xl font-bold text-blue-700 mb-3">
+                    {p.hourlyRate > 0 ? `₦${p.hourlyRate.toLocaleString()}/hr` : 'Rate negotiable'}
+                  </div>
+
+                  {/* Specializations */}
+                  {p.specializations.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {p.specializations.map(spec => (
+                        <span key={spec} className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-medium">
+                          {spec}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
                     <button
-                      key={service}
-                      onClick={() => {
-                        setSearchQuery(service);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className="px-3.5 py-2 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-lg text-sm text-gray-700 transition-colors font-medium"
+                      onClick={() => openChat(p)}
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
                     >
-                      {service}
+                      <MessageCircle className="w-4 h-4" /> Chat
                     </button>
-                  ))}
+                    <button
+                      onClick={() => openModal('profile', {
+                        name: p.name,
+                        role: p.specialty,
+                        specialty: p.specialty,
+                        match: `${p.rating}★`,
+                        skills: p.specializations,
+                        bio: '',
+                        location: p.location,
+                        hourlyRate: p.hourlyRate,
+                        email: p.email,
+                        verified: p.verified,
+                        reviews: p.reviews,
+                      })}
+                      className="flex-1 border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+                    >
+                      View Profile
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
+        ) : (
+          /* ─── Empty State ─── */
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center mb-10">
+            <p className="text-amber-800 font-semibold mb-1">No providers found</p>
+            <p className="text-amber-700 text-sm">
+              {searchQuery
+                ? 'Try a different search term or category.'
+                : 'No providers are currently listed in this category.'}
+            </p>
+          </div>
+        )}
 
-          {sortedProviders.length === 0 && (
-            <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-5 text-center">
-              <p className="text-amber-800 font-medium mb-2">No providers listed in this category yet</p>
-              <p className="text-amber-700 text-sm">If you're a professional, <Link to="/pricing#services" className="text-blue-700 hover:underline font-semibold">become a provider</Link> and get listed here.</p>
+        {/* ─── Service Directory (Collapsible) ─── */}
+        <div className="mb-10 bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <button
+            onClick={() => setShowDirectory(!showDirectory)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
+          >
+            <div className="text-left">
+              <h2 className="font-bold text-slate-900">Service Directory</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Browse all service categories to find what you need</p>
+            </div>
+            {showDirectory ? (
+              <ChevronUp className="w-5 h-5 text-slate-400 shrink-0" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-slate-400 shrink-0" />
+            )}
+          </button>
+
+          {showDirectory && (
+            <div className="px-5 pb-5 border-t border-slate-100 pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {categoryList.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      setSelectedCategory(cat);
+                      setShowDirectory(false);
+                    }}
+                    className={`flex items-center justify-between px-4 py-3 rounded-lg border transition-colors text-left ${
+                      selectedCategory === cat
+                        ? 'bg-blue-50 border-blue-200 text-blue-700'
+                        : 'bg-slate-50 border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 text-slate-700'
+                    }`}
+                  >
+                    <span className="text-sm font-medium">{cat}</span>
+                    <ArrowRight className="w-4 h-4 shrink-0 opacity-50" />
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Become a Provider CTA */}
-        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-2xl shadow-lg p-8">
-          <div className="max-w-2xl">
-            <h2 className="text-2xl font-bold text-white mb-2">Become a Service Provider</h2>
-            <p className="text-emerald-100 mb-6">Join thousands of professionals offering services on JobBridge. Get clients, build your reputation, and grow your business.</p>
-            <div className="grid sm:grid-cols-2 gap-3 mb-6">
-              <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-                <div className="font-bold text-white mb-1">Monthly Listing</div>
-                <div className="text-emerald-100 text-sm mb-1">FREE at launch</div>
-                <ul className="text-xs text-emerald-200 space-y-1"><li>• Profile on JobBridge</li><li>• Contact information</li><li>• Receive inquiries</li></ul>
+        {/* ─── Become a Provider CTA ─── */}
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl overflow-hidden">
+          <div className="px-6 sm:px-8 py-8">
+            <div className="max-w-2xl">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Become a Service Provider</h2>
+              <p className="text-emerald-100 text-sm sm:text-base mb-6">
+                Join thousands of professionals offering services on JobBridge. Get clients, build your reputation, and grow your business.
+              </p>
+              <div className="flex flex-wrap gap-3 mb-6">
+                <div className="bg-white/10 backdrop-blur rounded-xl px-5 py-4 flex-1 min-w-[200px]">
+                  <div className="font-semibold text-white mb-1">Monthly Listing</div>
+                  <div className="text-emerald-200 text-sm mb-2">FREE at launch</div>
+                  <ul className="text-xs text-emerald-200 space-y-1">
+                    <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Profile on JobBridge</li>
+                    <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Contact information</li>
+                    <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Receive inquiries</li>
+                  </ul>
+                </div>
+                <div className="bg-white/10 backdrop-blur rounded-xl px-5 py-4 flex-1 min-w-[200px]">
+                  <div className="font-semibold text-white mb-1">Featured Professional</div>
+                  <div className="text-emerald-200 text-sm mb-2">₦5,000/month</div>
+                  <ul className="text-xs text-emerald-200 space-y-1">
+                    <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Top of search results</li>
+                    <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Featured badge</li>
+                    <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Priority support</li>
+                  </ul>
+                </div>
               </div>
-              <div className="bg-white/10 backdrop-blur rounded-xl p-4">
-                <div className="font-bold text-white mb-1">Featured Professional</div>
-                <div className="text-emerald-100 text-sm mb-1">₦5,000/month</div>
-                <ul className="text-xs text-emerald-200 space-y-1"><li>• Top of search results</li><li>• Featured on homepage</li><li>• Social media promotion</li></ul>
-              </div>
+              <Link
+                to="/pricing#services"
+                className="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-bold py-3 px-6 rounded-xl transition-colors text-sm"
+              >
+                View Pricing Plans <ArrowRight size={18} />
+              </Link>
             </div>
-              <Link to="/pricing#services" className="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-bold py-3 px-6 rounded-xl transition-colors">
-              View Pricing Plans <ArrowRight size={18} />
-            </Link>
           </div>
         </div>
       </div>
 
-      {/* Chat Modal */}
+      {/* ─── Chat Modal ─── */}
       {chatProvider && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm">
           <div className="w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
             <div className="flex items-center gap-3 p-4 border-b shrink-0">
-              <img src={chatProvider.img} alt={chatProvider.name} className="w-10 h-10 rounded-xl object-cover border-2 border-gray-100" />
-              <div className="flex-1">
-                <h3 className="font-bold text-gray-900">{chatProvider.name}</h3>
-                <p className="text-xs text-gray-500">{chatProvider.specialty}</p>
+              {chatProvider.img ? (
+                <img src={chatProvider.img} alt={chatProvider.name} className="w-10 h-10 rounded-xl object-cover border-2 border-slate-100" />
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                  {getInitials(chatProvider.name)}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-slate-900 truncate">{chatProvider.name}</h3>
+                <p className="text-xs text-slate-500">{chatProvider.specialty}</p>
               </div>
-              <button onClick={closeChat} className="p-2 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-500" /></button>
+              <button onClick={closeChat} className="p-2 hover:bg-slate-100 rounded-lg transition-colors shrink-0">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.map(msg => (
                 <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl ${msg.sender === 'user' ? 'bg-blue-700 text-white rounded-br-md' : 'bg-gray-100 text-gray-900 rounded-bl-md'}`}>
+                  <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl ${
+                    msg.sender === 'user'
+                      ? 'bg-blue-700 text-white rounded-br-md'
+                      : 'bg-slate-100 text-slate-900 rounded-bl-md'
+                  }`}>
                     <p className="text-sm">{msg.text}</p>
-                    <p className={`text-xs mt-1 ${msg.sender === 'user' ? 'text-blue-200' : 'text-gray-400'}`}>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className={`text-xs mt-1 ${msg.sender === 'user' ? 'text-blue-200' : 'text-slate-400'}`}>
+                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -544,8 +474,20 @@ export default function Providers() {
             </div>
             <form onSubmit={sendMessage} className="p-4 border-t shrink-0">
               <div className="flex gap-2">
-                <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type your message..." className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-                <button type="submit" disabled={!newMessage.trim()} className="p-2.5 bg-blue-700 text-white rounded-xl hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Send className="w-5 h-5" /></button>
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={e => setNewMessage(e.target.value)}
+                  placeholder="Type your message..."
+                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={!newMessage.trim()}
+                  className="p-2.5 bg-blue-700 text-white rounded-xl hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
               </div>
             </form>
           </div>
