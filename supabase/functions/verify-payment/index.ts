@@ -51,10 +51,127 @@ serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // ── DIRECT AI ACTIVATION MODE ──────────────────────────────────────────────
+    // ── UNIVERSAL DIRECT ACTIVATION MODE ────────────────────────────────────────
     // Called from Payment.tsx after successful KoraPay checkout to immediately
-    // activate the AI subscription via the service role (bypasses RLS).
+    // activate ANY subscription via the service role (bypasses RLS).
+    // Supports: ai_tools, recruiter (credits), service plan, business advert creation.
     const requestBody = body as Record<string, unknown>;
+
+    // Universal activation: called with activate_plan, plan_key, user_id, duration_days, credits, etc.
+    if (requestBody?.activate_plan === true && requestBody?.user_id && requestBody?.plan_key) {
+      const userId = String(requestBody.user_id);
+      const planKey = String(requestBody.plan_key);
+      const durationDays = Number(requestBody.duration_days) || 30;
+      const creditsToAdd = Number(requestBody.credits) || 0;
+      const now = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+      // Determine subscription tier based on plan key
+      const isAiPlan = planKey === "ai_monthly" || planKey === "ai_annual";
+      const isServicePlan = planKey === "service_monthly" || planKey === "service_verified" || planKey === "service_featured";
+      const isRecruiterPlan = planKey === "basic" || planKey === "standard" || planKey === "premium";
+      const isBusinessPlan = planKey === "business_weekly" || planKey === "business_monthly" || planKey === "business_featured";
+
+      const tier = isAiPlan ? "ai_tools" : planKey;
+
+      // 1) Update profile subscription
+      const profileUpdates: Record<string, unknown> = {
+        is_premium: !isBusinessPlan, // business ads don't need is_premium on profile
+        subscription_tier: tier,
+        subscription_expires_at: expiresAt,
+        updated_at: now,
+      };
+
+      // Read current credits and add new ones
+      if (isRecruiterPlan || isServicePlan) {
+        const { data: profileData } = await supabase.from("profiles").select("credits").eq("id", userId).maybeSingle();
+        const currentCredits = Number(profileData?.credits || 0);
+        profileUpdates.credits = isServicePlan ? currentCredits : currentCredits + creditsToAdd;
+      } else if (isAiPlan) {
+        profileUpdates.credits = 0;
+      }
+
+      // Service plan flags
+      if (planKey === "service_monthly") {
+        profileUpdates.is_verified = false;
+        profileUpdates.is_featured = false;
+      } else if (planKey === "service_verified") {
+        profileUpdates.is_verified = true;
+        profileUpdates.is_featured = false;
+      } else if (planKey === "service_featured") {
+        profileUpdates.is_verified = true;
+        profileUpdates.is_featured = true;
+      }
+
+      const { error: profileErr } = await supabase
+        .from("profiles")
+        .update(profileUpdates)
+        .eq("id", userId);
+
+      if (profileErr) {
+        console.error("[verify-payment] Universal activation profile update failed:", profileErr.message);
+      } else {
+        console.log(`[verify-payment] Profile activated for user ${userId}, plan ${planKey}, ${durationDays} days`);
+      }
+
+      // 2) For business plans, create the advertisement from pending data
+      let advertCreated = false;
+      if (isBusinessPlan) {
+        try {
+          const pendingRaw = typeof requestBody.pending_advert === "string" 
+            ? JSON.parse(requestBody.pending_advert) 
+            : requestBody.pending_advert;
+
+          if (pendingRaw && typeof pendingRaw === "object") {
+            const packageType = planKey === "business_weekly" ? "weekly" : planKey === "business_monthly" ? "monthly" : "featured";
+            const startsAt = new Date().toISOString();
+            const adDurationDays = planKey === "business_weekly" ? 7 : 30;
+            const adExpiresAt = new Date(Date.now() + adDurationDays * 24 * 60 * 60 * 1000).toISOString();
+
+            const { error: advertErr } = await supabase.from("advertisements").insert([{
+              owner_id: userId,
+              business_name: String(pendingRaw.businessName || userId),
+              title: String(pendingRaw.title || "Business Advert"),
+              description: String(pendingRaw.description || ""),
+              category: String(pendingRaw.category || "Other"),
+              package: packageType,
+              is_featured: planKey === "business_featured" || Boolean(pendingRaw.featured),
+              starts_at: startsAt,
+              expires_at: adExpiresAt,
+              status: "active",
+              views: 0,
+              clicks: 0,
+              payment_status: "paid",
+              amount_paid: Number(requestBody.amount) || 0,
+              created_at: now,
+              updated_at: now,
+            }]);
+
+            if (advertErr) {
+              console.error("[verify-payment] Business advert creation failed:", advertErr.message);
+            } else {
+              advertCreated = true;
+              console.log(`[verify-payment] Business advert created for user ${userId}, plan ${planKey}`);
+            }
+          }
+        } catch (advertErr) {
+          console.error("[verify-payment] Business advert processing error:", advertErr);
+        }
+      }
+
+      const result: Record<string, unknown> = { 
+        verified: true,
+        activated: tier,
+        profile_updated: !profileErr,
+      };
+      if (isBusinessPlan) {
+        result.advert_created = advertCreated;
+      }
+
+      return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Backward-compat: AI-only activation (used by previous code version)
     if (requestBody?.activate_ai === true && requestBody?.user_id) {
       const userId = String(requestBody.user_id);
       const durationDays = Number(requestBody.duration_days) || 30;

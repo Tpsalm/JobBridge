@@ -461,44 +461,82 @@ export default function Payment() {
     }
 
     try {
-      // Permanently persist subscription activation to the DB BEFORE redirect
-      // This ensures the target page sees active status even if the webhook is slow
-      if (plan.ai) {
-        const durationDays = plan.duration?.includes('365') ? 365 : 30;
-        // 1) Client-side DB write as primary (anon key — works if RLS permits)
-        await activateAiDb(user?.id || '', durationDays).catch(e => console.warn("[Payment] AI DB activation failed:", e));
-        // 2) ALSO call server-side activation via the verify-payment endpoint
-        // (uses service role, bypasses RLS — ensures the write definitely takes effect)
-        try {
-          const functionsBase = getSupabaseFunctionsUrl();
-          if (functionsBase) {
-            await fetch(`${functionsBase}/verify-payment`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                reference: reference || '',
-                fallback_reference: reference || '',
-                original_reference: originalPaymentReferenceRef.current || reference,
-                activate_ai: true,
-                user_id: user?.id || '',
-                duration_days: durationDays,
-              }),
-            });
-          }
-        } catch (serverErr) {
-          console.warn("[Payment] Server-side AI activation failed:", serverErr);
+      // ── UNIVERSAL SERVER-SIDE ACTIVATION ──────────────────────────────────────
+      // Calls verify-payment edge function with service role key to bypass RLS.
+      // This ensures ALL plan types (AI, recruiter, service, business) get their
+      // features activated immediately, regardless of RLS policies on profiles table.
+      const functionsBase = getSupabaseFunctionsUrl();
+      const serverUrl = functionsBase ? `${functionsBase}/verify-payment` : null;
+
+      const getDurationDays = () => {
+        if (plan.ai) return plan.duration?.includes('365') ? 365 : 30;
+        if ((plan as any).business) {
+          const bPlan = planKey;
+          return bPlan === 'business_weekly' ? 7 : 30;
         }
-        await fetchAiSubscription().catch(() => {});
+        if (planKey === 'basic') return 7;
+        if (planKey === 'standard') return 14;
+        if (planKey === 'premium') return 30;
+        return 30;
+      };
+
+      const durationDays = getDurationDays();
+
+      // 1) Client-side DB writes as primary (anon key — works if RLS permits)
+      if (plan.ai) {
+        await activateAiDb(user?.id || '', durationDays).catch(e => console.warn("[Payment] AI DB activation failed:", e));
       } else if ((plan as any).service) {
-        const durationDays = 30;
         await activateSubscription(user?.id || '', 'service_monthly', 0, durationDays).catch(e => console.warn("[Payment] service DB activation failed:", e));
-        await fetchSubscription().catch(() => {});
       } else if (!(plan as any).business) {
         // Recruiter plan: add credits
         await addCredits(user?.id || '', plan.credits).catch(e => console.warn("[Payment] credits DB activation failed:", e));
+      }
+
+      // 2) Universal server-side activation (service role key — ALWAYS works, bypasses RLS)
+      if (serverUrl) {
+        const body: Record<string, unknown> = {
+          activate_plan: true,
+          plan_key: planKey,
+          user_id: user?.id || '',
+          duration_days: durationDays,
+          credits: plan.credits || 0,
+          amount: plan.price,
+          reference: reference || '',
+          fallback_reference: reference || '',
+          original_reference: originalPaymentReferenceRef.current || reference,
+        };
+
+        // For business plans, include pending advert data from session storage
+        if ((plan as any).business) {
+          try {
+            const raw = sessionStorage.getItem('jb_pending_advert');
+            if (raw) body.pending_advert = JSON.parse(raw);
+          } catch {}
+        }
+
+        try {
+          const resp = await fetch(serverUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const result = await resp.json().catch(() => ({}));
+          if (resp.ok && result?.verified) {
+            console.log(`[Payment] Server-side activation successful for plan ${planKey}`);
+          } else {
+            console.warn("[Payment] Server-side activation response:", result);
+          }
+        } catch (serverErr) {
+          console.warn("[Payment] Server-side activation failed:", serverErr);
+        }
+      }
+
+      // Refresh subscription state
+      if (plan.ai) {
+        await fetchAiSubscription().catch(() => {});
+      } else {
         await fetchSubscription().catch(() => {});
       }
-      // Business ads are handled separately below
 
       if (!receiptSentRef.current.has(reference) && user?.email) {
         receiptSentRef.current.add(reference);
