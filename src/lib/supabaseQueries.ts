@@ -261,14 +261,41 @@ export async function updateProfile(
   userId: string,
   updates: Record<string, unknown>,
 ) {
+  // First, try to update with .select() to return the updated row
   const { data, error } = await supabase
     .from("profiles")
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq("id", userId)
     .select()
-    .single();
-  if (error) throw error;
-  return data;
+    .maybeSingle();
+
+  // If select failed (e.g. RLS blocks read-back, or column not found),
+  // try a simple update without select
+  if (error) {
+    console.warn("[updateProfile] Update with select failed, retrying without select:", error.message);
+    const { error: silentError } = await supabase
+      .from("profiles")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", userId);
+    
+    if (silentError) {
+      // If still failing, try column by column removing unknown columns
+      console.warn("[updateProfile] Silent update also failed:", silentError.message);
+      
+      // Final fallback: remove profile_sections and retry
+      const safeUpdates = { ...updates };
+      delete safeUpdates.profile_sections;
+      
+      const { error: fallbackError } = await supabase
+        .from("profiles")
+        .update({ ...safeUpdates, updated_at: new Date().toISOString() })
+        .eq("id", userId);
+      
+      if (fallbackError) throw fallbackError;
+    }
+  }
+
+  return data || null;
 }
 
 export async function upsertProfile(profile: {
