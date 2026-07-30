@@ -68,6 +68,7 @@ export default function Messages() {
   const [selectedId, setSelectedId] = useState<string | null>(queryConversationId || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newMessage, setNewMessage] = useState('');
+  const [pendingApplied, setPendingApplied] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
   const [loading, setLoading] = useState(true);
@@ -229,24 +230,27 @@ export default function Messages() {
           const key = `pendingMessage:${selectedId}`;
           const pendingRaw = sessionStorage.getItem(key) || sessionStorage.getItem('pendingMessage:fallback');
           if (pendingRaw) {
-            const pending = JSON.parse(pendingRaw);
-            setMessages(prev => {
-              const existing = prev[selectedId] || [];
-              if (existing.some(m => String(m.id) === String(pending.id) || m.text === pending.text)) {
+              const pending = JSON.parse(pendingRaw);
+              setMessages(prev => {
+                const existing = prev[selectedId] || [];
+                if (existing.some(m => String(m.id) === String(pending.id) || m.text === pending.text)) {
+                  try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
+                  return prev;
+                }
+                const appended = [...existing, {
+                  id: pending.id,
+                  sender: 'me' as const,
+                  text: pending.text,
+                  time: new Date(pending.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  read: false,
+                }];
                 try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
-                return prev;
-              }
-              const appended = [...existing, {
-                id: pending.id,
-                sender: 'me' as const,
-                text: pending.text,
-                time: new Date(pending.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                read: false,
-              }];
-              try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
-              return { ...prev, [selectedId]: appended };
-            });
-          }
+                // show confirmation briefly
+                setPendingApplied(true);
+                window.setTimeout(() => setPendingApplied(false), 3000);
+                return { ...prev, [selectedId]: appended };
+              });
+            }
         } catch (e) {
           // ignore
         }
@@ -588,6 +592,12 @@ export default function Messages() {
                   <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 text-sm text-yellow-700">
                     <Lock className="w-4 h-4" />
                     This conversation is no longer active.
+                  </div>
+                )}
+                {pendingApplied && (
+                  <div className="mb-3 text-sm text-green-700 bg-green-50 border border-green-100 rounded-md px-3 py-2 inline-flex items-center gap-2">
+                    <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    <span>Message sent — continuing in chat</span>
                   </div>
                 )}
                 {currentMessages.map(msg => (
