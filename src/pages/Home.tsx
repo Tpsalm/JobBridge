@@ -33,9 +33,9 @@ const testimonials = [
 ];
 
 const profileCards = [
-  { name: 'Uthman Busari Olamide', role: 'Social Media Manager', img: '', color: 'bg-blue-600' },
-  { name: 'Akinnirun Timilehin', role: 'Project Manager', img: '/images/team-profile.jpeg', color: 'bg-emerald-600' },
-  { name: 'Makinde David Ayomidotun', role: 'Digital Marketing Manager', img: '', color: 'bg-purple-600' },
+  { name: 'Uthman Busari Olamide', role: 'Social Media Manager', img: '/images/social-media-manager.jpeg', color: 'bg-blue-600' },
+  { name: 'Akinnirun Timilehin', role: 'Project Manager', img: '/images/project-manager.jpeg', color: 'bg-emerald-600' },
+  { name: 'Makinde David Ayomidotun', role: 'Digital Marketing Manager', img: '/images/team-profile.jpeg', color: 'bg-purple-600' },
 ];
 
 function CarouselImg({ images, className }: { images: string[]; className?: string }) {
