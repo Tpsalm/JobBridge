@@ -398,6 +398,16 @@ export async function fetchConversationMessages(conversationId: string) {
   return data || [];
 }
 
+export async function fetchConversationById(conversationId: string) {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('*, participant1:profiles(id, full_name, email), participant2:profiles(id, full_name, email)')
+    .eq('id', conversationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 async function findOrCreateConversation(participant1_id: string, participant2_id: string) {
   const ordered = [participant1_id, participant2_id].sort();
   const participantsFilter = `or(and(participant1_id.eq.${ordered[0]},participant2_id.eq.${ordered[1]}),and(participant1_id.eq.${ordered[1]},participant2_id.eq.${ordered[0]}))`;
@@ -444,7 +454,7 @@ export async function createConversationMessage(params: {
   recipientName: string;
   recipientEmail?: string;
   message: string;
-}) {
+}): Promise<string | null> {
   const { senderId, senderName, recipientId, recipientName, recipientEmail, message } = params;
   let conversationId: string | null = null;
 
@@ -543,6 +553,8 @@ export async function createConversationMessage(params: {
       console.warn('[createConversationMessage] email alert failed:', emailError);
     }
   }
+
+  return conversationId;
 }
 
 export async function createAdvertisement(ad: {

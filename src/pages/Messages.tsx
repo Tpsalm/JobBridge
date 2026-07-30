@@ -118,6 +118,7 @@ export default function Messages() {
           })));
         }
 
+        // If there's a specific conversation target and it wasn't in the list, fetch it directly
         if (queryConversationId && !convItems.some(c => c.id === queryConversationId)) {
           const missingConv = await fetchConversationById(queryConversationId);
           if (missingConv && (missingConv.participant1_id === user.id || missingConv.participant2_id === user.id)) {
@@ -149,8 +150,17 @@ export default function Messages() {
         }
 
         if (convItems.length === 0) {
-          setConversations(MOCK_CONVERSATIONS);
-          setMessages(MOCK_MESSAGES);
+          // If no conversations at all, show the specific one if available from query param
+          if (queryConversationId && msgMap.has(queryConversationId)) {
+            // convItems was already populated above from the missing fetch
+            setConversations(convItems);
+            setMessages(Object.fromEntries(msgMap));
+            setSelectedId(queryConversationId);
+          } else {
+            // Only fall back to mock data when there's no target conversation
+            setConversations(MOCK_CONVERSATIONS);
+            setMessages(MOCK_MESSAGES);
+          }
         } else {
           setConversations(convItems);
           setMessages(Object.fromEntries(msgMap));
@@ -160,8 +170,51 @@ export default function Messages() {
         }
       } catch (error) {
         console.error('[Messages] error loading conversations:', error);
-        setConversations(MOCK_CONVERSATIONS);
-        setMessages(MOCK_MESSAGES);
+        // If we have a target conversation, try to load just that one instead of mock data
+        if (queryConversationId) {
+          try {
+            const missingConv = await fetchConversationById(queryConversationId);
+            if (missingConv && (missingConv.participant1_id === user.id || missingConv.participant2_id === user.id)) {
+              const otherParticipant = missingConv.participant1_id === user.id ? missingConv.participant2 : missingConv.participant1;
+              const name = otherParticipant?.full_name || 'Conversation';
+              const otherId = otherParticipant?.id || '';
+              const singleConv: Conversation = {
+                id: missingConv.id,
+                company: name,
+                logo_initial: (name.charAt(0) || 'U'),
+                color: 'bg-blue-600',
+                lastMessage: missingConv.last_message || 'New conversation',
+                timestamp: missingConv.last_message_at ? new Date(missingConv.last_message_at).toLocaleDateString() : new Date(missingConv.created_at).toLocaleDateString(),
+                unread: 0,
+                recipientId: otherId,
+                recipientName: name,
+                recipientEmail: otherParticipant?.email || undefined,
+              };
+              setConversations([singleConv]);
+              setSelectedId(queryConversationId);
+              // Also load messages for this conversation
+              const msgs = await fetchConversationMessages(queryConversationId);
+              setMessages({
+                [queryConversationId]: msgs.map(msg => ({
+                  id: msg.id,
+                  sender: msg.sender_id === user.id ? 'me' : 'them',
+                  text: msg.content,
+                  time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  read: msg.is_read,
+                })),
+              });
+            } else {
+              setConversations(MOCK_CONVERSATIONS);
+              setMessages(MOCK_MESSAGES);
+            }
+          } catch {
+            setConversations(MOCK_CONVERSATIONS);
+            setMessages(MOCK_MESSAGES);
+          }
+        } else {
+          setConversations(MOCK_CONVERSATIONS);
+          setMessages(MOCK_MESSAGES);
+        }
       } finally {
         setLoading(false);
       }
