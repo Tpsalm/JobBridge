@@ -31,34 +31,6 @@ interface MessageItem {
   read?: boolean;
 }
 
-const MOCK_CONVERSATIONS: Conversation[] = [
-  { id: '1', company: 'Flutterwave', logo_initial: 'F', color: 'bg-orange-500', lastMessage: 'Thank you for your application. We would like to schedule an interview...', timestamp: '18 Jun 2025', unread: 2, online: true, recipientId: '', recipientName: 'Flutterwave' },
-  { id: '2', company: 'Andela', logo_initial: 'A', color: 'bg-blue-600', lastMessage: 'Your application for Senior Developer has been received.', timestamp: '10 Jun 2025', unread: 0, recipientId: '', recipientName: 'Andela' },
-  { id: '3', company: 'Paystack', logo_initial: 'P', color: 'bg-green-600', lastMessage: 'We have reviewed your portfolio and are impressed with your work.', timestamp: '2 Jun 2025', unread: 1, online: true, recipientId: '', recipientName: 'Paystack' },
-  { id: '4', company: 'Kuda Bank', logo_initial: 'K', color: 'bg-purple-600', lastMessage: 'This conversation is no longer active.', timestamp: '15 May 2025', unread: 0, locked: true, recipientId: '', recipientName: 'Kuda Bank' },
-  { id: '5', company: 'MTN Nigeria', logo_initial: 'M', color: 'bg-yellow-500', lastMessage: 'Thank you for your interest in the Product Manager role.', timestamp: '28 Apr 2025', unread: 0, recipientId: '', recipientName: 'MTN Nigeria' },
-  { id: '6', company: 'Jumia', logo_initial: 'J', color: 'bg-orange-600', lastMessage: 'This conversation is no longer active.', timestamp: '12 Apr 2025', unread: 0, locked: true, recipientId: '', recipientName: 'Jumia' },
-  { id: '7', company: 'OPay', logo_initial: 'O', color: 'bg-emerald-600', lastMessage: 'Welcome to OPay! We are excited to connect with you.', timestamp: '1 Jan 2025', unread: 0, recipientId: '', recipientName: 'OPay' },
-];
-
-const MOCK_MESSAGES: Record<string, MessageItem[]> = {
-  '1': [
-    { id: 'm1', sender: 'them', text: 'Hi there! Thank you for applying to Flutterwave. We have reviewed your application.', time: '10:00 AM' },
-    { id: 'm2', sender: 'them', text: 'We would like to schedule a technical interview with you. Are you available this week?', time: '10:02 AM' },
-    { id: 'm3', sender: 'me', text: 'Hello! Thank you for reaching out. Yes, I am available Thursday or Friday afternoon.', time: '10:30 AM', read: true },
-    { id: 'm4', sender: 'them', text: 'Great! Let\'s schedule it for Thursday at 2:00 PM WAT. You will receive a calendar invite shortly.', time: '11:15 AM' },
-    { id: 'm5', sender: 'me', text: 'Perfect, that works for me. Looking forward to it!', time: '11:20 AM', read: true },
-  ],
-  '2': [
-    { id: 'm1', sender: 'them', text: 'Dear Applicant, we have received your application for the Senior Developer position at Andela.', time: '9:00 AM' },
-    { id: 'm2', sender: 'them', text: 'Our team will review it and get back to you within 5 business days.', time: '9:01 AM' },
-  ],
-  '3': [
-    { id: 'm1', sender: 'them', text: 'Hi! We reviewed your portfolio and are impressed with your work.', time: '2:00 PM' },
-    { id: 'm2', sender: 'them', text: 'Could you share more about your experience with React and TypeScript?', time: '2:05 PM' },
-    { id: 'm3', sender: 'me', text: 'Thank you! I have 4 years of experience building production React apps with TypeScript, including a fintech dashboard at my current role.', time: '3:00 PM', read: false },
-  ],
-};
 
 export default function Messages() {
   const { isAuthenticated, profile, user } = useAuth();
@@ -157,9 +129,9 @@ export default function Messages() {
             setMessages(Object.fromEntries(msgMap));
             setSelectedId(queryConversationId);
           } else {
-            // Only fall back to mock data when there's no target conversation
-            setConversations(MOCK_CONVERSATIONS);
-            setMessages(MOCK_MESSAGES);
+            // No conversations yet — show empty state
+            setConversations([]);
+            setMessages({});
           }
         } else {
           setConversations(convItems);
@@ -204,16 +176,16 @@ export default function Messages() {
                 })),
               });
             } else {
-              setConversations(MOCK_CONVERSATIONS);
-              setMessages(MOCK_MESSAGES);
+              setConversations([]);
+              setMessages({});
             }
           } catch {
-            setConversations(MOCK_CONVERSATIONS);
-            setMessages(MOCK_MESSAGES);
+            setConversations([]);
+            setMessages({});
           }
         } else {
-          setConversations(MOCK_CONVERSATIONS);
-          setMessages(MOCK_MESSAGES);
+          setConversations([]);
+          setMessages({});
         }
       } finally {
         setLoading(false);
