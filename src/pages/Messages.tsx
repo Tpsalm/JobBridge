@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchConversations, fetchConversationMessages, createConversationMessage } from '../lib/supabaseQueries';
+import { fetchConversations, fetchConversationById, fetchConversationMessages, createConversationMessage } from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
 import { Send, Search, MoreVertical, Lock, Check, CheckCheck, CircleDot } from 'lucide-react';
 import CompanyLogo from '../components/CompanyLogo';
@@ -61,7 +62,10 @@ const MOCK_MESSAGES: Record<string, MessageItem[]> = {
 
 export default function Messages() {
   const { isAuthenticated, profile, user } = useAuth();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const queryConversationId = searchParams.get('conversationId');
+  const navigate = useNavigate();
+  const [selectedId, setSelectedId] = useState<string | null>(queryConversationId || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -112,12 +116,45 @@ export default function Messages() {
           })));
         }
 
+        if (queryConversationId && !convItems.some(c => c.id === queryConversationId)) {
+          const missingConv = await fetchConversationById(queryConversationId);
+          if (missingConv && (missingConv.participant1_id === user.id || missingConv.participant2_id === user.id)) {
+            const otherParticipant = missingConv.participant1_id === user.id ? missingConv.participant2 : missingConv.participant1;
+            const name = otherParticipant?.full_name || 'Conversation';
+            const otherId = otherParticipant?.id || '';
+            convItems.push({
+              id: missingConv.id,
+              company: name,
+              logo_initial: (name.charAt(0) || 'U'),
+              color: 'bg-blue-600',
+              lastMessage: missingConv.last_message || 'New conversation',
+              timestamp: missingConv.last_message_at ? new Date(missingConv.last_message_at).toLocaleDateString() : new Date(missingConv.created_at).toLocaleDateString(),
+              unread: 0,
+              recipientId: otherId,
+              recipientName: name,
+              recipientEmail: otherParticipant?.email || undefined,
+            });
+
+            const missingMsgs = await fetchConversationMessages(queryConversationId);
+            msgMap.set(queryConversationId, missingMsgs.map(msg => ({
+              id: msg.id,
+              sender: msg.sender_id === user.id ? 'me' : 'them',
+              text: msg.content,
+              time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              read: msg.is_read,
+            })));
+          }
+        }
+
         if (convItems.length === 0) {
           setConversations(MOCK_CONVERSATIONS);
           setMessages(MOCK_MESSAGES);
         } else {
           setConversations(convItems);
           setMessages(Object.fromEntries(msgMap));
+          if (queryConversationId && convItems.some(c => c.id === queryConversationId)) {
+            setSelectedId(queryConversationId);
+          }
         }
       } catch (error) {
         console.error('[Messages] error loading conversations:', error);
@@ -129,11 +166,96 @@ export default function Messages() {
     };
 
     loadConversations();
-  }, [user?.id]);
+  }, [user?.id, queryConversationId]);
+
+  useEffect(() => {
+    if (!queryConversationId || !conversations.length) return;
+    if (selectedId === queryConversationId) return;
+    if (conversations.some(c => c.id === queryConversationId)) {
+      setSelectedId(queryConversationId);
+    }
+  }, [queryConversationId, conversations, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    if (queryConversationId === selectedId) return;
+    navigate(`/messages?conversationId=${encodeURIComponent(selectedId)}`, { replace: true });
+  }, [selectedId, queryConversationId, navigate]);
 
   // Real-time subscription for new messages in the selected conversation
   useEffect(() => {
     if (!selectedId || !user?.id) return;
+
+    const loadSelectedConversation = async () => {
+      if (!conversations.some(c => c.id === selectedId)) {
+        const missingConv = await fetchConversationById(selectedId);
+        if (missingConv && (missingConv.participant1_id === user.id || missingConv.participant2_id === user.id)) {
+          const otherParticipant = missingConv.participant1_id === user.id ? missingConv.participant2 : missingConv.participant1;
+          const name = otherParticipant?.full_name || 'Conversation';
+          const otherId = otherParticipant?.id || '';
+          setConversations(prev => [
+            ...prev,
+            {
+              id: missingConv.id,
+              company: name,
+              logo_initial: (name.charAt(0) || 'U'),
+              color: 'bg-blue-600',
+              lastMessage: missingConv.last_message || 'New conversation',
+              timestamp: missingConv.last_message_at ? new Date(missingConv.last_message_at).toLocaleDateString() : new Date(missingConv.created_at).toLocaleDateString(),
+              unread: 0,
+              recipientId: otherId,
+              recipientName: name,
+              recipientEmail: otherParticipant?.email || undefined,
+            },
+          ]);
+        }
+      }
+
+      if (!messages[selectedId]) {
+        const msgs = await fetchConversationMessages(selectedId);
+        setMessages(prev => ({
+          ...prev,
+          [selectedId]: msgs.map(msg => ({
+            id: msg.id,
+            sender: msg.sender_id === user.id ? 'me' : 'them',
+            text: msg.content,
+            time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            read: msg.is_read,
+          })),
+        }));
+
+        // If there's a pending message stored (from Providers), show it immediately
+        try {
+          const key = `pendingMessage:${selectedId}`;
+          const pendingRaw = sessionStorage.getItem(key) || sessionStorage.getItem('pendingMessage:fallback');
+          if (pendingRaw) {
+            const pending = JSON.parse(pendingRaw);
+            setMessages(prev => {
+              const existing = prev[selectedId] || [];
+              if (existing.some(m => String(m.id) === String(pending.id) || m.text === pending.text)) {
+                try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
+                return prev;
+              }
+              const appended = [...existing, {
+                id: pending.id,
+                sender: 'me' as const,
+                text: pending.text,
+                time: new Date(pending.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                read: false,
+              }];
+              try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
+              return { ...prev, [selectedId]: appended };
+            });
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
+
+    loadSelectedConversation().catch(error => {
+      console.error('[Messages] loadSelectedConversation failed:', error);
+    });
 
     const channel = supabase
       .channel(`messages-live:${selectedId}`)
@@ -172,7 +294,7 @@ export default function Messages() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedId, user?.id]);
+  }, [selectedId, user?.id, conversations, messages]);
 
   // Real-time subscription for new conversations
   useEffect(() => {
@@ -369,7 +491,10 @@ export default function Messages() {
               filtered.map(conv => (
                 <button
                   key={conv.id}
-                  onClick={() => setSelectedId(conv.id)}
+                  onClick={() => {
+                    setSelectedId(conv.id);
+                    navigate(`/messages?conversationId=${encodeURIComponent(conv.id)}`, { replace: true });
+                  }}
                   className={`w-full flex items-start gap-3 px-4 py-3 border-b border-gray-50 text-left transition-colors ${
                     selectedId === conv.id ? 'bg-blue-50' : 'hover:bg-gray-50'
                   }`}

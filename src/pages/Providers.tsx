@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
@@ -65,6 +65,7 @@ const SERVICE_KEYWORDS: Record<string, string[]> = {
 const categories = ['All', ...categoryList];
 
 export default function Providers() {
+  const navigate = useNavigate();
   const { openModal } = useModal();
   const { openProtectedModal, executeIfAuthenticated } = useAuthRequired();
   const { user, profile } = useAuth();
@@ -130,7 +131,7 @@ export default function Providers() {
     setMessages(prev => [...prev, { id: prev.length + 1, text: messageText, sender: 'user', timestamp: new Date() }]);
 
     try {
-      await createConversationMessage({
+      const conversationId = await createConversationMessage({
         senderId: user.id,
         senderName: profile?.full_name || user.email || 'A user',
         recipientId: chatProvider.id,
@@ -138,8 +139,28 @@ export default function Providers() {
         recipientEmail: chatProvider.email,
         message: messageText,
       });
+
+      if (conversationId) {
+        const targetUrl = `/messages?conversationId=${encodeURIComponent(conversationId)}`;
+        try {
+          const pending = { id: `temp-${Date.now()}`, text: messageText, time: new Date().toISOString() };
+          sessionStorage.setItem(`pendingMessage:${conversationId}`, JSON.stringify(pending));
+        } catch (e) {
+          // ignore
+        }
+        navigate(targetUrl, { replace: true });
+        window.location.href = targetUrl;
+      } else {
+        const fallback = '/messages';
+        try { sessionStorage.setItem('pendingMessage:fallback', JSON.stringify({ id: `temp-${Date.now()}`, text: messageText, time: new Date().toISOString() })); } catch (e) {}
+        navigate(fallback, { replace: true });
+        window.location.href = fallback;
+      }
     } catch (error) {
       console.error('[sendMessage] conversation save failed:', error);
+      const fallbackUrl = '/messages';
+      navigate(fallbackUrl, { replace: true });
+      window.location.href = fallbackUrl;
     }
   };
 
