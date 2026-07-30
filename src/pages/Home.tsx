@@ -33,9 +33,9 @@ const testimonials = [
 ];
 
 const profileCards = [
-  { name: 'Uthman Busari Olamide', role: 'Social Media Manager', img: '/images/team-profile.jpeg' },
-  { name: 'Akinnirun Timilehin', role: 'Project Manager', img: '/images/team-profile.jpeg' },
-  { name: 'Makinde David Ayomidotun', role: 'Digital Marketing Manager', img: '/images/team-profile.jpeg' },
+  { name: 'Uthman Busari Olamide', role: 'Social Media Manager', img: '', color: 'bg-blue-600' },
+  { name: 'Akinnirun Timilehin', role: 'Project Manager', img: '/images/team-profile.jpeg', color: 'bg-emerald-600' },
+  { name: 'Makinde David Ayomidotun', role: 'Digital Marketing Manager', img: '', color: 'bg-purple-600' },
 ];
 
 function CarouselImg({ images, className }: { images: string[]; className?: string }) {
@@ -247,9 +247,15 @@ export default function Home() {
             <p className="text-gray-500 mt-2">Join thousands of professionals who landed their dream roles</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center stagger-children stagger-visible">
-            {profileCards.map(({ name, role, img }) => (
+            {profileCards.map(({ name, role, img, color }) => (
               <Card3D key={name} className="bg-white rounded-2xl shadow-lg overflow-hidden w-64" strength={8}>
-                <img src={img} alt={name} className="w-full h-64 object-cover" />
+                {img ? (
+                  <img src={img} alt={name} className="w-full h-64 object-cover" />
+                ) : (
+                  <div className={`w-full h-64 ${color} flex items-center justify-center`}>
+                    <span className="text-5xl font-bold text-white">{name.split(' ').map(n => n[0]).slice(0, 2).join('')}</span>
+                  </div>
+                )}
                 <div className="p-4 text-center">
                   <h3 className="font-bold text-gray-900 text-lg">{name}</h3>
                   <p className="text-sm text-blue-700 font-medium">{role}</p>
