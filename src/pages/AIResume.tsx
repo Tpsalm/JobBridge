@@ -407,17 +407,33 @@ Software Engineer with 5 years of experience in React, Node.js, AWS, and TypeScr
           <div className="space-y-4">
             {tailoredResume && (
               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-500" /> Tailored Resume
-                  </h3>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(tailoredResume)}
-                    className="text-xs text-blue-700 hover:underline flex items-center gap-1"
-                  >
-                    <Download className="w-3 h-3" /> Copy
-                  </button>
-                </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-emerald-500" /> Tailored Resume
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const blob = new Blob([tailoredResume], { type: 'application/msword' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = 'tailored-resume.doc';
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="text-xs text-gray-700 hover:text-blue-700 flex items-center gap-1"
+                      >
+                        <Download className="w-3 h-3" /> DOC
+                      </button>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(tailoredResume)}
+                        className="text-xs text-blue-700 hover:underline flex items-center gap-1"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
                 <pre className="text-xs text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-60 overflow-y-auto font-sans leading-relaxed">{tailoredResume}</pre>
               </div>
             )}
@@ -428,12 +444,28 @@ Software Engineer with 5 years of experience in React, Node.js, AWS, and TypeScr
                   <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                     <Send className="w-4 h-4 text-emerald-500" /> Cover Letter
                   </h3>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(coverLetter)}
-                    className="text-xs text-blue-700 hover:underline flex items-center gap-1"
-                  >
-                    <Download className="w-3 h-3" /> Copy
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const blob = new Blob([coverLetter], { type: 'application/msword' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'cover-letter.doc';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="text-xs text-gray-700 hover:text-blue-700 flex items-center gap-1"
+                    >
+                      <Download className="w-3 h-3" /> DOC
+                    </button>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(coverLetter)}
+                      className="text-xs text-blue-700 hover:underline flex items-center gap-1"
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
                 <pre className="text-xs text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg max-h-60 overflow-y-auto font-sans leading-relaxed">{coverLetter}</pre>
               </div>

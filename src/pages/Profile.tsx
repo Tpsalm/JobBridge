@@ -9,6 +9,7 @@ import { supabase } from "../lib/supabase";
 import {
   formatPhoneInput,
   sanitizeProfileText,
+  lightSanitizeProfileText,
   validatePhoneNumber,
 } from "../lib/profileValidation";
 import FloatingDecorations from '../components/FloatingDecorations';
@@ -381,7 +382,9 @@ export default function Profile() {
     if (field === "phone") {
       nextValue = formatPhoneInput(value);
     } else if (field !== "email") {
-      nextValue = sanitizeProfileText(value);
+      // Use light sanitization during typing so spaces are preserved.
+      // Full sanitization (trim + collapse whitespace) happens on save.
+      nextValue = lightSanitizeProfileText(value);
     }
     setForm((prev) => ({ ...prev, [field]: nextValue }));
   };
@@ -641,6 +644,8 @@ export default function Profile() {
         </label>
         {isTextarea ? (
           <textarea
+            name={key}
+            id={`field-${key}`}
             value={form[key] || ""}
             onChange={(e) => updateField(key, e.target.value)}
             rows={4}
@@ -649,6 +654,8 @@ export default function Profile() {
           />
         ) : isSelect ? (
           <select
+            name={key}
+            id={`field-${key}`}
             value={form[key] || ""}
             onChange={(e) => updateField(key, e.target.value)}
             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -662,6 +669,8 @@ export default function Profile() {
           </select>
         ) : (
           <input
+            name={key}
+            id={`field-${key}`}
             type={
               key === "phone"
                 ? "tel"
@@ -673,6 +682,7 @@ export default function Profile() {
             onChange={(e) => updateField(key, e.target.value)}
             placeholder={`Enter your ${field.label.toLowerCase()}...`}
             readOnly={key === "email"}
+            tabIndex={key === "email" ? -1 : 0}
             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
         )}
@@ -991,7 +1001,13 @@ export default function Profile() {
                   <p className="text-sm text-slate-500">Loading your profile...</p>
                 </div>
               ) : (
-                <div className="space-y-6">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSave();
+                  }}
+                  className="space-y-6"
+                >
                   {Object.entries(sectionGroups).map(([section, fields]) => (
                     <div key={section} className="space-y-4">
                       <div className="flex items-center justify-between gap-4">
@@ -1039,7 +1055,7 @@ export default function Profile() {
                         Reset changes
                       </button>
                       <button
-                        onClick={handleSave}
+                        type="submit"
                         disabled={saving}
                         className={saveButtonClass}
                       >
@@ -1057,7 +1073,7 @@ export default function Profile() {
                       </button>
                     </div>
                   </div>
-                </div>
+                </form>
               )}
             </div>
 

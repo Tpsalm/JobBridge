@@ -33,9 +33,9 @@ const testimonials = [
 ];
 
 const profileCards = [
-  { name: 'Evelyn', role: 'Marketing Manager', img: pexel(1239291, 300, 400) },
-  { name: 'Aaliyah', role: 'Senior Data Analyst', img: pexel(1681010, 300, 400) },
-  { name: 'Jacob', role: 'Frontend Developer', img: pexel(774909, 300, 400) },
+  { name: 'Uthman Busari Olamide', role: 'Social Media Manager', img: '/images/team-profile.jpeg' },
+  { name: 'Akinnirun Timilehin', role: 'Project Manager', img: '/images/team-profile.jpeg' },
+  { name: 'Makinde David Ayomidotun', role: 'Digital Marketing Manager', img: '/images/team-profile.jpeg' },
 ];
 
 function CarouselImg({ images, className }: { images: string[]; className?: string }) {

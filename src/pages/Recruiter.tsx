@@ -290,16 +290,16 @@ export default function Recruiter() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Stats Row */}
         <AnimatedSection direction="up">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger-children stagger-visible">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8 stagger-children stagger-visible">
           {stats.map(({ label, value, icon: Icon, color }) => (
-            <Card3D key={label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm" strength={6}>
-              <div className="flex items-center gap-3">
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color}`}>
+            <Card3D key={label} className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-sm" strength={6}>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
                   <Icon className="w-5 h-5" />
                 </div>
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">{value}</div>
-                  <div className="text-xs text-gray-500">{label}</div>
+                <div className="min-w-0">
+                  <div className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{value}</div>
+                  <div className="text-xs text-gray-500 truncate">{label}</div>
                 </div>
               </div>
             </Card3D>
@@ -513,12 +513,12 @@ export default function Recruiter() {
             )}
 
             {/* Active Jobs */}
-            <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Active Job Postings ({filteredJobs.length})</h2>
+            <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 mb-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Active Job Postings ({filteredJobs.length})</h2>
                 {(activeFilters.jobType.length > 0 || activeFilters.location.length > 0) && (
                   <button onClick={() => setActiveFilters({ jobType: [], location: [] })}
-                    className="text-xs text-blue-700 hover:underline font-medium">
+                    className="text-xs text-blue-700 hover:underline font-medium self-start">
                     Clear filters
                   </button>
                 )}
@@ -538,18 +538,18 @@ export default function Recruiter() {
                 ) : filteredJobs.map((job) => (
                   <Card3D
                     key={job.id}
-                    className="border border-gray-100 rounded-xl p-5 hover:shadow-md transition-shadow"
+                    className="border border-gray-100 rounded-xl p-4 sm:p-5 hover:shadow-md transition-shadow"
                     strength={6}
                   >
-                    <div className="flex items-start justify-between mb-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:mb-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-gray-900">{job.title}</h3>
                           {job.is_featured && <span className="px-2 py-0.5 bg-pink-100 text-pink-700 text-[10px] font-semibold rounded-full">Featured</span>}
                           {!job.is_active && <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-semibold rounded-full">Inactive</span>}
                         </div>
                         <p className="text-sm text-gray-500 mt-1">{job.company} · {job.location}</p>
-                        <div className="flex gap-4 mt-2 text-sm text-gray-500">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-500">
                           <span className="flex items-center gap-1">
                             <Users className="w-4 h-4" />
                             {job.applications_count || 0} applicant{(job.applications_count || 0) !== 1 ? 's' : ''}
@@ -567,7 +567,7 @@ export default function Recruiter() {
                           <p className="text-xs font-medium text-green-700 mt-1.5">{job.salary_range}</p>
                         )}
                       </div>
-                      <div className="flex gap-2 ml-3">
+                      <div className="flex gap-2 sm:ml-3 self-end sm:self-auto">
                         <button
                           onClick={() => navigate(`/jobs?id=${job.id}`)}
                           className="flex items-center gap-1.5 text-blue-700 font-medium text-sm px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors"
@@ -583,10 +583,10 @@ export default function Recruiter() {
             </div></AnimatedSection>
 
             {/* Applications Panel */}
-            <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Applications ({filteredApps.length})</h2>
-                <div className="flex gap-2 overflow-x-auto">
+            <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 mb-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Applications ({filteredApps.length})</h2>
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                   {['all', 'pending', 'shortlisted', 'reviewed', 'rejected'].map(s => (
                     <button key={s} onClick={() => setStatusFilter(s)}
                       className={`text-xs px-3 py-1.5 rounded-lg font-medium capitalize whitespace-nowrap transition-colors ${
@@ -609,9 +609,9 @@ export default function Recruiter() {
                     <ChevronUp className="w-4 h-4" /> Back to all applications
                   </button>
                   <div className="bg-gray-50 rounded-xl p-5 space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-bold text-gray-900 text-lg">{selectedApp.professional_headline}</h3>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-gray-900 text-base sm:text-lg break-words">{selectedApp.professional_headline}</h3>
                         <p className="text-sm text-gray-500">{selectedApp.applicant?.full_name || 'Applicant'} · {selectedApp.applicant?.email}</p>
                         <p className="text-xs text-gray-400">Applied for: {selectedApp.job?.title || 'Job'} · {new Date(selectedApp.created_at).toLocaleDateString()}</p>
                       </div>
@@ -741,8 +741,8 @@ export default function Recruiter() {
             </div></AnimatedSection>
 
             {/* Recruiting Tips Video */}
-            <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Hire smarter with JobBridge</h2>
+            <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 mb-6">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">Hire smarter with JobBridge</h2>
               <VideoPlayer
                 src={VIDEO.recruiterDemo.src}
                 poster={VIDEO.recruiterDemo.poster}
@@ -751,18 +751,18 @@ export default function Recruiter() {
             </div></AnimatedSection>
 
             {/* Premium Banner */}
-            <AnimatedSection direction="up"><div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 text-white relative overflow-hidden">
+            <AnimatedSection direction="up"><div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden">
               <div className="absolute inset-0 opacity-10">
                 <div className="absolute bottom-0 right-0 w-40 h-40 rounded-full bg-white blur-3xl" />
               </div>
-              <div className="relative flex items-center justify-between">
+              <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="text-lg font-bold mb-2">Upgrade to Premium</h3>
+                  <h3 className="text-base sm:text-lg font-bold mb-2">Upgrade to Premium</h3>
                   <p className="text-blue-100 text-sm">
                     Get advanced analytics, unlimited job postings, and priority candidate matching.
                   </p>
                 </div>
-                <Link to="/pricing" className="shrink-0 bg-white text-blue-700 font-semibold px-6 py-2.5 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap ml-4 inline-flex items-center">
+                <Link to="/pricing" className="shrink-0 bg-white text-blue-700 font-semibold px-4 sm:px-6 py-2.5 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap inline-flex items-center self-start sm:self-auto">
                   {subscription.status === 'active' ? 'Get More Credits' : 'Subscribe Now'}
                 </Link>
               </div>

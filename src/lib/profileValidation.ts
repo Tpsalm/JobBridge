@@ -19,11 +19,26 @@ const GENDER_ALIASES: Record<string, GenderValue> = {
 const MAX_AGE = 100;
 const MIN_AGE = 18;
 
+/**
+ * Sanitize profile text for safe storage.
+ * Only call this when saving to the database, NOT on every keystroke,
+ * because trimming/collapsing whitespace mid-typing prevents users
+ * from typing spaces between words.
+ */
 export function sanitizeProfileText(value: string): string {
   return value
     .replace(/[<>]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Light sanitization for use during typing.
+ * Removes angle brackets (basic XSS prevention) but preserves
+ * all whitespace so users can type spaces freely.
+ */
+export function lightSanitizeProfileText(value: string): string {
+  return value.replace(/[<>]/g, '');
 }
 
 export function formatPhoneInput(value: string): string {
