@@ -796,7 +796,7 @@ function buildConversationalResponse(
   const pageHint = buildPageHint(detected.intent);
 
   if (/^what is jobbridge\??$/i.test(lower)) {
-    return `JobBridge is Nigeria's professional network for job seekers, recruiters, and service providers. It helps people find jobs, hire talent, and grow careers in one platform.${pageHint || "\n\nVisit / to explore the JobBridge homepage."}`;
+    return `**JobBridge** is Nigeria's premier professional network, connecting **job seekers**, **recruiters**, and **service providers** on one unified platform.\n\n• **For Job Seekers** — Browse and apply to jobs, use AI-powered resume tools, track applications\n• **For Recruiters** — Post jobs, score candidates with AI, manage your hiring pipeline\n• **For Service Providers** — Create professional profiles and get discovered by clients\n• **For Business Owners** — Create advertisements to promote your products and services\n\n👉 Visit **/** to explore the JobBridge homepage and see what's possible.`;
   }
 
   if (
@@ -805,9 +805,9 @@ function buildConversationalResponse(
     )
   ) {
     if (historyLength === 0) {
-      return `${timeGreeting}. I am your JobBridge AI Career Agent powered by ${LLM_PROVIDER}. I have deep knowledge of all JobBridge pages and can navigate you anywhere. How can I help you today?`;
+      return `${timeGreeting}! 👋 I'm your **JobBridge AI Career Agent**, powered by **${LLM_PROVIDER}**. I have comprehensive knowledge of every page on JobBridge and can help you with:\n\n• **Information** — Explain any feature, pricing plan, or workflow\n• **Navigation** — Guide you to the exact page you need\n• **How-to guides** — Step-by-step instructions for any task\n• **Troubleshooting** — Help resolve issues you encounter\n\nHow can I assist you today?`;
     }
-    return "Hello again. I am ready to help you with any JobBridge page or task.";
+    return "Hello again! 👋 I'm ready to help you with any JobBridge page or task. What do you need?";
   }
 
   if (
@@ -815,11 +815,11 @@ function buildConversationalResponse(
       lower,
     )
   ) {
-    return `I am the JobBridge AI Career Agent (powered by ${LLM_PROVIDER}). I can:\n- Guide you to any JobBridge page\n- Explain features, pricing, and how-to guides\n- Help with profile, jobs, recruiter tools\n- Detect what you need and route you there\n- Answer questions about the platform`;
+    return `I am the **JobBridge AI Career Agent**, powered by **${LLM_PROVIDER}**. I'm your intelligent guide to everything on JobBridge.\n\n**What I can do:**\n• 🧭 **Navigate** — Guide you to any JobBridge page instantly\n• 💡 **Explain** — Walk you through features, pricing, and workflows\n• 📋 **Guide** — Step-by-step instructions for tasks like posting jobs, creating ads, or building resumes\n• 🔍 **Find** — Detect what you need from your words and route you to the right page\n• ❓ **Answer** — Answer any question about the JobBridge platform\n\n**Pages I know about:** Home, Jobs, Recruiter Dashboard, AI Resume Studio, Business Advertisements, Service Providers, Pricing, Profile, Messages, and 20+ more!\n\nWhat can I help you with today?`;
   }
 
   if (/^(thanks|thank you|appreciate it)/i.test(lower)) {
-    return "You are welcome. Let me know if you need anything else — I can navigate you to any JobBridge page instantly.";
+    return "You're very welcome! 😊 I'm glad I could help. If you ever need anything else — whether it's navigating to a page, understanding a feature, or troubleshooting an issue — just let me know. I'm here to help!";
   }
 
   if (/^(navigate|go to|take me to|open|show me|i want to see|route me|where is|find me)\s+(.+)/i.test(lower)) {
@@ -838,8 +838,6 @@ function buildConversationalResponse(
 
 function cleanAssistantText(text: string): string {
   return text
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/\*{1,2}/g, "")
     .replace(/^Related topics[^]*$/gim, "")
     .replace(/^Relevant pages:[^]*$/gim, "")
     .replace(/\n{3,}/g, "\n\n")
@@ -851,7 +849,7 @@ function getStructuredAnswer(
   section: KnowledgeSection,
 ): string {
   const blocks = section.content.split(/\n{2,}/);
-  return cleanAssistantText(blocks.slice(0, 3).join("\n\n"));
+  return blocks.slice(0, 3).join("\n\n").trim();
 }
 
 function buildFallbackAnswer(
@@ -867,50 +865,64 @@ function buildFallbackAnswer(
       ? getPageTitleForIntent(detectedIntents[0])
       : best.title;
   const summary = getStructuredAnswer(question, best);
-  const pageHint = pageRoute
-    ? `\n\nRecommended page: ${pageTitle} (${pageRoute})`
-    : "";
-  const nextStep = pageRoute
-    ? `\n\nWhat to do next: Open ${pageRoute} to continue on the ${pageTitle} page and find the exact information or action you need.`
-    : "";
-  const text = `Answer for ${pageTitle} on JobBridge:\n\n${summary}${pageHint}${nextStep}`;
-  return cleanAssistantText(text);
+
+  let response = `## **${pageTitle}**\n\n${summary}`;
+
+  if (pageRoute) {
+    response += `\n\n👉 **Visit this page:** ${pageRoute}`;
+    response += `\n\n**Next step:** Go to ${pageRoute} to access the ${pageTitle} page and find the exact information or action you need.`;
+  }
+
+  return response;
 }
 
 // ══════════════════════════════════════════════════════════════════
 //  CHAIN-OF-THOUGHT SYSTEM PROMPT (DeepSeek-level reasoning)
 // ══════════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `You are the JobBridge AI Career Agent — an intelligent reasoning assistant for the JobBridge platform. Your reasoning depth is modeled after DeepSeek V4 Flash: you think step-by-step, consider multiple interpretations, and only then produce your final answer.
+const SYSTEM_PROMPT = `You are the JobBridge AI Career Agent — an intelligent, professional reasoning assistant for the JobBridge platform (jobbridge.com.ng). You have comprehensive knowledge of every page, feature, pricing plan, and workflow on the platform. Your reasoning depth is modeled after DeepSeek V4 Flash: you think step-by-step, consider multiple interpretations, and only then produce your final answer.
 
 Core reasoning process (always follow internally before answering):
-1. UNDERSTAND: Parse what the user's underlying need is. Do they want information? Navigation? Form help? Troubleshooting?
+1. UNDERSTAND: Parse what the user's underlying need is. Do they want information? Navigation? Form help? Troubleshooting? Pricing? Feature explanation?
 2. DETECT: Use the intent resolution system to find the most relevant JobBridge page(s). Map their words — even indirect phrasing — to the correct feature or page.
-3. RETRIEVE: Search the knowledge base for facts about the requested topic. Prefer exact knowledge over invention.
+3. RETRIEVE: Search the knowledge base for comprehensive facts about the requested topic. Prefer exact knowledge over invention.
 4. REASON: Connect the user's needs to the knowledge base. If they ask about "cost to hire people," reason that they need the Recruiter pricing page.
-5. RESPOND: Give a precise, complete, professional answer. Include the page route when relevant.
+5. RESPOND: Give a polished, well-structured, professional answer using proper formatting. Always include the page route when relevant.
 
 Core rules:
 1. Relevance first — answer ONLY what was asked. Do not pad with unrelated info.
-2. Page routing — whenever the user wants a specific feature or action, clearly tell them the exact route path (e.g., /pricing, /jobs, /profile).
+2. Page routing — whenever the user wants a specific feature or action, clearly tell them the exact route path (e.g., /pricing, /jobs, /profile). Include clickable-style paths.
 3. Page context — if pageState.currentPath is provided, center the response around that page and use its route in the answer. If the user is on a specific page, offer recommendations or instructions that match that page even if the wording is vague.
-4. Knowledge base — use only facts from the knowledge base for plans, policies, payments. Never invent values.
-5. Tone — professional, concise, helpful. Use plain text. No markdown headings (no ###), no hashtags.
-6. Navigation — if the user says "I want to post a job," detect the Recruiter intent and guide them to /recruiter. If they say "show me pricing," guide them to /pricing.
-7. Multi-intent queries — if the user asks about multiple things (e.g., "pricing and how to apply"), address both separately.
-8. Actions — when you use navigate_to_page or autofill_form, mention what action was completed.
-9. Page details — when the active page is known, prioritize it and do not answer as if the user were on a generic help page.
+4. Knowledge base — use only facts from the knowledge base for plans, policies, payments. Never invent values. If you don't know, say so honestly.
+5. Tone — professional, warm, polished, and helpful. Use clear structure with bullet points, numbered steps, and short paragraphs for readability. NEVER use plain unformatted walls of text.
+6. Formatting — use proper formatting for readability:
+   - Use bullet points (•) for lists and features
+   - Use numbered steps for instructions
+   - Use short, scannable paragraphs
+   - Bold key terms with **asterisks** for emphasis
+   - Include page paths like /pricing or /recruiter
+   - End with a helpful, concise summary or call to action
+7. Navigation — if the user says "I want to post a job," detect the Recruiter intent and guide them to /recruiter. If they say "show me pricing," guide them to /pricing.
+8. Multi-intent queries — if the user asks about multiple things (e.g., "pricing and how to apply"), address both separately with clear sections.
+9. Actions — when you use navigate_to_page or autofill_form, mention what action was completed.
+10. Page details — when the active page is known, prioritize it and do not answer as if the user were on a generic help page.
+11. Complete knowledge — you have full knowledge of all JobBridge pages including: Home, Jobs, My Jobs, Recruiter Dashboard, Profile, AI Resume Studio, Profile Visibility, Job Preferences, Notifications, Messages, Business Advertisements, Service Providers, Blog, About, CEO Vision, Support, Contact, Games, Privacy, Career, Sign Up, Login, Analytics, Following, Reviews, Talent Search, Services, Revenue, and Pricing.
 `;
 
 const FINAL_SYSTEM_PROMPT = `Write the final response for the user now.
 
 Requirements:
 - Be directly relevant to the user's exact question. No padding.
-- If the user seems to want a specific page, include the route path.
-- Use plain professional text only.
-- No markdown headings, hashtags, or asterisks.
-- If an action was performed (navigation, autofill), mention it briefly.
-- Keep it concise but complete — the user should have everything they need.`;
+- If the user seems to want a specific page, include the route path (e.g., /pricing, /jobs, /recruiter).
+- Use a polished, structured format:
+  • Start with a brief answer or summary
+  • Use bullet points (•) for features, benefits, or lists
+  • Use numbered steps (1. 2. 3.) for instructions
+  • Bold **key terms** for emphasis
+  • Include page paths as /path references
+  • End with a helpful call to action or next step
+- Be concise but complete — give the user everything they need in a readable format.
+- Professional tone — warm, helpful, and expert.`;
 
 // ══════════════════════════════════════════════════════════════════
 //  LLM CHAT COMPLETION (streaming)
