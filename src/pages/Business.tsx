@@ -1,16 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
 import { useToasts } from '../contexts/ToastContext';
-import { useAuthRequired } from '../hooks/useAuthRequired';
-import { fetchAdvertisementsByOwner, createAdvertisement } from '../lib/supabaseQueries';
-import { Building, Plus, Eye, Clock, CheckCircle, AlertCircle, CreditCard, TrendingUp, BarChart3, Star, ChevronRight, Edit, Trash2, ExternalLink, Lock } from 'lucide-react';
+import {
+  fetchAdvertisementsByOwner,
+  createAdvertisement,
+  decrementCredits,
+} from '../lib/supabaseQueries';
+import {
+  Building,
+  Plus,
+  Eye,
+  Clock,
+  CheckCircle,
+  CreditCard,
+  TrendingUp,
+  Star,
+  ChevronRight,
+  Edit,
+  Trash2,
+  Lock,
+} from 'lucide-react';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, advertImage } from '../lib/media';
 import { sendEmail } from '../lib/email';
+import AnimatedSection from '../components/AnimatedSection';
 
 type AdvertStatus = 'pending' | 'active' | 'paused' | 'expired' | 'rejected';
 
@@ -42,15 +59,14 @@ const categories = ['Restaurant', 'Fashion', 'Technology', 'Education', 'Health'
 
 export default function Business() {
   const { openModal } = useModal();
-  const { executeIfAuthenticated } = useAuthRequired();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, subscription, subscriptionLoaded } = useAuth();
   const { push } = useToasts();
   const [adverts, setAdverts] = useState<Advert[]>(initialAdverts);
   const [loadingAdverts, setLoadingAdverts] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [formData, setFormData] = useState({
     businessName: '',
     title: '',
@@ -61,7 +77,6 @@ export default function Business() {
   });
 
   const paidPackage = searchParams.get('paidPackage') || '';
-  const fromPayment = searchParams.get('fromPayment') === 'true';
   const paidPackageOption = paidPackage === 'business_weekly'
     ? 'Weekly Ad'
     : paidPackage === 'business_monthly'
@@ -70,69 +85,29 @@ export default function Business() {
         ? 'Featured Business'
         : '';
 
+  const shouldOpenCreate = searchParams.get('create') === 'true';
+
   useEffect(() => {
-    if (searchParams.get('create') === 'true') {
+    if (!shouldOpenCreate || !subscriptionLoaded) return;
+
+    if (subscription.status === 'active') {
       setShowCreateForm(true);
       if (paidPackageOption) {
         setFormData((current) => ({ ...current, package: paidPackageOption }));
       }
+      // Clean up the query param
+      navigate('/business', { replace: true });
+    } else {
+      navigate('/pricing', { replace: true });
     }
-  }, [searchParams, paidPackageOption]);
+  }, [shouldOpenCreate, subscription.status, subscriptionLoaded, paidPackageOption, navigate]);
 
-  // ─── Payment redirect handling ─────────────────────────────────────────────
+  // Refresh adverts when created
   useEffect(() => {
-    if (!fromPayment || !user?.id) return;
-    setPaymentSuccess(true);
-
-    // Poll for the new advert to appear (verify-payment edge function creates it)
-    let cancelled = false;
-    let attempts = 0;
-    const maxAttempts = 8;
-
-    const pollAdvert = async () => {
-      attempts += 1;
-      try {
-        const data = await fetchAdvertisementsByOwner(user.id);
-        if (!cancelled && data.length > 0) {
-          setAdverts(
-            data.map((ad) => ({
-              id: ad.id,
-              businessName: ad.business_name,
-              title: ad.title,
-              description: ad.description,
-              category: ad.category,
-              duration: ad.package === 'weekly' ? 'Weekly' : ad.package === 'monthly' ? 'Monthly' : 'Featured',
-              price: ad.amount_paid || (ad.package === 'weekly' ? 2000 : ad.package === 'monthly' ? 7500 : 15000),
-              status: ad.status,
-              startDate: ad.starts_at ? ad.starts_at.split('T')[0] : '',
-              endDate: ad.expires_at ? ad.expires_at.split('T')[0] : '',
-              views: ad.views || 0,
-              clicks: ad.clicks || 0,
-              featured: ad.is_featured || false,
-            })),
-          );
-          return; // Found adverts, stop polling
-        }
-      } catch {
-        // ignore
-      }
-      if (!cancelled && attempts < maxAttempts) {
-        setTimeout(pollAdvert, 2000);
-      }
-    };
-
-    pollAdvert();
-    return () => { cancelled = true; };
-  }, [fromPayment, user?.id]);
-
-  // Remove the fromPayment param from URL after handling
-  useEffect(() => {
-    if (fromPayment) {
-      const params = new URLSearchParams(searchParams);
-      params.delete('fromPayment');
-      navigate({ search: params.toString() }, { replace: true });
-    }
-  }, []);
+    const handler = () => loadAdverts();
+    window.addEventListener('adverts:updated', handler);
+    return () => window.removeEventListener('adverts:updated', handler);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -157,8 +132,8 @@ export default function Business() {
                 ad.package === 'weekly'
                   ? 'Weekly'
                   : ad.package === 'monthly'
-                  ? 'Monthly'
-                  : 'Featured',
+                    ? 'Monthly'
+                    : 'Featured',
               price: ad.amount_paid || (ad.package === 'weekly' ? 2000 : ad.package === 'monthly' ? 7500 : 15000),
               status: ad.status,
               startDate: ad.starts_at ? ad.starts_at.split('T')[0] : '',
@@ -183,36 +158,116 @@ export default function Business() {
     };
   }, [user?.id]);
 
-  const handleCreateAd = (e: React.FormEvent) => {
+  const handleCreateAd = async (e: React.FormEvent) => {
     e.preventDefault();
     const selectedPackage = adPackages.find(p => p.name === formData.package);
     if (!selectedPackage) return;
 
-    // If package requires payment, save advert to session and redirect to checkout
-    const packageKey = selectedPackage.name === 'Weekly Ad' ? 'business_weekly' : selectedPackage.name === 'Monthly Ad' ? 'business_monthly' : 'business_featured';
-    const pending = {
-      businessName: formData.businessName,
-      title: formData.title,
-      description: formData.description,
-      category: formData.category,
-      package: packageKey,
-      featured: formData.featured,
-    };
-
-    try {
-      sessionStorage.setItem('jb_pending_advert', JSON.stringify(pending));
-    } catch {}
-
-    setShowCreateForm(false);
-    setFormData({ businessName: '', title: '', description: '', category: '', package: '', featured: false });
-
-    // If user not authenticated, redirect to login first
-    if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/payment?plan=${packageKey}`)}`);
+    // If no subscription/credits, redirect to pricing
+    if (subscription.status !== 'active' || !subscription.credits || subscription.credits < 1) {
+      push({
+        message: 'No advert credits remaining. Please purchase a plan.',
+        type: 'info',
+      });
+      navigate('/pricing');
       return;
     }
 
-    navigate(`/payment?plan=${packageKey}`);
+    setCreating(true);
+
+    try {
+      const normalizedPackage = formData.package === 'Weekly Ad'
+        ? 'weekly'
+        : formData.package === 'Monthly Ad'
+          ? 'monthly'
+          : 'featured';
+
+      const durationDays = formData.package === 'Weekly Ad' ? 7 : 30;
+      const starts_at = new Date().toISOString();
+      const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+      const advert = await createAdvertisement({
+        owner_id: user!.id,
+        business_name: formData.businessName,
+        title: formData.title,
+        description: formData.description,
+        category: formData.category || 'Other',
+        package: normalizedPackage,
+        is_featured: formData.package === 'Featured Business' || formData.featured,
+        starts_at,
+        expires_at,
+        amount_paid: 0, // paid via subscription credits
+      });
+
+      // Decrement credits
+      await decrementCredits(user!.id).catch(e => {
+        console.warn('[Business] Failed to decrement credits:', e);
+      });
+
+      // Refresh subscription state
+      window.dispatchEvent(new Event('adverts:updated'));
+
+      setShowCreateForm(false);
+      setFormData({ businessName: '', title: '', description: '', category: '', package: '', featured: false });
+
+      push({
+        message: '✅ Advert created successfully!',
+        type: 'success',
+      });
+
+      // Send confirmation email
+      if (user?.email) {
+        try {
+          sendEmail({
+            type: 'advert_created',
+            email: user.email,
+            name: user.user_metadata?.full_name || user.email,
+            advertId: advert?.id ?? null,
+          } as any);
+        } catch (e) {
+          console.warn('Failed to send advert created email:', e);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create advert:', error);
+      push({
+        message: '❌ Failed to create advert. Please try again.',
+        type: 'error',
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const loadAdverts = async () => {
+    if (!user?.id) return;
+    try {
+      const data = await fetchAdvertisementsByOwner(user.id);
+      setAdverts(
+        data.map((ad) => ({
+          id: ad.id,
+          businessName: ad.business_name,
+          title: ad.title,
+          description: ad.description,
+          category: ad.category,
+          duration:
+            ad.package === 'weekly'
+              ? 'Weekly'
+              : ad.package === 'monthly'
+                ? 'Monthly'
+                : 'Featured',
+          price: ad.amount_paid || (ad.package === 'weekly' ? 2000 : ad.package === 'monthly' ? 7500 : 15000),
+          status: ad.status,
+          startDate: ad.starts_at ? ad.starts_at.split('T')[0] : '',
+          endDate: ad.expires_at ? ad.expires_at.split('T')[0] : '',
+          views: ad.views || 0,
+          clicks: ad.clicks || 0,
+          featured: ad.is_featured || false,
+        })),
+      );
+    } catch (error) {
+      console.error('Failed to load business adverts:', error);
+    }
   };
 
   const toggleAdStatus = (id: string) => {
@@ -247,17 +302,6 @@ export default function Business() {
       />
 
       <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Payment success banner */}
-        {paymentSuccess && (
-          <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
-            <div>
-              <p className="font-semibold text-emerald-800 text-sm">Payment successful!</p>
-              <p className="text-xs text-emerald-700">Your advert is being created. It will appear here shortly.</p>
-            </div>
-          </div>
-        )}
-
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <div className="bg-white rounded-xl p-4 border border-gray-100">
@@ -278,8 +322,37 @@ export default function Business() {
           </div>
         </div>
 
+        {/* Subscription Status */}
+        <AnimatedSection direction="up" className="mb-6">
+          {subscription.status === 'active' ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm text-emerald-800 flex-wrap">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+                <span className="font-medium">{subscription.credits} advert credit{subscription.credits !== 1 ? 's' : ''} remaining</span>
+                {subscription.tier && (
+                  <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded capitalize">
+                    {subscription.tier.replace(/_/g, ' ')} plan
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-emerald-700">Each advert uses 1 credit.</div>
+            </div>
+          ) : (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm text-amber-800 flex-wrap">
+                <CreditCard className="w-4 h-4 text-amber-600" />
+                <span className="font-medium">No active plan</span>
+                <span className="text-xs text-amber-600">Subscribe to create adverts</span>
+              </div>
+              <Link to="/pricing" className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-amber-700 transition-colors inline-flex items-center">
+                View Plans
+              </Link>
+            </div>
+          )}
+        </AnimatedSection>
+
         {/* Pricing Cards */}
-        <div className="mb-8">
+        <AnimatedSection direction="up"><div className="mb-8">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Advert Packages</h2>
           <div className="grid md:grid-cols-3 gap-4">
             {adPackages.map((pkg) => (
@@ -315,29 +388,47 @@ export default function Business() {
                     </li>
                   )}
                 </ul>
-                <button
-                  onClick={() => {
-                    setFormData({ ...formData, package: pkg.name });
-                    setShowCreateForm(true);
-                  }}
-                  className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors ${
-                    pkg.popular
-                      ? 'bg-blue-700 text-white hover:bg-blue-800'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Create Advert
-                </button>
+                {subscription.status === 'active' ? (
+                  <button
+                    onClick={() => {
+                      setFormData({ ...formData, package: pkg.name });
+                      setShowCreateForm(true);
+                    }}
+                    className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors ${
+                      pkg.popular
+                        ? 'bg-blue-700 text-white hover:bg-blue-800'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Create Advert
+                  </button>
+                ) : (
+                  <Link
+                    to={`/payment?plan=${pkg.name === 'Weekly Ad' ? 'business_weekly' : pkg.name === 'Monthly Ad' ? 'business_monthly' : 'business_featured'}`}
+                    className={`block w-full py-2.5 rounded-lg font-medium text-sm text-center transition-colors ${
+                      pkg.popular
+                        ? 'bg-blue-100 text-blue-500 border-2 border-blue-200 hover:bg-blue-200'
+                        : 'bg-gray-100 text-gray-500 border-2 border-gray-200 hover:bg-gray-200'
+                    }`}
+                  >
+                    <Lock className="w-4 h-4 inline mr-1" />
+                    Subscribe & Create
+                  </Link>
+                )}
               </div>
             ))}
           </div>
-        </div>
+        </div></AnimatedSection>
 
         {/* Create Advert Form */}
         {showCreateForm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
             <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Create New Advert</h2>
+              <p className="text-sm text-emerald-700 mb-4 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                You have {subscription.credits} advert credit{subscription.credits !== 1 ? 's' : ''} remaining. Creating this will use 1 credit.
+              </p>
               <form onSubmit={handleCreateAd} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
@@ -426,9 +517,10 @@ export default function Business() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800"
+                    disabled={creating || !subscription.credits || subscription.credits < 1}
+                    className="flex-1 py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Submit Advert
+                    {creating ? 'Creating...' : 'Create Advert (1 credit)'}
                   </button>
                 </div>
               </form>
@@ -436,17 +528,29 @@ export default function Business() {
           </div>
         )}
 
-        {/* Create New Advert Button - requires authentication */}
-        <button
-          onClick={() => {
-            if (!executeIfAuthenticated({ action: 'message', modalData: { name: 'Business Advert', role: 'Business Owner' } })) return;
-            setShowCreateForm(true);
-          }}
-          className="w-full flex items-center justify-center gap-2 bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors mb-8"
-        >
-          <Plus className="w-5 h-5" />
-          Create New Advert
-        </button>
+        {/* Create New Advert Button */}
+        <AnimatedSection direction="up"><div className="mb-8">
+          {subscription.status === 'active' ? (
+            <button
+              onClick={() => setShowCreateForm(true)}
+              disabled={!subscription.credits || subscription.credits < 1}
+              className="w-full flex items-center justify-center gap-2 bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus className="w-5 h-5" />
+              {subscription.credits && subscription.credits > 0
+                ? `Create New Advert (${subscription.credits} credit${subscription.credits !== 1 ? 's' : ''} remaining)`
+                : 'No credits remaining'}
+            </button>
+          ) : (
+            <Link
+              to="/pricing"
+              className="w-full flex items-center justify-center gap-2 bg-blue-100 text-blue-500 font-semibold py-3 rounded-xl border-2 border-blue-200 hover:bg-blue-200 transition-colors"
+            >
+              <Lock className="w-5 h-5" />
+              Subscribe to Create Adverts
+            </Link>
+          )}
+        </div></AnimatedSection>
 
         {/* My Adverts */}
         <div className="mb-8">
@@ -553,7 +657,7 @@ export default function Business() {
         </div>
 
         {/* Blog Section - Combined */}
-        <div className="bg-white rounded-xl p-5 border border-gray-100">
+        <AnimatedSection direction="up"><div className="bg-white rounded-xl p-5 border border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">Business Tips & Insights</h2>
             <Link to="/blog" className="text-sm text-blue-700 hover:underline flex items-center gap-1">
@@ -578,7 +682,7 @@ export default function Business() {
               </div>
             </div>
           </div>
-        </div>
+        </div></AnimatedSection>
       </div>
 
       <BottomNav />

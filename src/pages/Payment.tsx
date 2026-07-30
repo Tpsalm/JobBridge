@@ -204,7 +204,7 @@ const PENDING_PAYMENT_STORAGE_KEY = "jobbridge_pending_payment_ref";
 function getSuccessTarget(plan: (typeof PLANS)[string], planKey: string): string {
   if (plan.ai) return "/ai-resume?fromPayment=true";
   if (plan.service) return "/profile";
-  if ((plan as any).business) return "/business?fromPayment=true";
+  if ((plan as any).business) return "/business?create=true";
   return "/recruiter?postJob=true";
 }
 
@@ -487,9 +487,9 @@ export default function Payment() {
         await activateAiDb(user?.id || '', durationDays).catch(e => console.warn("[Payment] AI DB activation failed:", e));
       } else if ((plan as any).service) {
         await activateSubscription(user?.id || '', 'service_monthly', 0, durationDays).catch(e => console.warn("[Payment] service DB activation failed:", e));
-      } else if (!(plan as any).business) {
-        // Recruiter plan: add credits
-        await addCredits(user?.id || '', plan.credits).catch(e => console.warn("[Payment] credits DB activation failed:", e));
+      } else {
+        // Recruiter or Business plan: add credits
+        await addCredits(user?.id || '', plan.credits || 1).catch(e => console.warn("[Payment] credits DB activation failed:", e));
       }
 
       // 2) Universal server-side activation (service role key — ALWAYS works, bypasses RLS)

@@ -76,14 +76,14 @@ serve(async (req: Request) => {
 
       // 1) Update profile subscription
       const profileUpdates: Record<string, unknown> = {
-        is_premium: !isBusinessPlan, // business ads don't need is_premium on profile
+        is_premium: true, // All paid plans (including business) set is_premium so subscription.status shows "active"
         subscription_tier: tier,
         subscription_expires_at: expiresAt,
         updated_at: now,
       };
 
       // Read current credits and add new ones
-      if (isRecruiterPlan || isServicePlan) {
+      if (isRecruiterPlan || isServicePlan || isBusinessPlan) {
         const { data: profileData } = await supabase.from("profiles").select("credits").eq("id", userId).maybeSingle();
         const currentCredits = Number(profileData?.credits || 0);
         profileUpdates.credits = isServicePlan ? currentCredits : currentCredits + creditsToAdd;
