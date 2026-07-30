@@ -69,6 +69,7 @@ export default function Messages() {
   const [searchTerm, setSearchTerm] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [pendingApplied, setPendingApplied] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState<{ tempId: string; text: string } | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
   const [loading, setLoading] = useState(true);
@@ -224,36 +225,36 @@ export default function Messages() {
             read: msg.is_read,
           })),
         }));
+      }
 
-        // If there's a pending message stored (from Providers), show it immediately
-        try {
-          const key = `pendingMessage:${selectedId}`;
-          const pendingRaw = sessionStorage.getItem(key) || sessionStorage.getItem('pendingMessage:fallback');
-          if (pendingRaw) {
-              const pending = JSON.parse(pendingRaw);
-              setMessages(prev => {
-                const existing = prev[selectedId] || [];
-                if (existing.some(m => String(m.id) === String(pending.id) || m.text === pending.text)) {
-                  try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
-                  return prev;
-                }
-                const appended = [...existing, {
-                  id: pending.id,
-                  sender: 'me' as const,
-                  text: pending.text,
-                  time: new Date(pending.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  read: false,
-                }];
-                try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
-                // show confirmation briefly
-                setPendingApplied(true);
-                window.setTimeout(() => setPendingApplied(false), 3000);
-                return { ...prev, [selectedId]: appended };
-              });
+      // If there's a pending message stored (from Providers), show it immediately
+      try {
+        const key = `pendingMessage:${selectedId}`;
+        const pendingRaw = sessionStorage.getItem(key) || sessionStorage.getItem('pendingMessage:fallback');
+        if (pendingRaw) {
+          const pending = JSON.parse(pendingRaw);
+          setMessages(prev => {
+            const existing = prev[selectedId] || [];
+            if (existing.some(m => String(m.id) === String(pending.id) || m.text === pending.text)) {
+              try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
+              return prev;
             }
-        } catch (e) {
-          // ignore
+            const appended = [...existing, {
+              id: pending.id,
+              sender: 'me' as const,
+              text: pending.text,
+              time: new Date(pending.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              read: false,
+            }];
+            try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
+            // mark pending and wait for server confirmation
+            setPendingApplied(true);
+            setPendingConfirmation({ tempId: pending.id, text: pending.text });
+            return { ...prev, [selectedId]: appended };
+          });
         }
+      } catch (e) {
+        // ignore
       }
     };
 
@@ -273,24 +274,48 @@ export default function Messages() {
         },
         (payload) => {
           const newMsg = payload.new as any;
-          // Only add if it's from the other participant (not our own message)
-          if (newMsg.sender_id !== user.id) {
-            setMessages(prev => {
-              const existing = prev[selectedId] || [];
-              // Avoid duplicates
-              if (existing.some(m => m.id === newMsg.id)) return prev;
-              return {
-                ...prev,
-                [selectedId]: [...existing, {
-                  id: newMsg.id,
-                  sender: 'them' as const,
-                  text: newMsg.content,
-                  time: new Date(newMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  read: newMsg.is_read,
-                }],
+          const isOwn = newMsg.sender_id === user.id;
+          setMessages(prev => {
+            const existing = prev[selectedId] || [];
+            // Avoid duplicates
+            if (existing.some(m => m.id === newMsg.id)) return prev;
+
+            // If this is our own message, try to replace the optimistic message
+            if (isOwn) {
+              const idx = existing.findIndex(m => String(m.id).startsWith('msg-') && m.text === newMsg.content);
+              const serverMsg = {
+                id: newMsg.id,
+                sender: 'me' as const,
+                text: newMsg.content,
+                time: new Date(newMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                read: newMsg.is_read,
               };
-            });
-          }
+              if (idx !== -1) {
+                const updated = [...existing];
+                updated[idx] = serverMsg;
+                // clear pending state if it matches
+                if (pendingConfirmation && pendingConfirmation.text === newMsg.content) {
+                  setPendingApplied(false);
+                  setPendingConfirmation(null);
+                }
+                return { ...prev, [selectedId]: updated };
+              }
+              // If no optimistic match, just append
+              return { ...prev, [selectedId]: [...existing, serverMsg] };
+            }
+
+            // Message from the other participant
+            return {
+              ...prev,
+              [selectedId]: [...existing, {
+                id: newMsg.id,
+                sender: 'them' as const,
+                text: newMsg.content,
+                time: new Date(newMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                read: newMsg.is_read,
+              }],
+            };
+          });
         },
       )
       .subscribe();
@@ -412,6 +437,10 @@ export default function Messages() {
       [selectedId]: [...(prev[selectedId] || []), optimisticMsg],
     }));
 
+    // set pending confirmation so UI shows persistent toast until server confirms
+    setPendingApplied(true);
+    setPendingConfirmation({ tempId, text: messageText });
+
     setSending(true);
 
     try {
@@ -437,6 +466,9 @@ export default function Messages() {
         ...prev,
         [selectedId]: (prev[selectedId] || []).filter(m => m.id !== tempId),
       }));
+      // clear pending UI
+      setPendingApplied(false);
+      setPendingConfirmation(null);
     } finally {
       setSending(false);
     }
@@ -594,10 +626,16 @@ export default function Messages() {
                     This conversation is no longer active.
                   </div>
                 )}
+                {/* Toast: persistent until server confirmation */}
                 {pendingApplied && (
-                  <div className="mb-3 text-sm text-green-700 bg-green-50 border border-green-100 rounded-md px-3 py-2 inline-flex items-center gap-2">
-                    <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                    <span>Message sent — continuing in chat</span>
+                  <div className="fixed right-6 top-20 z-50">
+                    <div className="flex items-center gap-3 bg-white border border-gray-200 shadow-lg rounded-lg px-4 py-3">
+                      <svg className="w-5 h-5 text-blue-600 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" strokeOpacity="0.2"/><path d="M4 12a8 8 0 018-8"/></svg>
+                      <div className="text-sm">
+                        <div className="font-medium text-gray-900">Sending message…</div>
+                        <div className="text-xs text-gray-500">Your message will appear in the chat shortly.</div>
+                      </div>
+                    </div>
                   </div>
                 )}
                 {currentMessages.map(msg => (
