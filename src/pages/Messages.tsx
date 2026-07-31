@@ -505,6 +505,12 @@ export default function Messages() {
         message: messageText,
       });
 
+      // Clear pending state immediately — the message was sent successfully.
+      // The real-time subscription will replace the optimistic message with
+      // the server-confirmed one in the background.
+      setPendingApplied(false);
+      setPendingConfirmation(null);
+
       // Refresh the conversation list so the new message + thread appear immediately
       await reloadConversations();
     } catch (error) {
