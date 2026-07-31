@@ -239,6 +239,11 @@ export default function Messages() {
     loadConversations();
   }, [user?.id, queryConversationId]);
 
+  const handleBackToNotifications = useCallback(() => {
+    setSelectedId(null);
+    navigate('/notifications', { replace: true });
+  }, [navigate]);
+
   useEffect(() => {
     if (!queryConversationId || !conversations.length) return;
     if (selectedId === queryConversationId) return;
@@ -648,9 +653,7 @@ export default function Messages() {
               <div className="bg-white border-b border-gray-100 px-5 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => {
-                      navigate('/notifications', { replace: true });
-                    }}
+                    onClick={handleBackToNotifications}
                     className="sm:hidden text-gray-500 hover:text-gray-700 mr-1"
                   >
                     ←

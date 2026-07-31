@@ -56,6 +56,11 @@ export default function Header() {
   const { push } = useToasts();
   const profileRef = useRef<HTMLDivElement>(null);
 
+  const isMessageNotification = (next?: { type?: string; title?: string; content?: string }) => {
+    const combinedText = `${next?.title || ""} ${next?.content || ""}`.toLowerCase();
+    return next?.type === "message" || /new message|message sent|message from/i.test(combinedText);
+  };
+
   useEffect(() => {
     if (!user?.id) {
       setNotifCount(0);
@@ -94,7 +99,7 @@ export default function Header() {
           refreshCount();
           // Messages appear inside the chat area only (like WhatsApp) — don't
           // pop them out as a separate toast notification.
-          if (next?.title && next.type !== 'message') {
+          if (next?.title && !isMessageNotification(next)) {
             push({
               message: `${next.title}${next.content ? ` — ${next.content}` : ""}`,
               type: "info",

@@ -13,6 +13,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const push = useCallback((t: Omit<Toast, 'id'>) => {
+    if (t.type === 'message') return;
     const id = Math.random().toString(36).slice(2, 9);
     const toast = { id, ...t } as Toast;
     setToasts((s) => [toast, ...s]);
