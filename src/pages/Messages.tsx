@@ -648,7 +648,10 @@ export default function Messages() {
               <div className="bg-white border-b border-gray-100 px-5 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setSelectedId(null)}
+                    onClick={() => {
+                      setSelectedId(null);
+                      navigate('/messages', { replace: true });
+                    }}
                     className="sm:hidden text-gray-500 hover:text-gray-700 mr-1"
                   >
                     ←
