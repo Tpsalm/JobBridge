@@ -409,6 +409,10 @@ export async function fetchConversationById(conversationId: string) {
 }
 
 async function findOrCreateConversation(participant1_id: string, participant2_id: string) {
+  if (!participant1_id || !participant2_id || participant1_id === participant2_id) {
+    throw new Error('Invalid conversation participants');
+  }
+
   const ordered = [participant1_id, participant2_id].sort();
   const participantsFilter = `or(and(participant1_id.eq.${ordered[0]},participant2_id.eq.${ordered[1]}),and(participant1_id.eq.${ordered[1]},participant2_id.eq.${ordered[0]}))`;
 
@@ -419,7 +423,7 @@ async function findOrCreateConversation(participant1_id: string, participant2_id
     .maybeSingle();
 
   if (selectError) {
-    console.warn('[findOrCreateConversation] select failed:', selectError);
+    throw selectError;
   }
 
   if (existingConversation) {
@@ -440,8 +444,7 @@ async function findOrCreateConversation(participant1_id: string, participant2_id
     .single();
 
   if (insertError) {
-    console.warn('[findOrCreateConversation] insert failed:', insertError);
-    return null;
+    throw insertError;
   }
 
   return insertedConversation;
@@ -456,33 +459,51 @@ export async function createConversationMessage(params: {
   message: string;
 }): Promise<string | null> {
   const { senderId, senderName, recipientId, recipientName, recipientEmail, message } = params;
-  let conversationId: string | null = null;
 
-  try {
-    const conversation = await findOrCreateConversation(senderId, recipientId);
-    if (conversation?.id) {
-      conversationId = conversation.id;
-      await supabase
-        .from('conversations')
-        .update({ last_message: message, last_message_at: new Date().toISOString() })
-        .eq('id', conversation.id);
+  if (!senderId || !recipientId || senderId === recipientId) {
+    throw new Error('Invalid message recipients');
+  }
 
-      await supabase
-        .from('messages')
-        .insert([
-          {
-            conversation_id: conversation.id,
-            sender_id: senderId,
-            sender_name: senderName,
-            recipient_id: recipientId,
-            recipient_name: recipientName,
-            content: message,
-            is_read: false,
-          },
-        ]);
-    }
-  } catch (conversationError) {
-    console.warn('[createConversationMessage] conversation save failed:', conversationError);
+  // Find or create the conversation and persist the message. Fail loudly so the
+  // UI never reports a "sent" message that was actually lost.
+  const conversation = await findOrCreateConversation(senderId, recipientId);
+  if (!conversation?.id) {
+    throw new Error('Could not create or find conversation');
+  }
+  const conversationId: string = conversation.id;
+
+  const { error: updateError } = await supabase
+    .from('conversations')
+    .update({
+      last_message: message,
+      last_message_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', conversationId);
+  if (updateError) {
+    // A server-side trigger keeps last_message in sync, so this failure is not
+    // fatal — but it must never be silently ignored.
+    console.warn('[createConversationMessage] conversation update failed (trigger will sync):', updateError);
+  }
+
+  const { data: insertedMessage, error: insertError } = await supabase
+    .from('messages')
+    .insert([
+      {
+        conversation_id: conversationId,
+        sender_id: senderId,
+        sender_name: senderName,
+        recipient_id: recipientId,
+        recipient_name: recipientName,
+        content: message,
+        is_read: false,
+      },
+    ])
+    .select()
+    .single();
+
+  if (insertError || !insertedMessage) {
+    throw insertError || new Error('Message could not be persisted');
   }
 
   // Build notification payloads and send them via a secure server-side

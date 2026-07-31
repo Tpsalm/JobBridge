@@ -31,6 +31,25 @@ interface MessageItem {
   read?: boolean;
 }
 
+function mapConversations(convs: any[], userId: string): Conversation[] {
+  return convs.map(conv => {
+    const otherParticipant = conv.participant1_id === userId ? conv.participant2 : conv.participant1;
+    const name = otherParticipant?.full_name || 'Conversation';
+    return {
+      id: conv.id,
+      company: name,
+      logo_initial: (name.charAt(0) || 'U'),
+      color: 'bg-blue-600',
+      lastMessage: conv.last_message || 'New conversation',
+      timestamp: conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : new Date(conv.created_at).toLocaleDateString(),
+      unread: 0,
+      recipientId: otherParticipant?.id || '',
+      recipientName: name,
+      recipientEmail: otherParticipant?.email || undefined,
+    };
+  });
+}
+
 
 export default function Messages() {
   const { isAuthenticated, profile, user } = useAuth();
@@ -57,6 +76,16 @@ export default function Messages() {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  const reloadConversations = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const convs = await fetchConversations(user.id);
+      setConversations(mapConversations(convs, user.id));
+    } catch (err) {
+      console.error('[Messages] reloadConversations failed:', err);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (!queryConversationId || selectedId === queryConversationId) return;
@@ -370,9 +399,12 @@ export default function Messages() {
     };
   }, [selectedId, user?.id]);
 
-  // Real-time subscription for new conversations
+  // Real-time subscription for new/updated conversations (new threads, last
+  // message changes, etc.) so the list stays in sync for BOTH participants.
   useEffect(() => {
     if (!user?.id) return;
+
+    const refresh = () => { reloadConversations(); };
 
     const channel = supabase
       .channel(`conversations-live:${user.id}`)
@@ -384,30 +416,7 @@ export default function Messages() {
           table: 'conversations',
           filter: `participant1_id=eq.${user.id}`,
         },
-        () => {
-          // Reload conversations when a new one appears
-          fetchConversations(user.id).then(convs => {
-            const convItems: Conversation[] = [];
-            for (const conv of convs) {
-              const otherParticipant = conv.participant1_id === user.id ? conv.participant2 : conv.participant1;
-              const name = otherParticipant?.full_name || 'Conversation';
-              const otherId = otherParticipant?.id || '';
-              convItems.push({
-                id: conv.id,
-                company: name,
-                logo_initial: (name.charAt(0) || 'U'),
-                color: 'bg-blue-600',
-                lastMessage: conv.last_message || 'New conversation',
-                timestamp: conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : new Date(conv.created_at).toLocaleDateString(),
-                unread: 0,
-                recipientId: otherId,
-                recipientName: name,
-                recipientEmail: otherParticipant?.email || undefined,
-              });
-            }
-            setConversations(convItems);
-          }).catch(() => {});
-        },
+        refresh,
       )
       .on(
         'postgres_changes',
@@ -417,36 +426,34 @@ export default function Messages() {
           table: 'conversations',
           filter: `participant2_id=eq.${user.id}`,
         },
-        () => {
-          fetchConversations(user.id).then(convs => {
-            const convItems: Conversation[] = [];
-            for (const conv of convs) {
-              const otherParticipant = conv.participant1_id === user.id ? conv.participant2 : conv.participant1;
-              const name = otherParticipant?.full_name || 'Conversation';
-              const otherId = otherParticipant?.id || '';
-              convItems.push({
-                id: conv.id,
-                company: name,
-                logo_initial: (name.charAt(0) || 'U'),
-                color: 'bg-blue-600',
-                lastMessage: conv.last_message || 'New conversation',
-                timestamp: conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : new Date(conv.created_at).toLocaleDateString(),
-                unread: 0,
-                recipientId: otherId,
-                recipientName: name,
-                recipientEmail: otherParticipant?.email || undefined,
-              });
-            }
-            setConversations(convItems);
-          }).catch(() => {});
+        refresh,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations',
+          filter: `participant1_id=eq.${user.id}`,
         },
+        refresh,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations',
+          filter: `participant2_id=eq.${user.id}`,
+        },
+        refresh,
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, reloadConversations]);
 
   const selectedConversation = conversations.find(c => c.id === selectedId);
   const currentMessages = selectedId ? (messages[selectedId] || []) : [];
@@ -498,12 +505,8 @@ export default function Messages() {
         message: messageText,
       });
 
-      // Update the conversation's last message in local state
-      setConversations(prev => prev.map(c =>
-        c.id === selectedId
-          ? { ...c, lastMessage: messageText, timestamp: new Date().toLocaleDateString() }
-          : c
-      ));
+      // Refresh the conversation list so the new message + thread appear immediately
+      await reloadConversations();
     } catch (error) {
       console.error('[Messages] handleSend failed:', error);
       // Remove optimistic message on failure
@@ -517,7 +520,7 @@ export default function Messages() {
     } finally {
       setSending(false);
     }
-  }, [newMessage, selectedId, user?.id, profile?.full_name, conversations, sending]);
+  }, [newMessage, selectedId, user?.id, profile?.full_name, conversations, sending, reloadConversations]);
 
   return (
     <AppLayout>
