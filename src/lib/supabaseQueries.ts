@@ -702,6 +702,35 @@ export async function fetchAdvertisementsByOwner(ownerId: string) {
   return (data || []) as Advertisement[];
 }
 
+// Public marketplace: returns ACTIVE advertisements created by business users
+// who subscribed to the Business Advertisement package. These should be visible
+// to EVERY user — both new and existing accounts. Tries the service-role API
+// first (bypasses RLS so even anonymous/new users can see them), then falls
+// back to a direct query for environments where the endpoint is unavailable.
+export async function fetchPublicAdvertisements() {
+  try {
+    const resp = await fetch('/api/get-advertisements');
+    if (resp.ok) {
+      const json = await resp.json();
+      if (Array.isArray(json)) {
+        return json as Advertisement[];
+      }
+    }
+    console.warn('[fetchPublicAdvertisements] API failed, falling back to direct query:', resp.status);
+  } catch (e) {
+    console.warn('[fetchPublicAdvertisements] API network error, falling back to direct query:', e);
+  }
+
+  const { data, error } = await supabase
+    .from('advertisements')
+    .select('*')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []) as Advertisement[];
+}
+
 export type JobAlertSeed = Pick<JobAlert, "query" | "location" | "enabled">;
 export type JobAlertWithCount = JobAlert & { count: number };
 

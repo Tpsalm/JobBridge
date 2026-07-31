@@ -7,6 +7,7 @@ import { useModal } from '../contexts/ModalContext';
 import { useToasts } from '../contexts/ToastContext';
 import {
   fetchAdvertisementsByOwner,
+  fetchPublicAdvertisements,
   createAdvertisement,
   decrementCredits,
 } from '../lib/supabaseQueries';
@@ -65,6 +66,8 @@ export default function Business() {
   const { push } = useToasts();
   const [adverts, setAdverts] = useState<Advert[]>(initialAdverts);
   const [loadingAdverts, setLoadingAdverts] = useState(false);
+  const [publicAdverts, setPublicAdverts] = useState<Advert[]>([]);
+  const [loadingPublicAdverts, setLoadingPublicAdverts] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [hasExistingAdvert, setHasExistingAdvert] = useState(false);
@@ -160,6 +163,56 @@ export default function Business() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  // Load advertisements created by ALL subscribed business users so they are
+  // visible to everyone — including brand-new accounts and anonymous visitors.
+  useEffect(() => {
+    let cancelled = false;
+    const loadPublicAdverts = async () => {
+      setLoadingPublicAdverts(true);
+      try {
+        const data = await fetchPublicAdvertisements();
+        if (!cancelled) {
+          setPublicAdverts(
+            data.map((ad) => ({
+              id: ad.id,
+              businessName: ad.business_name,
+              title: ad.title,
+              description: ad.description,
+              category: ad.category,
+              duration:
+                ad.package === 'weekly'
+                  ? 'Weekly'
+                  : ad.package === 'monthly'
+                    ? 'Monthly'
+                    : 'Featured',
+              price: ad.amount_paid || (ad.package === 'weekly' ? 2000 : ad.package === 'monthly' ? 7500 : 15000),
+              status: ad.status,
+              startDate: ad.starts_at ? ad.starts_at.split('T')[0] : '',
+              endDate: ad.expires_at ? ad.expires_at.split('T')[0] : '',
+              views: ad.views || 0,
+              clicks: ad.clicks || 0,
+              featured: ad.is_featured || false,
+            })),
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load public adverts:', error);
+        if (!cancelled) setPublicAdverts([]);
+      } finally {
+        if (!cancelled) setLoadingPublicAdverts(false);
+      }
+    };
+
+    loadPublicAdverts();
+    // Refresh when a new advert is created anywhere
+    const handler = () => loadPublicAdverts();
+    window.addEventListener('adverts:updated', handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('adverts:updated', handler);
+    };
+  }, []);
 
   const handleCreateAd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,6 +367,85 @@ export default function Business() {
       />
 
       <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* Advertisements Showcase — visible to ALL users (new & existing) */}
+        <AnimatedSection direction="up" className="mb-10">
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Advertisements Showcase</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Discover businesses advertising on JobBridge — updated as subscribed business owners post.
+              </p>
+            </div>
+          </div>
+
+          {loadingPublicAdverts ? (
+            <div className="bg-white rounded-xl p-8 text-center border border-gray-100">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 mx-auto mb-3">
+                <Building className="w-5 h-5 animate-pulse" />
+              </div>
+              <p className="text-gray-500">Loading advertisements...</p>
+            </div>
+          ) : publicAdverts.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 text-center border border-gray-100">
+              <Building className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No advertisements yet. Be the first to showcase your business!</p>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {publicAdverts.map((advert) => (
+                <div
+                  key={advert.id}
+                  className={`bg-white rounded-xl overflow-hidden border hover:shadow-lg transition-shadow ${
+                    advert.featured ? 'border-amber-200 ring-1 ring-amber-200' : 'border-gray-100'
+                  }`}
+                >
+                  <img
+                    src={advertImage(advert.category)}
+                    alt={advert.title}
+                    className="w-full h-36 object-cover"
+                  />
+                  <div className="p-5">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-gray-900">{advert.title}</h3>
+                          {advert.featured && (
+                            <span className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full shrink-0">
+                              <Star className="w-3 h-3" /> Featured
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600">{advert.businessName}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-3 line-clamp-2">{advert.description}</p>
+                    <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-3">
+                      <span className="flex items-center gap-1">
+                        <Building className="w-3.5 h-3.5" />
+                        {advert.category}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        {advert.duration}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-3.5 h-3.5" />
+                        {advert.views.toLocaleString()} views
+                      </span>
+                    </div>
+                    <Link
+                      to="/business"
+                      className="inline-flex items-center gap-1 text-sm text-blue-700 font-medium hover:underline"
+                    >
+                      View advert <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </AnimatedSection>
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <div className="bg-white rounded-xl p-4 border border-gray-100">
