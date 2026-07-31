@@ -588,7 +588,12 @@ export default function Notifications() {
                     onClick={() => {
                       handleMarkRead(notif.id);
                       if (notif.type === 'message') {
-                        navigate('/messages');
+                        const convId = notif.data?.conversation_id;
+                        navigate(
+                          convId
+                            ? `/messages?conversationId=${encodeURIComponent(String(convId))}`
+                            : '/messages'
+                        );
                       }
                     }}
                   >

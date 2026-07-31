@@ -87,11 +87,14 @@ export default function Header() {
         },
         (payload) => {
           const next = payload.new as unknown as {
+            type?: string;
             title: string;
             content?: string;
           };
           refreshCount();
-          if (next?.title) {
+          // Messages appear inside the chat area only (like WhatsApp) — don't
+          // pop them out as a separate toast notification.
+          if (next?.title && next.type !== 'message') {
             push({
               message: `${next.title}${next.content ? ` — ${next.content}` : ""}`,
               type: "info",
