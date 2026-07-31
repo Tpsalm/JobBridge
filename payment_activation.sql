@@ -44,8 +44,12 @@ BEGIN
       WHEN NEW.plan IN ('standard')            THEN 'standard'
       WHEN NEW.plan IN ('premium')             THEN 'premium'
       WHEN NEW.plan IN ('ai_monthly','ai_annual') THEN 'ai_tools'
+      WHEN NEW.plan IN ('service_monthly')     THEN 'service_monthly'
       WHEN NEW.plan IN ('service_verified')    THEN 'service_verified'
       WHEN NEW.plan IN ('service_featured')    THEN 'service_featured'
+      WHEN NEW.plan IN ('business_weekly')     THEN 'business_weekly'
+      WHEN NEW.plan IN ('business_monthly')    THEN 'business_monthly'
+      WHEN NEW.plan IN ('business_featured')   THEN 'business_featured'
       ELSE 'basic'
     END;
 
@@ -57,12 +61,16 @@ BEGIN
       WHEN NEW.plan = 'ai_annual'          THEN 365
       WHEN NEW.plan = 'service_verified'   THEN 30
       WHEN NEW.plan = 'service_featured'   THEN 30
+      WHEN NEW.plan = 'business_weekly'    THEN 7
+      WHEN NEW.plan = 'business_monthly'   THEN 30
+      WHEN NEW.plan = 'business_featured'  THEN 30
       ELSE 7
     END;
 
     _credits := CASE
       WHEN NEW.plan IN ('basic','standard') THEN 1
       WHEN NEW.plan = 'premium'             THEN 3
+      WHEN NEW.plan IN ('business_weekly','business_monthly','business_featured') THEN 1
       ELSE 0
     END;
 

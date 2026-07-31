@@ -204,7 +204,7 @@ const PENDING_PAYMENT_STORAGE_KEY = "jobbridge_pending_payment_ref";
 function getSuccessTarget(plan: (typeof PLANS)[string], planKey: string): string {
   if (plan.ai) return "/ai-resume?fromPayment=true";
   if (plan.service) return "/profile";
-  if ((plan as any).business) return "/business?create=true";
+  if ((plan as any).business) return `/business?create=true&paidPackage=${planKey}`;
   return "/recruiter?postJob=true";
 }
 
@@ -488,8 +488,12 @@ export default function Payment() {
       } else if ((plan as any).service) {
         await activateSubscription(user?.id || '', 'service_monthly', 0, durationDays).catch(e => console.warn("[Payment] service DB activation failed:", e));
       } else {
-        // Recruiter or Business plan: add credits
-        await addCredits(user?.id || '', plan.credits || 1).catch(e => console.warn("[Payment] credits DB activation failed:", e));
+        // Recruiter or Business plan: add credits.
+        // Business plans (business_*) intentionally define credits: 0 in PLANS,
+        // but a paid business advert must grant exactly 1 advert credit so the
+        // user can create their ad on the Business page (each advert uses 1 credit).
+        const creditGrant = (plan as any).business ? 1 : plan.credits || 1;
+        await addCredits(user?.id || '', creditGrant).catch(e => console.warn("[Payment] credits DB activation failed:", e));
       }
 
       // 2) Universal server-side activation (service role key — ALWAYS works, bypasses RLS)
@@ -499,7 +503,8 @@ export default function Payment() {
           plan_key: planKey,
           user_id: user?.id || '',
           duration_days: durationDays,
-          credits: plan.credits || 0,
+          // Business plans grant 1 advert credit; recruiter/service pass their own credits.
+          credits: (plan as any).business ? 1 : plan.credits || 0,
           amount: plan.price,
           reference: reference || '',
           fallback_reference: reference || '',

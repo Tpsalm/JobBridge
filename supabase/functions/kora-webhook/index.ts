@@ -999,13 +999,21 @@ serve(async (req: Request) => {
                   ? 30
                   : payment.plan === "service_featured"
                     ? 30
-                    : 7;
+                    : payment.plan === "business_weekly"
+                      ? 7
+                      : payment.plan === "business_monthly" || payment.plan === "business_featured"
+                        ? 30
+                        : 7;
     const creditsToAdd =
       payment.plan === "basic" || payment.plan === "standard"
         ? 1
         : payment.plan === "premium"
           ? 3
-          : 0;
+          : payment.plan === "business_weekly" ||
+              payment.plan === "business_monthly" ||
+              payment.plan === "business_featured"
+            ? 1
+            : 0;
     const expiresAt = new Date(
       Date.now() + durationDays * 24 * 60 * 60 * 1000,
     ).toISOString();
