@@ -379,6 +379,19 @@ export async function fetchNotifications(userId: string) {
 }
 
 export async function fetchConversations(userId: string) {
+  try {
+    const resp = await fetch(`/api/get-conversations?userId=${encodeURIComponent(userId)}`);
+    if (resp.ok) {
+      const json = await resp.json();
+      if (Array.isArray(json)) {
+        return json;
+      }
+    }
+    console.warn('[fetchConversations] API failed, falling back to direct query:', resp.status);
+  } catch (e) {
+    console.warn('[fetchConversations] API network error, falling back to direct query:', e);
+  }
+
   const { data, error } = await supabase
     .from('conversations')
     .select('*, participant1:profiles(id, full_name, email), participant2:profiles(id, full_name, email)')
@@ -389,6 +402,19 @@ export async function fetchConversations(userId: string) {
 }
 
 export async function fetchConversationMessages(conversationId: string) {
+  try {
+    const resp = await fetch(`/api/get-conversation-messages?conversationId=${encodeURIComponent(conversationId)}`);
+    if (resp.ok) {
+      const json = await resp.json();
+      if (Array.isArray(json)) {
+        return json;
+      }
+    }
+    console.warn('[fetchConversationMessages] API failed, falling back to direct query:', resp.status);
+  } catch (e) {
+    console.warn('[fetchConversationMessages] API network error, falling back to direct query:', e);
+  }
+
   const { data, error } = await supabase
     .from('messages')
     .select('*')
@@ -399,6 +425,19 @@ export async function fetchConversationMessages(conversationId: string) {
 }
 
 export async function fetchConversationById(conversationId: string) {
+  try {
+    const resp = await fetch(`/api/get-conversation-by-id?conversationId=${encodeURIComponent(conversationId)}`);
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json && json.id) {
+        return json;
+      }
+    }
+    console.warn('[fetchConversationById] API failed, falling back to direct query:', resp.status);
+  } catch (e) {
+    console.warn('[fetchConversationById] API network error, falling back to direct query:', e);
+  }
+
   const { data, error } = await supabase
     .from('conversations')
     .select('*, participant1:profiles(id, full_name, email), participant2:profiles(id, full_name, email)')
