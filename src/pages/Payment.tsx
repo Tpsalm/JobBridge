@@ -134,7 +134,7 @@ const PLANS: Record<
     name: "Premium Job Post",
     duration: "30 days",
     price: 5000,
-    credits: 3,
+    credits: 2,
   },
   ai_monthly: {
     name: "AI Career Tools Monthly",

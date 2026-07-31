@@ -312,7 +312,7 @@ serve(async (req: Request) => {
     const tier = (paymentRow.plan === "ai_monthly" || paymentRow.plan === "ai_annual") ? "ai_tools" : paymentRow.plan;
     const durationDays = paymentRow.plan === "basic" ? 7 : paymentRow.plan === "standard" ? 14 : paymentRow.plan === "premium" ? 30 : paymentRow.plan === "ai_monthly" ? 30 : paymentRow.plan === "ai_annual" ? 365 : paymentRow.plan === "business_weekly" ? 7 : 30;
     // Business advert plans must grant 1 advert credit so the user can create their ad.
-    const creditsToAdd = paymentRow.plan === "basic" || paymentRow.plan === "standard" ? 1 : paymentRow.plan === "premium" ? 3 : BUSINESS_PLANS.has(paymentRow.plan) ? 1 : 0;
+    const creditsToAdd = paymentRow.plan === "basic" || paymentRow.plan === "standard" ? 1 : paymentRow.plan === "premium" ? 2 : BUSINESS_PLANS.has(paymentRow.plan) ? 1 : 0;
     const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
     const { data: profileData } = await supabase.from("profiles").select("credits").eq("id", paymentRow.user_id).maybeSingle();

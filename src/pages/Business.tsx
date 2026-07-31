@@ -67,6 +67,7 @@ export default function Business() {
   const [loadingAdverts, setLoadingAdverts] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [hasExistingAdvert, setHasExistingAdvert] = useState(false);
   const [formData, setFormData] = useState({
     businessName: '',
     title: '',
@@ -143,6 +144,8 @@ export default function Business() {
               featured: ad.is_featured || false,
             })),
           );
+          // User can only have 1 advert total
+          setHasExistingAdvert(data.length >= 1);
         }
       } catch (error) {
         console.error('Failed to load business adverts:', error);
@@ -162,6 +165,15 @@ export default function Business() {
     e.preventDefault();
     const selectedPackage = adPackages.find(p => p.name === formData.package);
     if (!selectedPackage) return;
+
+    // Check if user already has an advert (limit to 1)
+    if (hasExistingAdvert) {
+      push({
+        message: '❌ You already have an advert. Only 1 advert is allowed per business. Delete your existing advert to create a new one.',
+        type: 'error',
+      });
+      return;
+    }
 
     // If no subscription/credits, redirect to pricing
     if (subscription.status !== 'active' || !subscription.credits || subscription.credits < 1) {
@@ -528,18 +540,35 @@ export default function Business() {
           </div>
         )}
 
-        {/* Create New Advert Button */}
+        {/* Limit Notice & Create New Advert Button */}
         <AnimatedSection direction="up"><div className="mb-8">
+          {hasExistingAdvert && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-center gap-2 text-sm text-amber-800">
+              <Lock className="w-4 h-4 shrink-0" />
+              <span>You already have an advert. Only <strong>1 advert</strong> is allowed per business. Delete your existing advert to create a new one.</span>
+            </div>
+          )}
           {subscription.status === 'active' ? (
             <button
-              onClick={() => setShowCreateForm(true)}
-              disabled={!subscription.credits || subscription.credits < 1}
+              onClick={() => {
+                if (hasExistingAdvert) {
+                  push({
+                    message: '❌ You already have an advert. Only 1 advert is allowed per business. Delete your existing advert to create a new one.',
+                    type: 'error',
+                  });
+                  return;
+                }
+                setShowCreateForm(true);
+              }}
+              disabled={!subscription.credits || subscription.credits < 1 || hasExistingAdvert}
               className="w-full flex items-center justify-center gap-2 bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-5 h-5" />
-              {subscription.credits && subscription.credits > 0
-                ? `Create New Advert (${subscription.credits} credit${subscription.credits !== 1 ? 's' : ''} remaining)`
-                : 'No credits remaining'}
+              {hasExistingAdvert
+                ? 'Advert limit reached (1 per business)'
+                : subscription.credits && subscription.credits > 0
+                  ? `Create New Advert (${subscription.credits} credit${subscription.credits !== 1 ? 's' : ''} remaining)`
+                  : 'No credits remaining'}
             </button>
           ) : (
             <Link
