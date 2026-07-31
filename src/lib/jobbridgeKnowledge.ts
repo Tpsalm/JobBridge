@@ -18,7 +18,7 @@ const KB: KnowledgeSection[] = [
     pages: ['/', '/about'],
     keywords: ['what is jobbridge', 'about jobbridge', 'platform overview', 'what does jobbridge do', 'jobbridge features', 'introduction', 'jobbridge platform', 'professional network', 'what is this', 'jobbridge explained', 'tell me about jobbridge', 'job bridge', 'job bridge platform', 'overview', 'features of jobbridge', 'what can i do on jobbridge', 'platform capabilities', 'what jobbridge offers', 'key features'],
     content: `### What is JobBridge?
-JobBridge is Nigeria's number one professional network connecting job seekers, recruiters, and service providers on one unified platform. Founded in 2021 by Victor Eniola and backed by Y Combinator, Sequoia Capital, and Andreessen Horowitz (a16z).
+JobBridge is Nigeria's number one professional network connecting job seekers, recruiters, and service providers on one unified platform. Founded in 2021 by Victor Eniola (CEO & Founder), JobBridge today serves over 2 million users across 50+ countries, with ₦12 million in funding.
 
 ### Who can use JobBridge?
 - **Job Seekers** — Browse and apply to jobs, use AI resume tools, track applications, save jobs
@@ -45,26 +45,39 @@ For more details, visit the home page at / or the About page at /about.`,
     title: 'Company Mission & History',
     tags: ['general', 'company', 'about'],
     pages: ['/', '/about', '/ceo'],
-    keywords: ['mission', 'vision', 'company history', 'founder', 'victor eniola', 'ceo', 'founded', 'history', 'backed', 'investors', 'y combinator', 'sequoia capital', 'a16z', 'andreessen horowitz', 'company story', 'founding story', 'who founded', 'who created', 'when was', 'founded in', 'company values', 'core values'],
+    keywords: ['mission', 'vision', 'company history', 'founder', 'victor eniola', 'ceo', 'founded', 'history', 'funding', 'company story', 'founding story', 'who founded', 'who created', 'when was', 'founded in', 'company values', 'core values', '2 million users', 'million users', '50 countries', 'series a'],
     content: `### Founding & History
 JobBridge was founded in 2021 by **Victor Eniola**, who serves as CEO and Founder. The company was created to address the challenges of finding quality career opportunities in Nigeria and across Africa.
 
-### Investors & Backing
-The platform is backed by major Silicon Valley investors:
-- **Y Combinator** — prestigious startup accelerator
-- **Sequoia Capital** — leading venture capital firm
-- **Andreessen Horowitz (a16z)** — one of the largest VC firms globally
+### Growth & Milestones (About page)
+- 2021 — Founded
+- 2022 — Series A
+- 2023 — 100k Users
+- 2024 — AI Launch
+- 2025 — 2M Users
+- 2026 — Global Expansion
+
+### By the Numbers
+- **Users**: 2M+
+- **Countries**: 50+
+- **Funding**: ₦12M
+- **Founded**: 2021
 
 ### Mission & Vision Pillars
 - **Democratizing Opportunity** — making career tools accessible to everyone regardless of background
 - **AI-First Approach** — leveraging artificial intelligence to improve hiring and career development
 - **Global Impact** — expanding from Nigeria to serve users across 50+ countries
 
+### About Page Pillars
+- **Transparency** — complete visibility into job market data and career opportunities
+- **Innovation** — cutting-edge AI and technology to revolutionize job searching
+- **Inclusion** — creating opportunities for talent from diverse backgrounds
+
 ### Core Values
 Innovation, inclusion, transparency, and impact guide every feature and decision.
 
 ### CEO Vision Page
-Visit /ceo to watch a personal video message from Victor Eniola sharing his journey, the company roadmap, milestones, and values. You can also leave encouraging messages directly for the CEO.`,
+Visit /ceo to read a personal letter from Victor Eniola, view his photo and the company milestones, and leave an encouraging message directly for the CEO.`,
   },
   {
     id: 'tech-stack',
@@ -82,7 +95,7 @@ Visit /ceo to watch a personal video message from Victor Eniola sharing his jour
 - **Supabase** — provides PostgreSQL database, authentication (email/password), storage for file uploads (CVs, resumes), and Row Level Security (RLS) for data protection
 
 ### AI Features
-- **OpenAI GPT-4o-mini** — powers the AI Assistant chat widget
+- **DeepSeek (deepseek-chat)** — powers the AI Assistant chat widget and the AI resume/cover-letter tools
 - **text-embedding-3-small** — for embeddings (retrieval)
 
 ### Payments
@@ -671,7 +684,7 @@ Look for the **robot icon** or **chat icon** in the bottom-right corner of any p
 - General platform information
 
 ### How It Works
-The assistant uses a comprehensive knowledge base combined with **OpenAI's GPT-4o-mini** (when configured) for natural, conversational responses.
+The assistant uses a comprehensive JobBridge knowledge base combined with **DeepSeek** for natural, conversational responses grounded in verified JobBridge facts.
 
 ### Processing Indicators
 While processing your question, it shows:
@@ -866,7 +879,16 @@ The Service Providers page at **/providers** is a marketplace to discover and co
 Each card shows: provider name, specialty, hourly rate, location, rating stars, short description, and a **"View Profile"** button.
 
 ### Provider Profiles
-Include: full description, skills list, portfolio samples, availability status, and contact options. Send an inquiry directly from their profile. Featured providers have a **"Featured"** badge and appear at the top.`,
+Include: full description, skills list, portfolio samples, availability status, and contact options. Send an inquiry directly from their profile. Featured providers have a **"Featured"** badge and appear at the top.
+
+### How to Find a Service Provider
+JobBridge has a dedicated **Service Marketplace** — it is NOT a jobs-only platform. To find and hire a provider:
+1. Go to the **Service Providers page** at **/providers**
+2. Use the **search bar** to type a name or specialty (e.g. "cleaning", "IT support", "logistics", "web developer")
+3. Use the **category buttons** to filter by industry (Engineering, Design, Marketing, Finance, Legal, Photography, Writing, Consulting)
+4. Click **"View Profile"** on any provider card to see their full profile, skills, hourly rate, rating, reviews, location, and availability
+5. Send an inquiry or **contact the provider directly** using the details on their profile
+You can also browse professional offerings on the **Services page** at **/services**.`,
   },
   {
     id: 'become-service-provider',
@@ -1106,9 +1128,14 @@ For immediate answers to common questions, use the **AI Assistant chat widget** 
     content: `### Company Story
 The About page at **/about** covers:
 - **Origin**: Founded in 2021 by Victor Eniola to address career opportunity challenges in Nigeria
-- **Backing**: Y Combinator, Sequoia Capital, Andreessen Horowitz (a16z)
-- **Vision**: Democratizing career opportunities across Africa
-- **Milestones**: Key moments in the company's journey
+- **Mission**: Building bridges between talent and opportunity using AI, data, and human insights
+- **Stats**: 2M+ users worldwide, 50+ countries, ₦12M funding
+- **Milestones**: 2021 Founded · 2022 Series A · 2023 100k Users · 2024 AI Launch · 2025 2M Users · 2026 Global Expansion
+
+### Mission Pillars
+- **Transparency** — complete visibility into job market data and career opportunities
+- **Innovation** — cutting-edge AI and technology to revolutionize job searching
+- **Inclusion** — creating opportunities for talent from diverse backgrounds
 
 ### Core Values
 Innovation, inclusion, transparency, and impact.
@@ -1122,18 +1149,17 @@ The founding team is committed to using artificial intelligence to transform hir
     tags: ['general', 'company', 'ceo'],
     pages: ['/ceo'],
     keywords: ['ceo vision', 'ceo message', 'founder message', 'victor eniola vision', 'leadership', 'jobbridge mission', '/ceo', 'ceo page', 'founder', 'ceo video', 'ceo message', 'founder story', 'ceo vision message', 'victor eniola'],
-    content: `### What You Will Find
-The CEO Vision page at **/ceo** features:
-- **Video message** from Victor Eniola, founder and CEO
-- His personal journey building JobBridge from the ground up
-- Challenges faced along the way
-- The company's roadmap for the future
+    content: `### Who Is the CEO?
+**Mr. Victor Eniola** is the CEO & Founder of JobBridge (see the CEO page at **/ceo**). With extensive experience in HR technology and marketplace growth, he started JobBridge to make career opportunities more accessible and transparent.
 
-### Additional Content
+### What You Will Find
+The CEO Vision page at **/ceo** features:
+- A welcome message from the CEO: "We're building the infrastructure for the future of work"
+- A **profile card** for Mr. Victor Eniola with his **LinkedIn** (linkedin.com/in/victor-eniola-b77407259) and **Twitter** (x.com/phenol_jnr)
+- A personal **"Letter from Victor"** explaining why he founded JobBridge
+- A **timeline** of company milestones: 2021 Founded · 2022 Market Research · 2023 Vision & Roadmap · 2024 Platform Design · 2025 Development · 2026 AI Launch
+- **Vision pillars**: Democratizing Opportunity, AI-First Approach, Global Impact
 - **Photo gallery** documenting the founder's journey
-- **Timeline** of company milestones and achievements
-- **Key values** that guide the platform
-- **Mission pillars** explanation
 
 ### Interactive Feature
 An interactive section allows users to **leave encouraging messages** directly for the CEO, which are displayed on the page.`,
@@ -1273,7 +1299,7 @@ When career opportunities at JobBridge become available, subscribed users will b
 - Account creation and management
 - Job matching and recommendations
 - AI feature functionality
-- Payment processing through Paystack
+- Payment processing through KoraPay
 - Communication about platform updates
 
 ### Information Sharing

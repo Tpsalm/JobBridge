@@ -952,6 +952,7 @@ async function runAgenticLoop(
   pageState: PageState,
   conversationId: string,
   cb: StreamCallbacks,
+  knowledgeContext = "",
 ): Promise<void> {
   const { onToken, onSources, onError, onPhase, onThought, onAction, onDone } =
     cb;
@@ -1066,6 +1067,18 @@ async function runAgenticLoop(
     },
   ];
 
+  // Build the knowledge-base context system message once so it is used both in
+  // the reasoning loop and the final streamed answer. The backend (ai-operations)
+  // does NOT support function/tool calling, so the KB content must be injected
+  // directly into the messages for the model to answer from JobBridge facts.
+  const knowledgeSystemMsg: HistoryMsg | null = knowledgeContext
+    ? {
+        role: "system",
+        content: `Relevant JobBridge knowledge base content — these are verified facts about the JobBridge platform (jobbridge.com.ng). Use them as your PRIMARY source and never contradict them with generic or external knowledge. If JobBridge itself provides the feature/page being asked about, describe JobBridge's own solution and do NOT suggest unrelated third-party sites:
+\n\n${knowledgeContext}`,
+      }
+    : null;
+
   const loopMessages: HistoryMsg[] = [
     {
       role: "system",
@@ -1078,6 +1091,7 @@ Active page path: ${pageState.currentPath}
 Visible page content summary:
 ${pageState.domSummary || "No page context available."}`,
     },
+    ...(knowledgeSystemMsg ? [knowledgeSystemMsg] : []),
     ...messages,
   ];
 
@@ -1213,10 +1227,19 @@ ${pageState.domSummary || "No page context available."}`,
 
       const cleanedMessages = loopMessages.filter((m) => m.role !== "system");
 
-      cleanedMessages.unshift({
-        role: "system",
-        content: FINAL_SYSTEM_PROMPT,
-      });
+      // Keep the knowledge-base context available for the final streamed answer
+      // (system messages are filtered above, so re-add the KB context explicitly).
+      const finalSystemMsgs: HistoryMsg[] = [
+        {
+          role: "system",
+          content: FINAL_SYSTEM_PROMPT,
+        },
+      ];
+      if (knowledgeSystemMsg) {
+        finalSystemMsgs.push(knowledgeSystemMsg);
+      }
+
+      cleanedMessages.unshift(...finalSystemMsgs);
 
       let finalContent = "";
       await streamLLM(cleanedMessages, (token) => {
@@ -1376,7 +1399,13 @@ export async function streamAnswer(
     const userMessage: HistoryMsg = { role: "user", content: questionClean };
     const messages = [...history, userMessage];
 
-    await runAgenticLoop(messages, pageState, conversationId, cb);
+    // Pre-retrieve the relevant knowledge-base sections and inject them into the
+    // LLM conversation. This guarantees the chatbot answers from JobBridge facts
+    // instead of the model's generic training data.
+    const { sections } = retrieveRelevant(questionClean, pageState.currentPath);
+    const knowledgeContext = trimContext(sections);
+
+    await runAgenticLoop(messages, pageState, conversationId, cb, knowledgeContext);
   } catch (err: any) {
     const msg = err?.message || "";
     if (msg.includes("401")) {
