@@ -503,6 +503,33 @@ export async function createConversationMessage(params: {
     throw new Error('Invalid message recipients');
   }
 
+  // Try the API endpoint first (uses service role key, bypasses RLS)
+  try {
+    const resp = await fetch('/api/send-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderId,
+        senderName,
+        recipientId,
+        recipientName,
+        recipientEmail,
+        message,
+      }),
+    });
+
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json?.success && json?.conversationId) {
+        return json.conversationId;
+      }
+    }
+    console.warn('[createConversationMessage] API failed, falling back to direct query:', resp.status);
+  } catch (e) {
+    console.warn('[createConversationMessage] API network error, falling back to direct query:', e);
+  }
+
+  // Fallback: use direct Supabase queries
   // Find or create the conversation and persist the message. Fail loudly so the
   // UI never reports a "sent" message that was actually lost.
   const conversation = await findOrCreateConversation(senderId, recipientId);
