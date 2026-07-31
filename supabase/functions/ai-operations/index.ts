@@ -2,11 +2,11 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
 
 // Read keys from Supabase secret environment
-const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY') || '';
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
+const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY') || Deno.env.get('VITE_DEEPSEEK_API_KEY') || '';
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('VITE_OPENAI_API_KEY') || '';
 
 interface AIRequest {
-  type: 'chat' | 'embed' | 'resume' | 'cover-letter';
+  type: 'status' | 'chat' | 'embed' | 'resume' | 'cover-letter';
   messages?: Array<{ role: string; content: string }>;
   text?: string;
   prompt?: string;
@@ -152,6 +152,13 @@ Please write a personalized, compelling cover letter.`;
 async function handleRequest(body: AIRequest): Promise<AIResponse> {
   try {
     switch (body.type) {
+      case 'status': {
+        if (!DEEPSEEK_API_KEY) {
+          return { ok: false, error: 'AI service not configured. Please set DEEPSEEK_API_KEY in Supabase secrets.' };
+        }
+        return { ok: true, result: 'DeepSeek API key is configured.' };
+      }
+
       case 'chat': {
         if (!body.messages || body.messages.length === 0) {
           return { ok: false, error: 'Missing messages' };

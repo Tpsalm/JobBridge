@@ -47,6 +47,21 @@ export default function Messages() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const conversationsRef = useRef<Conversation[]>([]);
+  const messagesRef = useRef<Record<string, MessageItem[]>>({});
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!queryConversationId || selectedId === queryConversationId) return;
+    setSelectedId(queryConversationId);
+  }, [queryConversationId, selectedId]);
 
   // Fetch conversation threads and messages
   useEffect(() => {
@@ -214,7 +229,10 @@ export default function Messages() {
     if (!selectedId || !user?.id) return;
 
     const loadSelectedConversation = async () => {
-      if (!conversations.some(c => c.id === selectedId)) {
+      const latestConversations = conversationsRef.current;
+      const latestMessages = messagesRef.current;
+
+      if (!latestConversations.some(c => c.id === selectedId)) {
         const missingConv = await fetchConversationById(selectedId);
         if (missingConv && (missingConv.participant1_id === user.id || missingConv.participant2_id === user.id)) {
           const otherParticipant = missingConv.participant1_id === user.id ? missingConv.participant2 : missingConv.participant1;
@@ -238,7 +256,7 @@ export default function Messages() {
         }
       }
 
-      if (!messages[selectedId]) {
+      if (!latestMessages[selectedId]) {
         const msgs = await fetchConversationMessages(selectedId);
         setMessages(prev => ({
           ...prev,
@@ -307,7 +325,6 @@ export default function Messages() {
 
             // If this is our own message, try to replace the optimistic message
             if (isOwn) {
-              const idx = existing.findIndex(m => String(m.id).startsWith('msg-') && m.text === newMsg.content);
               const serverMsg = {
                 id: newMsg.id,
                 sender: 'me' as const,
@@ -315,6 +332,9 @@ export default function Messages() {
                 time: new Date(newMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 read: newMsg.is_read,
               };
+              const idx = existing.findIndex(m =>
+                (String(m.id).startsWith('msg-') || String(m.id).startsWith('temp-')) && m.text === newMsg.content
+              );
               if (idx !== -1) {
                 const updated = [...existing];
                 updated[idx] = serverMsg;
@@ -348,7 +368,7 @@ export default function Messages() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedId, user?.id, conversations, messages]);
+  }, [selectedId, user?.id]);
 
   // Real-time subscription for new conversations
   useEffect(() => {

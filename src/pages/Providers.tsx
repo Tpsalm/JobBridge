@@ -148,7 +148,6 @@ export default function Providers() {
         } catch (e) {
           // ignore
         }
-        navigate(targetUrl, { replace: true });
         window.location.href = targetUrl;
       } else {
         const fallback = '/messages';
