@@ -614,7 +614,13 @@ export default function Notifications() {
                             <p
                               className={`text-sm mt-0.5 ${notif.is_read ? "text-gray-500" : "text-gray-700"}`}
                             >
-                              {notif.content || "No additional details"}
+                              {/* UNIFIED CHAT SPACE rule: message content lives ONLY
+                                  inside the dedicated thread. A "new message"
+                                  notification is just a pointer — it never shows a
+                                  preview of the message itself. */}
+                              {notif.type === "message"
+                                ? "You have a new message. Open Messages to read and reply."
+                                : notif.content || "No additional details"}
                             </p>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">

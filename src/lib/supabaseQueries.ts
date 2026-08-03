@@ -398,7 +398,32 @@ export async function fetchConversations(userId: string) {
     .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`)
     .order('last_message_at', { ascending: false });
   if (error) throw error;
-  return data || [];
+  const conversations = data || [];
+
+  // Fallback unread counts (the API path computes these server-side; mirror
+  // them here so the WhatsApp-style unread badge works even without the API).
+  try {
+    const { data: unreadRows, error: unreadError } = await supabase
+      .from('messages')
+      .select('conversation_id')
+      .eq('recipient_id', userId)
+      .eq('is_read', false);
+    if (!unreadError && Array.isArray(unreadRows)) {
+      const unreadCounts: Record<string, number> = {};
+      for (const row of unreadRows) {
+        if (row?.conversation_id) {
+          unreadCounts[row.conversation_id] = (unreadCounts[row.conversation_id] || 0) + 1;
+        }
+      }
+      for (const conv of conversations) {
+        (conv as any).unread_count = unreadCounts[conv.id] || 0;
+      }
+    }
+  } catch (e) {
+    console.warn('[fetchConversations] unread count fallback failed:', e);
+  }
+
+  return conversations;
 }
 
 export async function fetchConversationMessages(conversationId: string) {
@@ -482,11 +507,46 @@ async function findOrCreateConversation(participant1_id: string, participant2_id
     .select()
     .single();
 
+  // The DB has a UNIQUE index on LEAST/GREATEST(participant1_id,
+  // participant2_id) which guarantees ONE thread per pair. If a concurrent
+  // request created the thread first (unique violation 23505), fall back to
+  // fetching it instead of failing — never create a second thread.
+  if (insertError && insertError.code === '23505') {
+    const { data: racedConversation, error: racedError } = await supabase
+      .from("conversations")
+      .select("*")
+      .or(participantsFilter)
+      .maybeSingle();
+    if (racedError) throw racedError;
+    if (racedConversation) return racedConversation;
+  }
+
   if (insertError) {
     throw insertError;
   }
 
   return insertedConversation;
+}
+
+/**
+ * Mark every incoming (recipient) message in a conversation as read — the
+ * WhatsApp-style "Seen" receipt. Uses the SECURITY DEFINER RPC because the
+ * messages UPDATE policy intentionally only lets the SENDER edit their own
+ * row; this function flips is_read ONLY on messages addressed to the caller.
+ */
+export async function markConversationRead(conversationId: string, readerId: string) {
+  if (!conversationId || !readerId) return;
+  try {
+    const { error } = await supabase.rpc("mark_conversation_read", {
+      p_conversation_id: conversationId,
+      p_reader_id: readerId,
+    });
+    if (error) {
+      console.warn('[markConversationRead] RPC failed:', error.message);
+    }
+  } catch (e) {
+    console.warn('[markConversationRead] RPC error:', e);
+  }
 }
 
 export async function createConversationMessage(params: {
@@ -574,11 +634,14 @@ export async function createConversationMessage(params: {
 
   // Build notification payloads and send them via a secure server-side
   // endpoint so inserts use the Supabase service role (bypassing RLS).
+  // UNIFIED CHAT SPACE rule: message content lives ONLY inside the dedicated
+  // thread. Notifications are a "you have a new message" signal and never
+  // embed the message text, so no preview leaks outside the chat view.
   const recipientNotification = {
     user_id: recipientId,
     type: 'message',
     title: `New message from ${senderName}`,
-    content: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
+    content: 'You have a new message. Open Messages to read and reply.',
     data: {
       conversation_id: conversationId,
       sender_id: senderId,
@@ -594,7 +657,7 @@ export async function createConversationMessage(params: {
     user_id: senderId,
     type: 'message',
     title: `Message sent to ${recipientName}`,
-    content: message,
+    content: 'Your message was sent. Open Messages to continue the chat.',
     data: {
       conversation_id: conversationId,
       sender_id: senderId,
@@ -729,6 +792,67 @@ export async function fetchPublicAdvertisements() {
 
   if (error) throw error;
   return (data || []) as Advertisement[];
+}
+
+export async function updateAdvertisement(
+  id: string,
+  updates: Partial<{
+    business_name: string;
+    title: string;
+    description: string;
+    category: string;
+    package: string;
+    is_featured: boolean;
+    image_url?: string | null;
+    website_url?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    status: string;
+    starts_at?: string | null;
+    expires_at?: string | null;
+    amount_paid?: number | null;
+  }>,
+) {
+  const { data, error } = await supabase
+    .from('advertisements')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteAdvertisement(id: string) {
+  const { error } = await supabase.from('advertisements').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/**
+ * Track an advert impression. Uses a SECURITY DEFINER RPC so views can be
+ * counted even when the viewer is anonymous / a brand-new user (the direct
+ * UPDATE path is blocked by RLS for non-owners).
+ */
+export async function incrementAdvertisementViews(id: string) {
+  try {
+    const { error } = await supabase.rpc('increment_advertisement_views', { ad_id: id });
+    if (error) console.warn('[incrementAdvertisementViews] RPC failed:', error.message);
+  } catch (e) {
+    console.warn('[incrementAdvertisementViews] failed:', e);
+  }
+}
+
+/**
+ * Track an advert click (e.g. tapping "Call", "Visit website" or "Email").
+ * Uses a SECURITY DEFINER RPC for the same RLS-bypass reason as views.
+ */
+export async function incrementAdvertisementClicks(id: string) {
+  try {
+    const { error } = await supabase.rpc('increment_advertisement_clicks', { ad_id: id });
+    if (error) console.warn('[incrementAdvertisementClicks] RPC failed:', error.message);
+  } catch (e) {
+    console.warn('[incrementAdvertisementClicks] failed:', e);
+  }
 }
 
 export type JobAlertSeed = Pick<JobAlert, "query" | "location" | "enabled">;

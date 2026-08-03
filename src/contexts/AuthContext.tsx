@@ -854,7 +854,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const resetPassword = async (email: string) => {
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
+      // The ?type=recovery hint survives Supabase's own query/hash params, so
+      // /auth/callback can reliably route recovery users to the dedicated
+      // reset-password page instead of the profile.
+      const redirectTo = `${window.location.origin}/auth/callback?type=recovery`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
       });

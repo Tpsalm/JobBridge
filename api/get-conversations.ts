@@ -21,6 +21,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const baseUrl = SUPABASE_URL.replace(/\/+$/, '');
+    const headers = {
+      'apikey': SUPABASE_SERVICE_ROLE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+    };
+
     const url = new URL(`${baseUrl}/rest/v1/conversations`);
     url.searchParams.set('select', '*,participant1:profiles!participant1_id(id,full_name,email),participant2:profiles!participant2_id(id,full_name,email)');
     url.searchParams.set('or', `(participant1_id.eq.${userId},participant2_id.eq.${userId})`);
@@ -28,11 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const resp = await fetch(url.toString(), {
       method: 'GET',
-      headers: {
-        'apikey': SUPABASE_SERVICE_ROLE_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!resp.ok) {
@@ -43,6 +45,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const json = await resp.json();
     const data = Array.isArray(json) ? json : [];
+
+    // Attach the real unread count per conversation: messages addressed to the
+    // current user that have not been read yet. Unread badges must reflect the
+    // true state so the conversation list behaves like WhatsApp's main screen.
+    if (data.length > 0) {
+      const unreadUrl = new URL(`${baseUrl}/rest/v1/messages`);
+      unreadUrl.searchParams.set('select', 'conversation_id');
+      unreadUrl.searchParams.set('recipient_id', `eq.${userId}`);
+      unreadUrl.searchParams.set('is_read', 'eq.false');
+      unreadUrl.searchParams.set('limit', '1000');
+
+      const unreadResp = await fetch(unreadUrl.toString(), { method: 'GET', headers });
+      if (unreadResp.ok) {
+        const unreadRows = await unreadResp.json().catch(() => []);
+        const unreadCounts: Record<string, number> = {};
+        if (Array.isArray(unreadRows)) {
+          for (const row of unreadRows) {
+            if (row?.conversation_id) {
+              unreadCounts[row.conversation_id] = (unreadCounts[row.conversation_id] || 0) + 1;
+            }
+          }
+        }
+        for (const conv of data) {
+          (conv as any).unread_count = unreadCounts[conv.id] || 0;
+        }
+      }
+    }
+
     return res.status(200).json(data);
   } catch (err: any) {
     console.error('[api/get-conversations] error:', err);

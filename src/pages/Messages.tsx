@@ -2,11 +2,19 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchConversations, fetchConversationById, fetchConversationMessages, createConversationMessage } from '../lib/supabaseQueries';
+import {
+  fetchConversations,
+  fetchConversationById,
+  fetchConversationMessages,
+  createConversationMessage,
+  markConversationRead,
+} from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
-import { Send, Search, MoreVertical, Lock, Check, CheckCheck, CircleDot } from 'lucide-react';
+import { Send, Search, ArrowLeft, Check, CheckCheck, CircleDot, Clock, Lock, MoreVertical } from 'lucide-react';
 import CompanyLogo from '../components/CompanyLogo';
 import { IMG } from '../lib/media';
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface Conversation {
   id: string;
@@ -28,316 +36,240 @@ interface MessageItem {
   sender: 'me' | 'them';
   text: string;
   time: string;
+  isoTime?: string;
   read?: boolean;
+  temp?: boolean;
 }
 
-function mapConversations(convs: any[], userId: string): Conversation[] {
-  return convs.map(conv => {
-    const otherParticipant = conv.participant1_id === userId ? conv.participant2 : conv.participant1;
-    const name = otherParticipant?.full_name || 'Conversation';
-    return {
-      id: conv.id,
-      company: name,
-      logo_initial: (name.charAt(0) || 'U'),
-      color: 'bg-blue-600',
-      lastMessage: conv.last_message || 'New conversation',
-      timestamp: conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : new Date(conv.created_at).toLocaleDateString(),
-      unread: 0,
-      recipientId: otherParticipant?.id || '',
-      recipientName: name,
-      recipientEmail: otherParticipant?.email || undefined,
-    };
+// ─── Time helpers (WhatsApp-style) ─────────────────────────────────────────
+
+/** Conversation list timestamp: time for today, "Yesterday", weekday, else date. */
+function formatListTime(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startMsg = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startToday - startMsg) / 86400000);
+
+  if (diffDays <= 0) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'short' });
+  return d.toLocaleDateString([], {
+    day: 'numeric',
+    month: 'short',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
   });
 }
 
+/** Message bubble timestamp under each bubble: e.g. "8:44 am". */
+function formatBubbleTime(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+/** Day separator chip label. */
+function formatDayLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startMsg = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startToday - startMsg) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString([], {
+    day: 'numeric',
+    month: 'long',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  });
+}
+
+function dayKey(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+// ─── Mapping ───────────────────────────────────────────────────────────────
+
+// Privacy: the chat header/list must never expose the other person's
+// location/address. Even if the backend ever returns those fields, strip them
+// here so they can't leak into the Messages UI.
+function cleanParticipant(participant: any): any {
+  if (!participant) return participant;
+  const clean = { ...participant };
+  delete clean.location;
+  delete clean.address;
+  delete clean.city;
+  delete clean.state;
+  delete clean.country;
+  delete clean.lga;
+  return clean;
+}
+
+function mapConversation(conv: any, userId: string): Conversation {
+  const otherParticipant = cleanParticipant(
+    conv.participant1_id === userId ? conv.participant2 : conv.participant1,
+  );
+  const name = otherParticipant?.full_name || 'Conversation';
+  const isOwnLast = conv.last_message_sender_id === userId;
+  const lastMessage = conv.last_message
+    ? (isOwnLast ? `You: ${conv.last_message}` : conv.last_message)
+    : 'New conversation';
+  return {
+    id: conv.id,
+    company: name,
+    logo_initial: name.charAt(0) || 'U',
+    color: 'bg-blue-600',
+    lastMessage,
+    timestamp: formatListTime(conv.last_message_at || conv.created_at),
+    unread: conv.unread_count || 0,
+    recipientId: otherParticipant?.id || '',
+    recipientName: name,
+    recipientEmail: otherParticipant?.email || undefined,
+  };
+}
+
+function mapMessage(msg: any, userId: string): MessageItem {
+  return {
+    id: msg.id,
+    sender: msg.sender_id === userId ? 'me' : 'them',
+    text: msg.content,
+    time: formatBubbleTime(msg.created_at),
+    isoTime: msg.created_at,
+    read: !!msg.is_read,
+    temp: false,
+  };
+}
+
+// ─── Component ─────────────────────────────────────────────────────────────
 
 export default function Messages() {
   const { isAuthenticated, profile, user } = useAuth();
   const [searchParams] = useSearchParams();
   const queryConversationId = searchParams.get('conversationId');
   const navigate = useNavigate();
+
   const [selectedId, setSelectedId] = useState<string | null>(queryConversationId || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newMessage, setNewMessage] = useState('');
-  const [pendingApplied, setPendingApplied] = useState(false);
-  const [pendingConfirmation, setPendingConfirmation] = useState<{ tempId: string; text: string } | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const conversationsRef = useRef<Conversation[]>([]);
-  const messagesRef = useRef<Record<string, MessageItem[]>>({});
 
-  useEffect(() => {
-    conversationsRef.current = conversations;
-  }, [conversations]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<Record<string, MessageItem[]>>({});
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
-  const reloadConversations = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const convs = await fetchConversations(user.id);
-      setConversations(mapConversations(convs, user.id));
-    } catch (err) {
-      console.error('[Messages] reloadConversations failed:', err);
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!queryConversationId || selectedId === queryConversationId) return;
-    setSelectedId(queryConversationId);
-  }, [queryConversationId, selectedId]);
-
-  // Fetch conversation threads and messages
-  useEffect(() => {
-    if (!user?.id) {
-      setLoading(false);
-      return;
-    }
-
-    const loadConversations = async () => {
-      try {
-        const convs = await fetchConversations(user.id);
-        const convItems: Conversation[] = [];
-        const msgMap = new Map<string, MessageItem[]>();
-
-        for (const conv of convs) {
-          const otherParticipant = conv.participant1_id === user.id ? conv.participant2 : conv.participant1;
-          const convId = conv.id;
-          const name = otherParticipant?.full_name || 'Conversation';
-          const otherId = otherParticipant?.id || '';
-
-          convItems.push({
-            id: convId,
-            company: name,
-            logo_initial: (name.charAt(0) || 'U'),
-            color: 'bg-blue-600',
-            lastMessage: conv.last_message || 'New conversation',
-            timestamp: conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : new Date(conv.created_at).toLocaleDateString(),
-            unread: 0,
-            recipientId: otherId,
-            recipientName: name,
-            recipientEmail: otherParticipant?.email || undefined,
-          });
-
-          const msgs = await fetchConversationMessages(convId);
-          msgMap.set(convId, msgs.map(msg => ({
-            id: msg.id,
-            sender: msg.sender_id === user.id ? 'me' : 'them',
-            text: msg.content,
-            time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            read: msg.is_read,
-          })));
-        }
-
-        // If there's a specific conversation target and it wasn't in the list, fetch it directly
-        if (queryConversationId && !convItems.some(c => c.id === queryConversationId)) {
-          const missingConv = await fetchConversationById(queryConversationId);
-          if (missingConv && (missingConv.participant1_id === user.id || missingConv.participant2_id === user.id)) {
-            const otherParticipant = missingConv.participant1_id === user.id ? missingConv.participant2 : missingConv.participant1;
-            const name = otherParticipant?.full_name || 'Conversation';
-            const otherId = otherParticipant?.id || '';
-            convItems.push({
-              id: missingConv.id,
-              company: name,
-              logo_initial: (name.charAt(0) || 'U'),
-              color: 'bg-blue-600',
-              lastMessage: missingConv.last_message || 'New conversation',
-              timestamp: missingConv.last_message_at ? new Date(missingConv.last_message_at).toLocaleDateString() : new Date(missingConv.created_at).toLocaleDateString(),
-              unread: 0,
-              recipientId: otherId,
-              recipientName: name,
-              recipientEmail: otherParticipant?.email || undefined,
-            });
-
-            const missingMsgs = await fetchConversationMessages(queryConversationId);
-            msgMap.set(queryConversationId, missingMsgs.map(msg => ({
-              id: msg.id,
-              sender: msg.sender_id === user.id ? 'me' : 'them',
-              text: msg.content,
-              time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              read: msg.is_read,
-            })));
-          }
-        }
-
-        if (convItems.length === 0) {
-          // If no conversations at all, show the specific one if available from query param
-          if (queryConversationId && msgMap.has(queryConversationId)) {
-            // convItems was already populated above from the missing fetch
-            setConversations(convItems);
-            setMessages(Object.fromEntries(msgMap));
-            setSelectedId(queryConversationId);
-          } else {
-            // No conversations yet — show empty state
-            setConversations([]);
-            setMessages({});
-          }
-        } else {
-          setConversations(convItems);
-          setMessages(Object.fromEntries(msgMap));
-          if (queryConversationId && convItems.some(c => c.id === queryConversationId)) {
-            setSelectedId(queryConversationId);
-          }
-        }
-      } catch (error) {
-        console.error('[Messages] error loading conversations:', error);
-        // If we have a target conversation, try to load just that one instead of mock data
-        if (queryConversationId) {
-          try {
-            const missingConv = await fetchConversationById(queryConversationId);
-            if (missingConv && (missingConv.participant1_id === user.id || missingConv.participant2_id === user.id)) {
-              const otherParticipant = missingConv.participant1_id === user.id ? missingConv.participant2 : missingConv.participant1;
-              const name = otherParticipant?.full_name || 'Conversation';
-              const otherId = otherParticipant?.id || '';
-              const singleConv: Conversation = {
-                id: missingConv.id,
-                company: name,
-                logo_initial: (name.charAt(0) || 'U'),
-                color: 'bg-blue-600',
-                lastMessage: missingConv.last_message || 'New conversation',
-                timestamp: missingConv.last_message_at ? new Date(missingConv.last_message_at).toLocaleDateString() : new Date(missingConv.created_at).toLocaleDateString(),
-                unread: 0,
-                recipientId: otherId,
-                recipientName: name,
-                recipientEmail: otherParticipant?.email || undefined,
-              };
-              setConversations([singleConv]);
-              setSelectedId(queryConversationId);
-              // Also load messages for this conversation
-              const msgs = await fetchConversationMessages(queryConversationId);
-              setMessages({
-                [queryConversationId]: msgs.map(msg => ({
-                  id: msg.id,
-                  sender: msg.sender_id === user.id ? 'me' : 'them',
-                  text: msg.content,
-                  time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  read: msg.is_read,
-                })),
-              });
-            } else {
-              setConversations([]);
-              setMessages({});
-            }
-          } catch {
-            setConversations([]);
-            setMessages({});
-          }
-        } else {
-          setConversations([]);
-          setMessages({});
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadConversations();
-  }, [user?.id, queryConversationId]);
-
-  const handleBackToNotifications = useCallback(() => {
-    setSelectedId(null);
-    navigate('/notifications', { replace: true });
-  }, [navigate]);
-
-  useEffect(() => {
-    if (!queryConversationId || !conversations.length) return;
-    if (selectedId === queryConversationId) return;
-    if (conversations.some(c => c.id === queryConversationId)) {
-      setSelectedId(queryConversationId);
-    }
-  }, [queryConversationId, conversations, selectedId]);
-
+  // Keep the URL in sync so a selected conversation is shareable / survives reloads.
   useEffect(() => {
     if (!selectedId) return;
     if (queryConversationId === selectedId) return;
     navigate(`/messages?conversationId=${encodeURIComponent(selectedId)}`, { replace: true });
   }, [selectedId, queryConversationId, navigate]);
 
-  // Real-time subscription for new messages in the selected conversation
+  // Reflect a conversationId arriving via the URL (e.g. from a notification).
   useEffect(() => {
-    if (!selectedId || !user?.id) return;
+    if (queryConversationId && selectedId !== queryConversationId) {
+      setSelectedId(queryConversationId);
+    }
+  }, [queryConversationId, selectedId]);
 
-    const loadSelectedConversation = async () => {
-      const latestConversations = conversationsRef.current;
-      const latestMessages = messagesRef.current;
+  // ── Load the conversation list ───────────────────────────────────────────
+  const reloadConversations = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const convs = await fetchConversations(user.id);
+      setConversations(convs.map((c) => mapConversation(c, user.id)));
+    } catch (err) {
+      console.error('[Messages] reloadConversations failed:', err);
+    }
+  }, [user?.id]);
 
-      if (!latestConversations.some(c => c.id === selectedId)) {
-        const missingConv = await fetchConversationById(selectedId);
-        if (missingConv && (missingConv.participant1_id === user.id || missingConv.participant2_id === user.id)) {
-          const otherParticipant = missingConv.participant1_id === user.id ? missingConv.participant2 : missingConv.participant1;
-          const name = otherParticipant?.full_name || 'Conversation';
-          const otherId = otherParticipant?.id || '';
-          setConversations(prev => [
-            ...prev,
-            {
-              id: missingConv.id,
-              company: name,
-              logo_initial: (name.charAt(0) || 'U'),
-              color: 'bg-blue-600',
-              lastMessage: missingConv.last_message || 'New conversation',
-              timestamp: missingConv.last_message_at ? new Date(missingConv.last_message_at).toLocaleDateString() : new Date(missingConv.created_at).toLocaleDateString(),
-              unread: 0,
-              recipientId: otherId,
-              recipientName: name,
-              recipientEmail: otherParticipant?.email || undefined,
-            },
-          ]);
-        }
-      }
+  useEffect(() => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
 
-      if (!latestMessages[selectedId]) {
-        const msgs = await fetchConversationMessages(selectedId);
-        setMessages(prev => ({
-          ...prev,
-          [selectedId]: msgs.map(msg => ({
-            id: msg.id,
-            sender: msg.sender_id === user.id ? 'me' : 'them',
-            text: msg.content,
-            time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            read: msg.is_read,
-          })),
-        }));
-      }
-
-      // If there's a pending message stored (from Providers), show it immediately
+    const load = async () => {
+      setLoading(true);
       try {
-        const key = `pendingMessage:${selectedId}`;
-        const pendingRaw = sessionStorage.getItem(key) || sessionStorage.getItem('pendingMessage:fallback');
-        if (pendingRaw) {
-          const pending = JSON.parse(pendingRaw);
-          setMessages(prev => {
-            const existing = prev[selectedId] || [];
-            if (existing.some(m => String(m.id) === String(pending.id) || m.text === pending.text)) {
-              try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
-              return prev;
-            }
-            const appended = [...existing, {
-              id: pending.id,
-              sender: 'me' as const,
-              text: pending.text,
-              time: new Date(pending.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              read: false,
-            }];
-            try { sessionStorage.removeItem(key); sessionStorage.removeItem('pendingMessage:fallback'); } catch (e) {}
-            // mark pending and wait for server confirmation
-            setPendingApplied(true);
-            setPendingConfirmation({ tempId: pending.id, text: pending.text });
-            return { ...prev, [selectedId]: appended };
-          });
+        const convs = await fetchConversations(user.id);
+        const items = convs.map((c) => mapConversation(c, user.id));
+
+        // If the URL points at a conversation that is not in the list (e.g. it
+        // was just created), fetch it directly so the thread opens correctly.
+        if (queryConversationId && !items.some((c) => c.id === queryConversationId)) {
+          const missing = await fetchConversationById(queryConversationId);
+          if (missing && (missing.participant1_id === user.id || missing.participant2_id === user.id)) {
+            items.push(mapConversation(missing, user.id));
+          }
         }
-      } catch (e) {
-        // ignore
+
+        setConversations(items);
+        if (queryConversationId && items.some((c) => c.id === queryConversationId)) {
+          setSelectedId(queryConversationId);
+        }
+      } catch (error) {
+        console.error('[Messages] error loading conversations:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
-    loadSelectedConversation().catch(error => {
-      console.error('[Messages] loadSelectedConversation failed:', error);
-    });
+    load();
+  }, [user?.id, queryConversationId]);
+
+  // ── Load messages for the selected conversation + mark it read ───────────
+  const reloadMessages = useCallback(
+    async (convId: string) => {
+      if (!user?.id) return;
+      try {
+        const msgs = await fetchConversationMessages(convId);
+        setMessages((prev) => ({
+          ...prev,
+          [convId]: msgs.map((msg) => mapMessage(msg, user.id)),
+        }));
+      } catch (err) {
+        console.error('[Messages] reloadMessages failed:', err);
+      }
+    },
+    [user?.id],
+  );
+
+  useEffect(() => {
+    if (!selectedId || !user?.id) return;
+
+    const cached = messagesRef.current[selectedId];
+    if (!cached || cached.length === 0) {
+      reloadMessages(selectedId);
+    }
+
+    // WhatsApp-style "Seen" receipt: mark everything the user received as read.
+    markConversationRead(selectedId, user.id);
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedId ? { ...c, unread: 0 } : c)),
+    );
+  }, [selectedId, user?.id, reloadMessages]);
+
+  // Auto-scroll to the newest message.
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages[selectedId || '']?.length, selectedId]);
+
+  // ── Real-time: new messages + read receipts in the OPEN conversation ─────
+  useEffect(() => {
+    if (!selectedId || !user?.id) return;
 
     const channel = supabase
       .channel(`messages-live:${selectedId}`)
@@ -352,49 +284,65 @@ export default function Messages() {
         (payload) => {
           const newMsg = payload.new as any;
           const isOwn = newMsg.sender_id === user.id;
-          setMessages(prev => {
-            const existing = prev[selectedId] || [];
-            // Avoid duplicates
-            if (existing.some(m => m.id === newMsg.id)) return prev;
 
-            // If this is our own message, try to replace the optimistic message
+          setMessages((prev) => {
+            const existing = prev[selectedId] || [];
+            if (existing.some((m) => m.id === newMsg.id)) return prev;
+
+            const entry: MessageItem = {
+              id: newMsg.id,
+              sender: isOwn ? 'me' : 'them',
+              text: newMsg.content,
+              time: formatBubbleTime(newMsg.created_at),
+              isoTime: newMsg.created_at,
+              // Messages arriving in the open thread are seen immediately.
+              read: isOwn ? !!newMsg.is_read : true,
+              temp: false,
+            };
+
             if (isOwn) {
-              const serverMsg = {
-                id: newMsg.id,
-                sender: 'me' as const,
-                text: newMsg.content,
-                time: new Date(newMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                read: newMsg.is_read,
-              };
-              const idx = existing.findIndex(m =>
-                (String(m.id).startsWith('msg-') || String(m.id).startsWith('temp-')) && m.text === newMsg.content
-              );
+              // Replace the optimistic bubble (if any) with the server one.
+              const idx = existing.findIndex((m) => m.temp && m.text === newMsg.content);
               if (idx !== -1) {
-                const updated = [...existing];
-                updated[idx] = serverMsg;
-                // clear pending state if it matches
-                if (pendingConfirmation && pendingConfirmation.text === newMsg.content) {
-                  setPendingApplied(false);
-                  setPendingConfirmation(null);
-                }
-                return { ...prev, [selectedId]: updated };
+                const next = [...existing];
+                next[idx] = entry;
+                return { ...prev, [selectedId]: next };
               }
-              // If no optimistic match, just append
-              return { ...prev, [selectedId]: [...existing, serverMsg] };
+              return { ...prev, [selectedId]: [...existing, entry] };
             }
 
-            // Message from the other participant
-            return {
-              ...prev,
-              [selectedId]: [...existing, {
-                id: newMsg.id,
-                sender: 'them' as const,
-                text: newMsg.content,
-                time: new Date(newMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                read: newMsg.is_read,
-              }],
-            };
+            // Incoming message → append and send a read receipt to the sender.
+            markConversationRead(selectedId, user.id);
+            return { ...prev, [selectedId]: [...existing, entry] };
           });
+
+          // Keep the list's last-message + unread state in sync for BOTH sides.
+          reloadConversations();
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${selectedId}`,
+        },
+        (payload) => {
+          const upd = payload.new as any;
+          // Only my own messages matter here — this flips them to "Seen" when
+          // the recipient opens the thread.
+          if (upd.sender_id === user.id) {
+            setMessages((prev) => {
+              const list = prev[selectedId] || [];
+              return {
+                ...prev,
+                [selectedId]: list.map((m) =>
+                  m.id === upd.id ? { ...m, read: !!upd.is_read } : m,
+                ),
+              };
+            });
+          }
         },
       )
       .subscribe();
@@ -402,57 +350,42 @@ export default function Messages() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedId, user?.id]);
+  }, [selectedId, user?.id, reloadConversations]);
 
-  // Real-time subscription for new/updated conversations (new threads, last
-  // message changes, etc.) so the list stays in sync for BOTH participants.
+  // ── Real-time: conversation list stays in sync for both participants ─────
   useEffect(() => {
     if (!user?.id) return;
 
-    const refresh = () => { reloadConversations(); };
+    const refresh = () => {
+      reloadConversations();
+    };
 
     const channel = supabase
       .channel(`conversations-live:${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'conversations',
-          filter: `participant1_id=eq.${user.id}`,
-        },
-        refresh,
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'conversations',
-          filter: `participant2_id=eq.${user.id}`,
-        },
-        refresh,
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'conversations',
-          filter: `participant1_id=eq.${user.id}`,
-        },
-        refresh,
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'conversations',
-          filter: `participant2_id=eq.${user.id}`,
-        },
-        refresh,
-      )
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'conversations',
+        filter: `participant1_id=eq.${user.id}`,
+      }, refresh)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'conversations',
+        filter: `participant2_id=eq.${user.id}`,
+      }, refresh)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'conversations',
+        filter: `participant1_id=eq.${user.id}`,
+      }, refresh)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'conversations',
+        filter: `participant2_id=eq.${user.id}`,
+      }, refresh)
       .subscribe();
 
     return () => {
@@ -460,44 +393,31 @@ export default function Messages() {
     };
   }, [user?.id, reloadConversations]);
 
-  const selectedConversation = conversations.find(c => c.id === selectedId);
-  const currentMessages = selectedId ? (messages[selectedId] || []) : [];
-
-  const filtered = conversations.filter(c =>
-    c.company.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [currentMessages.length, selectedId]);
-
+  // ── Send a message (optimistic, appended to the SAME thread only) ────────
   const handleSend = useCallback(async () => {
-    if (!newMessage.trim() || !selectedId || !user?.id || !profile?.full_name || sending) return;
+    const text = newMessage.trim();
+    if (!text || !selectedId || !user?.id || !profile?.full_name || sending) return;
 
-    const selectedConv = conversations.find(c => c.id === selectedId);
+    const selectedConv = conversations.find((c) => c.id === selectedId);
     if (!selectedConv) return;
 
-    const messageText = newMessage.trim();
     setNewMessage('');
-
-    // Optimistically add to local state
-    const tempId = `msg-${Date.now()}`;
-    const optimisticMsg: MessageItem = {
-      id: tempId,
-      sender: 'me',
-      text: messageText,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      read: false,
-    };
-    setMessages(prev => ({
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => ({
       ...prev,
-      [selectedId]: [...(prev[selectedId] || []), optimisticMsg],
+      [selectedId]: [
+        ...(prev[selectedId] || []),
+        {
+          id: tempId,
+          sender: 'me' as const,
+          text,
+          time: formatBubbleTime(new Date().toISOString()),
+          isoTime: new Date().toISOString(),
+          read: false,
+          temp: true,
+        },
+      ],
     }));
-
-    // set pending confirmation so UI shows persistent toast until server confirms
-    setPendingApplied(true);
-    setPendingConfirmation({ tempId, text: messageText });
-
     setSending(true);
 
     try {
@@ -507,46 +427,78 @@ export default function Messages() {
         recipientId: selectedConv.recipientId,
         recipientName: selectedConv.recipientName,
         recipientEmail: selectedConv.recipientEmail,
-        message: messageText,
+        message: text,
       });
 
-      // Clear pending state immediately — the message was sent successfully.
-      // The real-time subscription will replace the optimistic message with
-      // the server-confirmed one in the background.
-      setPendingApplied(false);
-      setPendingConfirmation(null);
-
-      // Refresh the conversation list so the new message + thread appear immediately
+      // Replace the optimistic bubble with the server-confirmed message, then
+      // refresh the list so the thread + preview update immediately.
+      await reloadMessages(selectedId);
       await reloadConversations();
     } catch (error) {
       console.error('[Messages] handleSend failed:', error);
-      // Remove optimistic message on failure
-      setMessages(prev => ({
+      setMessages((prev) => ({
         ...prev,
-        [selectedId]: (prev[selectedId] || []).filter(m => m.id !== tempId),
+        [selectedId]: (prev[selectedId] || []).filter((m) => m.id !== tempId),
       }));
-      // clear pending UI
-      setPendingApplied(false);
-      setPendingConfirmation(null);
     } finally {
       setSending(false);
     }
-  }, [newMessage, selectedId, user?.id, profile?.full_name, conversations, sending, reloadConversations]);
+  }, [
+    newMessage,
+    selectedId,
+    user?.id,
+    profile?.full_name,
+    conversations,
+    sending,
+    reloadMessages,
+    reloadConversations,
+  ]);
+
+  // ── Derived state ────────────────────────────────────────────────────────
+  const selectedConversation = conversations.find((c) => c.id === selectedId);
+  const currentMessages = selectedId ? messages[selectedId] || [] : [];
+  const filtered = conversations.filter((c) =>
+    c.company.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  const handleBackToList = useCallback(() => {
+    setSelectedId(null);
+    navigate('/messages', { replace: true });
+  }, [navigate]);
+
+  const openConversation = useCallback(
+    (convId: string) => {
+      setSelectedId(convId);
+      navigate(`/messages?conversationId=${encodeURIComponent(convId)}`, { replace: true });
+    },
+    [navigate],
+  );
+
+  // Build the message list with WhatsApp-style day separators.
+  const renderedMessages: Array<{ type: 'day' | 'message'; key: string; day?: string; msg?: MessageItem }> = [];
+  let lastDay = '';
+  for (const msg of currentMessages) {
+    const dk = msg.isoTime ? dayKey(msg.isoTime) : '';
+    if (dk && dk !== lastDay) {
+      renderedMessages.push({ type: 'day', key: `day-${dk}`, day: formatDayLabel(msg.isoTime!) });
+      lastDay = dk;
+    }
+    renderedMessages.push({ type: 'message', key: msg.id, msg });
+  }
 
   return (
     <AppLayout>
       <div className="flex h-[calc(100dvh-64px)]">
-        {/* Conversation List */}
-        <div className={`w-full sm:w-80 lg:w-96 border-r border-gray-100 flex flex-col bg-white ${selectedId ? 'hidden sm:flex' : 'flex'}`}>
-          {/* Header */}
-          <div className="p-4 border-b border-gray-100">
+        {/* ── Conversation List (WhatsApp main screen) ─────────────────── */}
+        <div
+          className={`w-full sm:w-80 lg:w-96 border-r border-gray-100 flex-col bg-white ${selectedId ? 'hidden sm:flex' : 'flex'}`}
+        >
+          <div className="px-4 pt-4 pb-2 border-b border-gray-100">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-gray-900">Messages</h2>
-                <span className="flex items-center gap-1 text-xs text-green-600">
-                  <CircleDot className="w-3 h-3" /> Online
-                </span>
-              </div>
+              <h2 className="text-lg font-bold text-gray-900">Messages</h2>
+              <span className="flex items-center gap-1 text-xs text-green-600">
+                <CircleDot className="w-3 h-3" /> Online
+              </span>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -554,109 +506,122 @@ export default function Messages() {
                 type="text"
                 placeholder="Search conversations..."
                 value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
               />
             </div>
           </div>
 
-          {/* Conversation Items */}
           <div className="flex-1 overflow-y-auto">
             {!isAuthenticated ? (
               <div className="p-6 text-center">
-                <img src={IMG.empty.noMessages} alt="" className="w-full max-w-[200px] mx-auto rounded-lg mb-4 opacity-80" />
+                <img
+                  src={IMG.empty.noMessages}
+                  alt=""
+                  className="w-full max-w-[200px] mx-auto rounded-lg mb-4 opacity-80"
+                />
                 <p className="text-sm text-gray-500 mb-3">Sign in to see your messages</p>
-                <a href="/login" className="text-blue-600 text-sm font-medium hover:underline">Sign in</a>
+                <a href="/login" className="text-blue-600 text-sm font-medium hover:underline">
+                  Sign in
+                </a>
               </div>
             ) : loading ? (
               <div className="p-6 text-center">
                 <div className="animate-pulse space-y-3">
-                  {[1, 2, 3].map(i => (
+                  {[1, 2, 3].map((i) => (
                     <div key={i} className="h-12 bg-gray-100 rounded-lg" />
                   ))}
                 </div>
               </div>
             ) : filtered.length === 0 ? (
               <div className="p-6 text-center">
-                <img src={IMG.empty.noMessages} alt="" className="w-full max-w-[200px] mx-auto rounded-lg mb-3 opacity-80" />
-                <p className="text-sm text-gray-400">No message notifications yet</p>
-                <p className="text-xs text-gray-400 mt-2">When recruiters and job seekers message you, they will appear here.</p>
+                <img
+                  src={IMG.empty.noMessages}
+                  alt=""
+                  className="w-full max-w-[200px] mx-auto rounded-lg mb-3 opacity-80"
+                />
+                <p className="text-sm text-gray-400">No conversations yet</p>
+                <p className="text-xs text-gray-400 mt-2">
+                  When you contact a service provider, your chat will appear here.
+                </p>
               </div>
             ) : (
-              filtered.map(conv => (
+              filtered.map((conv) => (
                 <button
                   key={conv.id}
-                  onClick={() => {
-                    setSelectedId(conv.id);
-                    navigate(`/messages?conversationId=${encodeURIComponent(conv.id)}`, { replace: true });
-                  }}
+                  onClick={() => openConversation(conv.id)}
                   className={`w-full flex items-start gap-3 px-4 py-3 border-b border-gray-50 text-left transition-colors ${
                     selectedId === conv.id ? 'bg-blue-50' : 'hover:bg-gray-50'
                   }`}
                 >
-                  {/* Avatar */}
                   <div className="relative shrink-0">
-                    <CompanyLogo company={conv.company} className="w-11 h-11 rounded-full" fallbackClassName={conv.color} />
+                    <CompanyLogo
+                      company={conv.company}
+                      className="w-11 h-11 rounded-full"
+                      fallbackClassName={conv.color}
+                    />
                     {conv.online && (
                       <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
                     )}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className={`text-sm ${conv.unread > 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+                      <span
+                        className={`text-sm truncate ${
+                          conv.unread > 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'
+                        }`}
+                      >
                         {conv.company}
                       </span>
-                      <span className="text-xs text-gray-400 shrink-0">{conv.timestamp.split(' ')[0]}</span>
+                      <span className="text-xs text-gray-400 shrink-0 ml-2">{conv.timestamp}</span>
                     </div>
-                    <p className={`text-xs mt-0.5 truncate ${conv.unread > 0 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
-                      {conv.locked && <Lock className="w-3 h-3 inline mr-1 text-gray-400" />}
-                      {conv.lastMessage}
-                    </p>
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <p
+                        className={`text-xs truncate ${
+                          conv.unread > 0 ? 'text-gray-700 font-medium' : 'text-gray-500'
+                        }`}
+                      >
+                        {conv.locked && <Lock className="w-3 h-3 inline mr-1 text-gray-400" />}
+                        {conv.lastMessage}
+                      </p>
+                      {conv.unread > 0 && (
+                        <span className="shrink-0 w-5 h-5 bg-green-500 text-white text-[11px] font-semibold rounded-full flex items-center justify-center">
+                          {conv.unread}
+                        </span>
+                      )}
+                    </div>
                   </div>
-
-                  {/* Unread badge */}
-                  {conv.unread > 0 && (
-                    <span className="shrink-0 mt-1 w-5 h-5 bg-blue-600 text-white text-xs font-semibold rounded-full flex items-center justify-center">
-                      {conv.unread}
-                    </span>
-                  )}
                 </button>
               ))
             )}
           </div>
         </div>
 
-        {/* Message Panel */}
-        <div className={`flex-1 flex flex-col bg-gray-50 ${selectedId ? 'flex' : 'hidden sm:flex'}`}>
+        {/* ── Chat View (full-screen on mobile, panel on desktop) ──────── */}
+        <div className={`flex-1 flex-col bg-[#efeae2] ${selectedId ? 'flex' : 'hidden sm:flex'}`}>
           {!selectedId ? (
-            /* Welcome state */
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-              <div className="w-32 h-32 mb-6 relative">
-                <div className="w-20 h-20 bg-blue-100 rounded-full absolute top-4 left-6 flex items-center justify-center">
-                  <Send className="w-8 h-8 text-blue-500" />
-                </div>
-                <div className="w-10 h-10 bg-purple-100 rounded-full absolute top-0 right-4 flex items-center justify-center">
-                  <span className="text-purple-500 text-sm">💬</span>
-                </div>
-                <div className="w-8 h-8 bg-orange-100 rounded-full absolute bottom-4 right-8 flex items-center justify-center">
-                  <span className="text-orange-500 text-xs">✨</span>
-                </div>
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white">
+              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-5">
+                <Send className="w-9 h-9 text-blue-500" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">Welcome to Messages</h3>
-              <p className="text-gray-500 text-sm max-w-xs">Select a conversation to view and respond to employers who have reached out to you.</p>
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">JobBridge Messages</h3>
+              <p className="text-gray-500 text-sm max-w-xs">
+                Select a conversation to view and reply. Each conversation is private to you and the
+                other person.
+              </p>
             </div>
           ) : (
             <>
-              {/* Conversation Header */}
-              <div className="bg-white border-b border-gray-100 px-5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              {/* Header */}
+              <div className="bg-[#f0f2f5] border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-3 min-w-0">
                   <button
-                    onClick={handleBackToNotifications}
-                    className="sm:hidden text-gray-500 hover:text-gray-700 mr-1"
+                    onClick={handleBackToList}
+                    className="sm:hidden text-gray-600 hover:text-gray-900 -ml-1"
+                    aria-label="Back to conversations"
                   >
-                    ←
+                    <ArrowLeft className="w-5 h-5" />
                   </button>
                   {selectedConversation && (
                     <CompanyLogo
@@ -665,10 +630,12 @@ export default function Messages() {
                       fallbackClassName={selectedConversation.color}
                     />
                   )}
-                  <div>
-                    <p className="font-semibold text-gray-900 text-sm">{selectedConversation?.company}</p>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm truncate">
+                      {selectedConversation?.company}
+                    </p>
                     <p className="text-xs text-gray-500">
-                      {selectedConversation?.locked ? 'Conversation ended' : selectedConversation?.online ? 'Online' : 'Last seen recently'}
+                      {selectedConversation?.locked ? 'Conversation ended' : 'Private chat'}
                     </p>
                   </div>
                 </div>
@@ -678,63 +645,93 @@ export default function Messages() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              <div className="flex-1 overflow-y-auto px-4 py-4">
                 {selectedConversation?.locked && (
-                  <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 text-sm text-yellow-700">
+                  <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 text-sm text-yellow-700 mb-3">
                     <Lock className="w-4 h-4" />
                     This conversation is no longer active.
                   </div>
                 )}
-                {/* Inline sending indicator (no separate popup) */}
-                {pendingApplied && (
-                  <div className="flex justify-end">
-                    <div className="bg-blue-100 text-blue-700 rounded-2xl px-4 py-2 text-xs flex items-center gap-2">
-                      <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.2"/><path d="M4 12a8 8 0 018-8"/></svg>
-                      Sending…
+
+                {currentMessages.length === 0 && !sending ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center max-w-xs">
+                      <p className="text-sm text-gray-500 font-medium mb-1">
+                        No messages yet
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Say hello to start the conversation.
+                      </p>
                     </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {renderedMessages.map((item) =>
+                      item.type === 'day' ? (
+                        <div key={item.key} className="flex justify-center my-3">
+                          <span className="text-xs text-gray-600 bg-white/70 rounded-lg px-3 py-1 shadow-sm">
+                            {item.day}
+                          </span>
+                        </div>
+                      ) : (
+                        <div
+                          key={item.key}
+                          className={`flex ${item.msg!.sender === 'me' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[75%] sm:max-w-sm rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
+                              item.msg!.sender === 'me'
+                                ? 'bg-[#d9fdd3] text-gray-800 rounded-br-sm'
+                                : 'bg-white text-gray-800 rounded-bl-sm'
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap break-words">{item.msg!.text}</p>
+                            <div
+                              className={`flex items-center justify-end gap-1 mt-1 text-[11px] ${
+                                item.msg!.sender === 'me' ? 'text-gray-500' : 'text-gray-400'
+                              }`}
+                            >
+                              {item.msg!.temp && (
+                                <>
+                                  <Clock className="w-3 h-3" />
+                                  <span>Sending…</span>
+                                </>
+                              )}
+                              {!item.msg!.temp && item.msg!.time}
+                              {item.msg!.sender === 'me' && !item.msg!.temp && (
+                                item.msg!.read ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-sky-500" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5 text-gray-500" />
+                                )
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ),
+                    )}
+                    <div ref={messagesEndRef} />
                   </div>
                 )}
-                {currentMessages.map(msg => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-xs sm:max-w-sm rounded-2xl px-4 py-2.5 text-sm ${
-                      msg.sender === 'me'
-                        ? 'bg-blue-600 text-white rounded-br-sm'
-                        : 'bg-white text-gray-800 border border-gray-100 rounded-bl-sm shadow-sm'
-                    }`}>
-                      <p>{msg.text}</p>
-                      <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${
-                        msg.sender === 'me' ? 'text-blue-200' : 'text-gray-400'
-                      }`}>
-                        {msg.time}
-                        {msg.sender === 'me' && (
-                          msg.read ? <CheckCheck className="w-3 h-3" /> : <Check className="w-3 h-3" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
               </div>
 
-              {/* Input */}
+              {/* Input — fixed at the bottom */}
               {!selectedConversation?.locked && (
-                <div className="bg-white border-t border-gray-100 px-4 py-3">
+                <div className="bg-[#f0f2f5] border-t border-gray-200 px-3 py-3">
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={newMessage}
-                      onChange={e => setNewMessage(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleSend()}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                       placeholder="Type a message..."
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                      className="flex-1 px-4 py-2.5 rounded-full bg-white border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                     />
                     <button
                       onClick={handleSend}
                       disabled={!newMessage.trim() || sending}
-                      className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="p-2.5 bg-[#00a884] text-white rounded-full hover:bg-[#019374] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                      aria-label="Send message"
                     >
                       <Send className="w-4 h-4" />
                     </button>

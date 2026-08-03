@@ -186,7 +186,7 @@ const Jobs = () => {
   const benefits = selectedJob ? parseBenefits(selectedJob.benefits) : [];
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-gray-100 overflow-hidden">
       <Header />
 
       <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
@@ -273,9 +273,9 @@ const Jobs = () => {
         </div>
 
         {/* Main Split Panel */}
-        <div className="flex-1 flex overflow-hidden max-w-7xl mx-auto w-full">
+        <div className="flex-1 flex overflow-hidden max-w-7xl mx-auto w-full min-h-0">
           {/* Left Column: Job Cards */}
-          <div className={`${selectedJob ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[420px] xl:w-[460px] flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto stagger-children stagger-visible`}>
+          <div className={`${selectedJob ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[420px] xl:w-[460px] flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto min-h-0`}>
             {loadingJobs ? (
               <div className="p-12 text-center">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-700 mx-auto mb-3" />
@@ -350,7 +350,7 @@ const Jobs = () => {
           </div>
 
           {/* Right Column: Job Detail */}
-          <div ref={detailRef} className={`${selectedJob ? 'flex' : 'hidden lg:flex'} flex-col flex-1 bg-white overflow-y-auto`}>
+          <div ref={detailRef} className={`${selectedJob ? 'flex' : 'hidden lg:flex'} flex-col flex-1 bg-white overflow-y-auto min-h-0`}>
             {selectedJob ? (
               <>
                 {/* Mobile back button */}

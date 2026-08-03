@@ -9,6 +9,10 @@ import {
   fetchAdvertisementsByOwner,
   fetchPublicAdvertisements,
   createAdvertisement,
+  updateAdvertisement,
+  deleteAdvertisement,
+  incrementAdvertisementViews,
+  incrementAdvertisementClicks,
   decrementCredits,
 } from '../lib/supabaseQueries';
 import {
@@ -24,6 +28,11 @@ import {
   Edit,
   Trash2,
   Lock,
+  Phone,
+  Globe,
+  Mail,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, advertImage } from '../lib/media';
@@ -46,6 +55,9 @@ interface Advert {
   views: number;
   clicks: number;
   featured: boolean;
+  website?: string;
+  phone?: string;
+  email?: string;
 }
 
 const initialAdverts: Advert[] = [];
@@ -79,6 +91,21 @@ export default function Business() {
     package: '',
     featured: false,
   });
+
+  // Edit existing advert
+  const [editingAdvert, setEditingAdvert] = useState<Advert | null>(null);
+  const [editForm, setEditForm] = useState({
+    businessName: '',
+    title: '',
+    description: '',
+    category: '',
+    package: '',
+    featured: false,
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Advert detail viewer (public showcase + own adverts)
+  const [viewAdvert, setViewAdvert] = useState<Advert | null>(null);
 
   const paidPackage = searchParams.get('paidPackage') || '';
   const paidPackageOption = paidPackage === 'business_weekly'
@@ -145,6 +172,9 @@ export default function Business() {
               views: ad.views || 0,
               clicks: ad.clicks || 0,
               featured: ad.is_featured || false,
+              website: ad.website_url || '',
+              phone: ad.phone || '',
+              email: ad.email || '',
             })),
           );
           // User can only have 1 advert total
@@ -193,6 +223,9 @@ export default function Business() {
               views: ad.views || 0,
               clicks: ad.clicks || 0,
               featured: ad.is_featured || false,
+              website: ad.website_url || '',
+              phone: ad.phone || '',
+              email: ad.email || '',
             })),
           );
         }
@@ -328,6 +361,9 @@ export default function Business() {
           views: ad.views || 0,
           clicks: ad.clicks || 0,
           featured: ad.is_featured || false,
+          website: ad.website_url || '',
+          phone: ad.phone || '',
+          email: ad.email || '',
         })),
       );
     } catch (error) {
@@ -335,16 +371,93 @@ export default function Business() {
     }
   };
 
-  const toggleAdStatus = (id: string) => {
-    setAdverts(adverts.map(ad =>
-      ad.id === id
-        ? { ...ad, status: ad.status === 'active' ? 'paused' : 'active' }
-        : ad
-    ));
+  // ── Pause / Activate (persisted to the database) ────────────────────────
+  const handleToggleAdStatus = async (ad: Advert) => {
+    const next = ad.status === 'active' ? 'paused' : 'active';
+    try {
+      await updateAdvertisement(ad.id, { status: next });
+      window.dispatchEvent(new Event('adverts:updated'));
+      push({
+        message: next === 'active' ? '✅ Advert activated.' : '⏸️ Advert paused.',
+        type: 'success',
+      });
+    } catch (err) {
+      console.error('[Business] toggle advert status failed:', err);
+      push({ message: '❌ Failed to update advert status. Please try again.', type: 'error' });
+    }
   };
 
-  const deleteAdvert = (id: string) => {
-    setAdverts(adverts.filter(ad => ad.id !== id));
+  // ── Delete (persisted to the database) ──────────────────────────────────
+  const handleDeleteAdvert = async (ad: Advert) => {
+    if (!window.confirm('Delete this advert? This cannot be undone.')) return;
+    try {
+      await deleteAdvertisement(ad.id);
+      if (viewAdvert?.id === ad.id) setViewAdvert(null);
+      window.dispatchEvent(new Event('adverts:updated'));
+      push({ message: '🗑️ Advert deleted.', type: 'success' });
+    } catch (err) {
+      console.error('[Business] delete advert failed:', err);
+      push({ message: '❌ Failed to delete advert. Please try again.', type: 'error' });
+    }
+  };
+
+  // ── Edit (open prefilled form) ──────────────────────────────────────────
+  const openEditAdvert = (ad: Advert) => {
+    setEditingAdvert(ad);
+    setEditForm({
+      businessName: ad.businessName,
+      title: ad.title,
+      description: ad.description,
+      category: ad.category,
+      package: ad.duration,
+      featured: ad.featured,
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAdvert) return;
+    setSavingEdit(true);
+    try {
+      const normalizedPackage = editForm.package === 'Weekly'
+        ? 'weekly'
+        : editForm.package === 'Monthly'
+          ? 'monthly'
+          : 'featured';
+      await updateAdvertisement(editingAdvert.id, {
+        business_name: editForm.businessName,
+        title: editForm.title,
+        description: editForm.description,
+        category: editForm.category || 'Other',
+        package: normalizedPackage,
+        is_featured: editForm.package === 'Featured' || editForm.featured,
+      });
+      setEditingAdvert(null);
+      window.dispatchEvent(new Event('adverts:updated'));
+      push({ message: '✅ Advert updated successfully!', type: 'success' });
+    } catch (err) {
+      console.error('[Business] edit advert failed:', err);
+      push({ message: '❌ Failed to update advert. Please try again.', type: 'error' });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // ── View detail (counts a view) ─────────────────────────────────────────
+  const handleViewAdvert = (ad: Advert) => {
+    setViewAdvert(ad);
+    incrementAdvertisementViews(ad.id);
+    // Optimistic bump so the counters reflect immediately in the UI.
+    setPublicAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, views: a.views + 1 } : a));
+    setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, views: a.views + 1 } : a));
+  };
+
+  // ── Contact action from the detail view (counts a click) ────────────────
+  const handleAdvertContact = (ad: Advert, action: () => void) => {
+    incrementAdvertisementClicks(ad.id);
+    setPublicAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
+    setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
+    action();
   };
 
   const stats = {
@@ -395,7 +508,8 @@ export default function Business() {
               {publicAdverts.map((advert) => (
                 <div
                   key={advert.id}
-                  className={`bg-white rounded-xl overflow-hidden border hover:shadow-lg transition-shadow ${
+                  onClick={() => handleViewAdvert(advert)}
+                  className={`bg-white rounded-xl overflow-hidden border hover:shadow-lg transition-shadow cursor-pointer ${
                     advert.featured ? 'border-amber-200 ring-1 ring-amber-200' : 'border-gray-100'
                   }`}
                 >
@@ -433,12 +547,15 @@ export default function Business() {
                         {advert.views.toLocaleString()} views
                       </span>
                     </div>
-                    <Link
-                      to="/business"
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewAdvert(advert);
+                      }}
                       className="inline-flex items-center gap-1 text-sm text-blue-700 font-medium hover:underline"
                     >
                       View advert <ChevronRight className="w-3.5 h-3.5" />
-                    </Link>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -789,7 +906,14 @@ export default function Business() {
 
                   <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => toggleAdStatus(advert.id)}
+                      onClick={() => handleViewAdvert(advert)}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-50 text-gray-700 hover:bg-gray-100"
+                    >
+                      <Eye className="w-4 h-4 inline mr-1" />
+                      View
+                    </button>
+                    <button
+                      onClick={() => handleToggleAdStatus(advert)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
                         advert.status === 'active'
                           ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -798,12 +922,15 @@ export default function Business() {
                     >
                       {advert.status === 'active' ? 'Pause' : 'Activate'}
                     </button>
-                    <button className="px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100">
+                    <button
+                      onClick={() => openEditAdvert(advert)}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    >
                       <Edit className="w-4 h-4 inline mr-1" />
                       Edit
                     </button>
                     <button
-                      onClick={() => deleteAdvert(advert.id)}
+                      onClick={() => handleDeleteAdvert(advert)}
                       className="px-3 py-1.5 rounded-lg text-sm font-medium bg-red-50 text-red-600 hover:bg-red-100"
                     >
                       <Trash2 className="w-4 h-4 inline mr-1" />
@@ -845,6 +972,197 @@ export default function Business() {
           </div>
         </div></AnimatedSection>
       </div>
+
+      {/* ── Advert Detail Modal (counts a view on open, clicks on contact) ── */}
+      {viewAdvert && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/50">
+          <div className="w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="relative">
+              <img
+                src={advertImage(viewAdvert.category)}
+                alt={viewAdvert.title}
+                className="w-full h-48 object-cover"
+              />
+              <button
+                onClick={() => setViewAdvert(null)}
+                className="absolute top-3 right-3 p-2 bg-white/90 rounded-full hover:bg-white transition-colors shadow"
+                aria-label="Close advert details"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+              {viewAdvert.featured && (
+                <span className="absolute top-3 left-3 flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                  <Star className="w-3 h-3" /> Featured
+                </span>
+              )}
+            </div>
+            <div className="p-6">
+              <h2 className="text-xl font-bold text-gray-900">{viewAdvert.title}</h2>
+              <p className="text-sm text-gray-600 mt-1">{viewAdvert.businessName}</p>
+              <div className="flex flex-wrap gap-3 text-xs text-gray-600 mt-3">
+                <span className="flex items-center gap-1">
+                  <Building className="w-3.5 h-3.5" /> {viewAdvert.category}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" /> {viewAdvert.duration}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Eye className="w-3.5 h-3.5" /> {viewAdvert.views.toLocaleString()} views
+                </span>
+                <span className="flex items-center gap-1">
+                  <TrendingUp className="w-3.5 h-3.5" /> {viewAdvert.clicks} clicks
+                </span>
+              </div>
+              <p className="text-sm text-gray-700 mt-4 leading-relaxed whitespace-pre-wrap">{viewAdvert.description}</p>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                {viewAdvert.phone && (
+                  <a
+                    href={`tel:${viewAdvert.phone}`}
+                    onClick={() => handleAdvertContact(viewAdvert, () => {})}
+                    className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    <Phone className="w-4 h-4" /> Call
+                  </a>
+                )}
+                {viewAdvert.website && (
+                  <a
+                    href={viewAdvert.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => handleAdvertContact(viewAdvert, () => {})}
+                    className="inline-flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    <Globe className="w-4 h-4" /> Visit Website
+                  </a>
+                )}
+                {viewAdvert.email && (
+                  <a
+                    href={`mailto:${viewAdvert.email}`}
+                    onClick={() => handleAdvertContact(viewAdvert, () => {})}
+                    className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    <Mail className="w-4 h-4" /> Email
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Advert Modal ── */}
+      {editingAdvert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Edit Advert</h2>
+              <button
+                onClick={() => setEditingAdvert(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Close edit form"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.businessName}
+                  onChange={(e) => setEditForm({ ...editForm, businessName: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="Your business name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Advert Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="Catchy headline for your advert"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                  placeholder="Describe your product or service..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                  <select
+                    required
+                    value={editForm.category}
+                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  >
+                    <option value="">Select...</option>
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Package *</label>
+                  <select
+                    required
+                    value={editForm.package}
+                    onChange={(e) => setEditForm({ ...editForm, package: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  >
+                    <option value="">Select...</option>
+                    {adPackages.map(pkg => (
+                      <option key={pkg.name} value={pkg.name}>{pkg.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <input
+                  type="checkbox"
+                  id="edit-featured"
+                  checked={editForm.featured}
+                  onChange={(e) => setEditForm({ ...editForm, featured: e.target.checked })}
+                  className="w-5 h-5 rounded text-amber-500 focus:ring-amber-500"
+                />
+                <label htmlFor="edit-featured" className="text-sm">
+                  <span className="font-medium text-gray-900">Featured placement</span>
+                  <br />
+                  <span className="text-gray-600">Your advert gets priority positioning</span>
+                </label>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setEditingAdvert(null)}
+                  className="flex-1 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="flex-1 py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
     </div>

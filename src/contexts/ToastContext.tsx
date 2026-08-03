@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 import { useEffect } from 'react';
 
-type Toast = { id: string; message: string; type?: 'success' | 'error' | 'info' };
+// 'message' is a reserved type used to suppress floating message popups — the
+// UNIFIED CHAT SPACE rule says message content may only appear inside the
+// dedicated thread, never as a toast/notification. push() drops these.
+type Toast = { id: string; message: string; type?: 'success' | 'error' | 'info' | 'message' };
 
 const ToastContext = createContext({
   toasts: [] as Toast[],

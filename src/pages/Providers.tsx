@@ -141,25 +141,18 @@ export default function Providers() {
       });
 
       if (conversationId) {
-        const targetUrl = `/messages?conversationId=${encodeURIComponent(conversationId)}`;
-        try {
-          const pending = { id: `temp-${Date.now()}`, text: messageText, time: new Date().toISOString() };
-          sessionStorage.setItem(`pendingMessage:${conversationId}`, JSON.stringify(pending));
-        } catch (e) {
-          // ignore
-        }
-        window.location.href = targetUrl;
+        // The message is already persisted server-side by
+        // createConversationMessage, so navigating straight to the dedicated
+        // thread shows the full history including this message. No sessionStorage
+        // hack or full-page reload — the Messages page owns the thread and loads
+        // it from the database.
+        navigate(`/messages?conversationId=${encodeURIComponent(conversationId)}`, { replace: true });
       } else {
-        const fallback = '/messages';
-        try { sessionStorage.setItem('pendingMessage:fallback', JSON.stringify({ id: `temp-${Date.now()}`, text: messageText, time: new Date().toISOString() })); } catch (e) {}
-        navigate(fallback, { replace: true });
-        window.location.href = fallback;
+        navigate('/messages', { replace: true });
       }
     } catch (error) {
       console.error('[sendMessage] conversation save failed:', error);
-      const fallbackUrl = '/messages';
-      navigate(fallbackUrl, { replace: true });
-      window.location.href = fallbackUrl;
+      navigate('/messages', { replace: true });
     }
   };
 

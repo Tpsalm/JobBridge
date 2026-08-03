@@ -33,22 +33,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // ── 1) Find or create conversation ──────────────────────────────────────
+    // The DB has a UNIQUE index on LEAST/GREATEST(participant1_id,
+    // participant2_id), so a pair can never have two threads. If a concurrent
+    // request already created the thread between our find and insert, the
+    // insert will fail with a unique violation (23505) and we simply re-fetch
+    // the existing conversation instead of erroring out.
     const ordered = [senderId, recipientId].sort();
     const participantsFilter = `or(and(participant1_id.eq.${ordered[0]},participant2_id.eq.${ordered[1]}),and(participant1_id.eq.${ordered[1]},participant2_id.eq.${ordered[0]}))`;
 
-    const findUrl = new URL(`${baseUrl}/rest/v1/conversations`);
-    findUrl.searchParams.set('select', 'id');
-    findUrl.searchParams.set('or', participantsFilter);
+    const findConversation = async (): Promise<string | null> => {
+      const findUrl = new URL(`${baseUrl}/rest/v1/conversations`);
+      findUrl.searchParams.set('select', 'id');
+      findUrl.searchParams.set('or', participantsFilter);
+      const findResp = await fetch(findUrl.toString(), { method: 'GET', headers });
+      const findJson = await findResp.json().catch(() => []);
+      const existing = Array.isArray(findJson) && findJson.length > 0 ? findJson[0] : null;
+      return existing ? existing.id : null;
+    };
 
-    const findResp = await fetch(findUrl.toString(), { method: 'GET', headers });
-    const findJson = await findResp.json().catch(() => []);
-    const existing = Array.isArray(findJson) && findJson.length > 0 ? findJson[0] : null;
-
-    let conversationId: string;
-
-    if (existing) {
-      conversationId = existing.id;
-    } else {
+    const createConversation = async (): Promise<string> => {
       const createResp = await fetch(`${baseUrl}/rest/v1/conversations`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'return=representation' },
@@ -62,12 +65,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (!createResp.ok) {
         const text = await createResp.text().catch(() => '');
+        // Unique violation for the pair → someone else created it concurrently.
+        if (text.includes('23505')) {
+          const raced = await findConversation();
+          if (raced) return raced;
+        }
         console.warn('[api/send-message] create conversation failed:', createResp.status, text);
-        return res.status(502).json({ error: 'Failed to create conversation', details: text });
+        throw new Error('Failed to create conversation');
       }
 
       const createJson = await createResp.json();
-      conversationId = Array.isArray(createJson) ? createJson[0].id : createJson.id;
+      return Array.isArray(createJson) ? createJson[0].id : createJson.id;
+    };
+
+    let conversationId = await findConversation();
+    if (!conversationId) {
+      conversationId = await createConversation();
     }
 
     // ── 2) Insert the message ──────────────────────────────────────────────
@@ -92,11 +105,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── 3) Create notifications ────────────────────────────────────────────
+    // The UNIFIED CHAT SPACE rule says message content lives ONLY inside the
+    // dedicated conversation thread. Notifications are deliberately kept as a
+    // lightweight "you have a new message" signal — they NEVER embed the
+    // message text, so no preview can leak outside the chat view.
     const recipientNotification = {
       user_id: recipientId,
       type: 'message',
       title: `New message from ${senderName || 'Someone'}`,
-      content: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
+      content: 'You have a new message. Open Messages to read and reply.',
       data: {
         conversation_id: conversationId,
         sender_id: senderId,
@@ -112,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       user_id: senderId,
       type: 'message',
       title: `Message sent to ${recipientName || 'Someone'}`,
-      content: message,
+      content: 'Your message was sent. Open Messages to continue the chat.',
       data: {
         conversation_id: conversationId,
         sender_id: senderId,

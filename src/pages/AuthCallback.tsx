@@ -15,6 +15,10 @@ export default function AuthCallback() {
   const [progress, setProgress] = useState(0);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True when the callback is a password-recovery link (not a signup/email
+  // confirmation). Recovery users are routed to the dedicated reset-password
+  // page so they can actually set a new password.
+  const isRecovery = useRef(false);
 
   // Animate the progress bar during processing
   useEffect(() => {
@@ -40,6 +44,17 @@ export default function AuthCallback() {
   useEffect(() => {
     let cancelled = false;
 
+    // The Supabase client emits PASSWORD_RECOVERY when a recovery token is
+    // processed — catch it so we can route recovery users to the
+    // reset-password page instead of the profile.
+    const {
+      data: { subscription: recoverySub },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        isRecovery.current = true;
+      }
+    });
+
     const handleCallback = async () => {
       try {
         // Check for URL hash tokens (implicit grant flow)
@@ -52,6 +67,9 @@ export default function AuthCallback() {
           // via detectSessionInUrl — just wait briefly
           const hashParams = new URLSearchParams(hash.substring(1));
           const type = hashParams.get("type");
+          if (type === "recovery") {
+            isRecovery.current = true;
+          }
           if (type === "signup" || type === "recovery" || type === "invite") {
             await new Promise((resolve) => setTimeout(resolve, 1000));
           }
@@ -59,6 +77,11 @@ export default function AuthCallback() {
           // PKCE flow: exchange the code for a session
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
+        }
+
+        // Some flows carry ?type=recovery on the redirect URL itself.
+        if (searchParams.get("type") === "recovery") {
+          isRecovery.current = true;
         }
 
         // Check if we have a session now
@@ -75,15 +98,28 @@ export default function AuthCallback() {
 
           setTimeout(() => {
             if (!cancelled) {
-              window.dispatchEvent(
-                new CustomEvent("jobbridge:toast", {
-                  detail: {
-                    message: "Email confirmed! You're now signed in.",
-                    type: "success",
-                  },
-                }),
-              );
-              navigate("/profile", { replace: true });
+              if (isRecovery.current) {
+                // Password reset: send them to set a new password.
+                window.dispatchEvent(
+                  new CustomEvent("jobbridge:toast", {
+                    detail: {
+                      message: "Reset link verified! Now set your new password.",
+                      type: "success",
+                    },
+                  }),
+                );
+                navigate("/reset-password", { replace: true });
+              } else {
+                window.dispatchEvent(
+                  new CustomEvent("jobbridge:toast", {
+                    detail: {
+                      message: "Email confirmed! You're now signed in.",
+                      type: "success",
+                    },
+                  }),
+                );
+                navigate("/profile", { replace: true });
+              }
             }
           }, 1500);
         } else {
@@ -120,6 +156,7 @@ export default function AuthCallback() {
       cancelled = true;
       if (progressTimer.current) clearInterval(progressTimer.current);
       if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
+      recoverySub.unsubscribe();
     };
   }, [navigate]);
 

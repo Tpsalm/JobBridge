@@ -7,6 +7,7 @@ import SwipeNavigator from "./components/SwipeNavigator";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
+import ResetPassword from "./pages/ResetPassword";
 import Home from "./pages/Home";
 import Recruiter from "./pages/Recruiter";
 import Jobs from "./pages/Jobs";
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Public pages - accessible without login */}
             <Route path="/" element={<Home />} />
