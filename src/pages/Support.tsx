@@ -252,17 +252,6 @@ export default function Support() {
                 </a>
               </Card3D>
 
-              {/* Office Address */}
-              <Card3D className="w-full" strength={6}>
-                <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <MapPin className="w-5 h-5 text-blue-700 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-gray-900">Office Address</p>
-                    <p className="text-sm text-gray-600">No 4, Phenol Crystal Street, Koomi Rd, Saki, Oyo State</p>
-                  </div>
-                </div>
-              </Card3D>
-
               {/* Phone Support */}
               <Card3D className="w-full" strength={6}>
                 <a
