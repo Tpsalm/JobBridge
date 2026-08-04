@@ -35,13 +35,21 @@ function genericTemplate(name: string, type: string): string {
   return `<p style="margin:0 0 24px;font-size:17px;line-height:1.8;color:#0f172a;">Hi <strong>${guest}</strong>,</p><p style="margin:0 0 20px;font-size:16px;line-height:1.8;color:#334155;">This is a notification from JobBridge regarding <strong>${type}</strong>. Please visit your dashboard to review the latest updates and take action.</p><div style="text-align:center;margin-bottom:28px;"><a href="https://www.jobbridge.com.ng" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:12px;font-size:16px;font-weight:700;">View JobBridge</a></div><p style="margin:0;font-size:15px;line-height:1.8;color:#475569;">If you have any questions, reply to this email or contact support at support@jobbridge.com.ng.</p>`;
 }
 
-function buildEmailHtml(type: string, name: string): { subject: string; html: string } {
+function passwordResetTemplate(name: string, link: string): string {
+  const guest = (name || 'there').trim();
+  const safeLink = (link || '#').replace(/&/g, '&').replace(/"/g, '"');
+  return `<p style="margin:0 0 24px;font-size:17px;line-height:1.8;color:#0f172a;">Hi <strong>${guest}</strong>,</p><p style="margin:0 0 20px;font-size:16px;line-height:1.8;color:#334155;">We received a request to reset the password for your JobBridge account. Click the button below to choose a new password. This link is valid for 1 hour.</p><div style="text-align:center;margin-bottom:28px;"><a href="${safeLink}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:12px;font-size:16px;font-weight:700;">Reset Password</a></div><p style="margin:0 0 20px;font-size:15px;line-height:1.8;color:#475569;">If the button does not work, copy and paste this link into your browser:<br /><span style="color:#1d4ed8;word-break:break-all;">${safeLink}</span></p><p style="margin:0;font-size:14px;line-height:1.8;color:#64748b;">If you did not request a password reset, you can safely ignore this email — your password will not be changed.</p>`;
+}
+
+function buildEmailHtml(type: string, name: string, link?: string): { subject: string; html: string } {
   const subject = type === 'welcome'
     ? 'Welcome to JobBridge! 🚀'
     : type === 'profile_reminder'
     ? 'Complete your JobBridge profile to get discovered'
     : type === 'message_alert'
     ? 'New chat message on JobBridge'
+    : type === 'password_reset'
+    ? 'Reset your JobBridge password 🔑'
     : 'Message from JobBridge';
 
   const body = type === 'welcome'
@@ -50,6 +58,8 @@ function buildEmailHtml(type: string, name: string): { subject: string; html: st
     ? profileReminderTemplate(name)
     : type === 'message_alert'
     ? `<p style="margin:0 0 24px;font-size:17px;line-height:1.8;color:#0f172a;">Hi <strong>${name || 'there'}</strong>,</p><p style="margin:0 0 20px;font-size:16px;line-height:1.8;color:#334155;">You have a new message waiting in your JobBridge inbox. Log in to your account to continue the conversation and respond quickly.</p><div style="text-align:center;margin-bottom:28px;"><a href="https://www.jobbridge.com.ng/messages" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:12px;font-size:16px;font-weight:700;">View Message</a></div><p style="margin:0;font-size:15px;line-height:1.8;color:#475569;">If you need help, reply to this email or contact support at support@jobbridge.com.ng.</p>`
+    : type === 'password_reset'
+    ? passwordResetTemplate(name, link || '')
     : genericTemplate(name, type);
 
   return { subject, html: wrapHtml(body, subject) };
@@ -78,11 +88,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = req.body || {};
-    const { email, name, type, from } = body;
+    const { email, name, type, from, link } = body;
     if (!email || !type) return res.status(400).json({ error: 'Missing email or type' });
 
     const sender = (from && from.trim()) || RESEND_FROM;
-    const { subject, html } = buildEmailHtml(type, name || 'there');
+    const { subject, html } = buildEmailHtml(type, name || 'there', link);
 
     async function postEmail(fromAddress: string) {
       return fetch(RESEND_API, {

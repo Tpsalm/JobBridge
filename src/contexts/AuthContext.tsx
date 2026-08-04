@@ -848,20 +848,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   /**
-   * Send a password-reset email via Supabase.
-   * On success, Supabase sends a link that redirects to /auth/callback
-   * with a recovery token which Supabase client auto-handles.
+   * Send a password-reset email.
+   *
+   * Delivery goes through the project's own Resend mailer via
+   * /api/reset-password instead of Supabase's built-in GoTrue mailer, which
+   * was returning "Error sending recovery email" (HTTP 500) and silently
+   * dropping every reset request. The endpoint generates a one-time recovery
+   * link with the Supabase admin API and emails it — so when the user clicks
+   * the link, the standard recovery session is created and the hardened
+   * /auth/callback -> /reset-password flow takes over.
    */
   const resetPassword = async (email: string) => {
     try {
-      // The ?type=recovery hint survives Supabase's own query/hash params, so
-      // /auth/callback can reliably route recovery users to the dedicated
-      // reset-password page instead of the profile.
-      const redirectTo = `${window.location.origin}/auth/callback?type=recovery`;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo,
+      const resp = await fetch("/api/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      if (error) throw error;
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        return {
+          error: new Error(
+            data?.error ||
+              "Failed to send reset email. Please check the address and try again.",
+          ),
+        };
+      }
       return { error: null };
     } catch (error: any) {
       const msg =
