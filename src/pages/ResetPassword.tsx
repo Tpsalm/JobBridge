@@ -38,15 +38,35 @@ export default function ResetPassword() {
     };
 
     // A recovery token can be detected via the PASSWORD_RECOVERY auth event
-    // (fired by the Supabase client when it processes the recovery token on
-    // init), or by an already-live session (PKCE code exchanged in the
-    // /auth/callback page which navigates here afterwards).
+    // (fired by the Supabase client when it processes a recovery token on
+    // init or during a PKCE code exchange), or by an already-live session
+    // (e.g. the /auth/callback page exchanged the code and navigated here).
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') finalizeReady();
     });
 
     const check = async () => {
       try {
+        // Direct PKCE landing: if a one-time ?code= token is present in the
+        // URL (e.g. the user opened the email link straight to this page),
+        // exchange it for a recovery session ourselves. This makes the page
+        // self-sufficient instead of relying solely on /auth/callback.
+        const searchParams = new URLSearchParams(window.location.search);
+        const code = searchParams.get('code');
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            console.warn('[ResetPassword] code exchange failed:', error);
+          }
+          // Strip the one-time code from the URL so a refresh doesn't try to
+          // exchange an already-used code a second time.
+          try {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } catch {
+            /* ignore */
+          }
+        }
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -62,7 +82,7 @@ export default function ResetPassword() {
           if (cancelled) return;
           setChecking(false);
           setInvalid(true);
-        }, 2000);
+        }, 2500);
       } catch (err) {
         if (cancelled) return;
         console.error('[ResetPassword] session check failed:', err);
@@ -103,6 +123,14 @@ export default function ResetPassword() {
     if (error) {
       setError(error.message || 'Failed to update password. Please try again.');
       return;
+    }
+
+    // Clear the recovery session so the user isn't left in a half-signed-in
+    // state — they should sign in again with their new password.
+    try {
+      await supabase.auth.signOut();
+    } catch (signOutErr) {
+      console.warn('[ResetPassword] sign out after update failed:', signOutErr);
     }
 
     setSuccess(true);

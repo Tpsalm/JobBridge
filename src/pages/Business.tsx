@@ -14,7 +14,9 @@ import {
   incrementAdvertisementViews,
   incrementAdvertisementClicks,
   decrementCredits,
+  createConversationMessage,
 } from '../lib/supabaseQueries';
+import { supabase } from '../lib/supabase';
 import {
   Building,
   Plus,
@@ -33,6 +35,8 @@ import {
   Mail,
   X,
   ExternalLink,
+  MessageCircle,
+  ImagePlus,
 } from 'lucide-react';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, advertImage } from '../lib/media';
@@ -43,6 +47,7 @@ type AdvertStatus = 'pending' | 'active' | 'paused' | 'expired' | 'rejected';
 
 interface Advert {
   id: string;
+  ownerId: string;
   businessName: string;
   title: string;
   description: string;
@@ -55,6 +60,7 @@ interface Advert {
   views: number;
   clicks: number;
   featured: boolean;
+  imageUrl?: string;
   website?: string;
   phone?: string;
   email?: string;
@@ -74,7 +80,7 @@ export default function Business() {
   const { openModal } = useModal();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, subscription, subscriptionLoaded } = useAuth();
+  const { user, profile, subscription, subscriptionLoaded } = useAuth();
   const { push } = useToasts();
   const [adverts, setAdverts] = useState<Advert[]>(initialAdverts);
   const [loadingAdverts, setLoadingAdverts] = useState(false);
@@ -90,7 +96,12 @@ export default function Business() {
     category: '',
     package: '',
     featured: false,
+    phone: '',
+    website: '',
+    email: '',
+    imageUrl: '',
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   // Edit existing advert
   const [editingAdvert, setEditingAdvert] = useState<Advert | null>(null);
@@ -101,7 +112,12 @@ export default function Business() {
     category: '',
     package: '',
     featured: false,
+    phone: '',
+    website: '',
+    email: '',
+    imageUrl: '',
   });
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Advert detail viewer (public showcase + own adverts)
@@ -155,6 +171,7 @@ export default function Business() {
           setAdverts(
             data.map((ad) => ({
               id: ad.id,
+              ownerId: ad.owner_id || '',
               businessName: ad.business_name,
               title: ad.title,
               description: ad.description,
@@ -172,6 +189,7 @@ export default function Business() {
               views: ad.views || 0,
               clicks: ad.clicks || 0,
               featured: ad.is_featured || false,
+              imageUrl: ad.image_url || '',
               website: ad.website_url || '',
               phone: ad.phone || '',
               email: ad.email || '',
@@ -206,6 +224,7 @@ export default function Business() {
           setPublicAdverts(
             data.map((ad) => ({
               id: ad.id,
+              ownerId: ad.owner_id || '',
               businessName: ad.business_name,
               title: ad.title,
               description: ad.description,
@@ -223,6 +242,7 @@ export default function Business() {
               views: ad.views || 0,
               clicks: ad.clicks || 0,
               featured: ad.is_featured || false,
+              imageUrl: ad.image_url || '',
               website: ad.website_url || '',
               phone: ad.phone || '',
               email: ad.email || '',
@@ -246,6 +266,19 @@ export default function Business() {
       window.removeEventListener('adverts:updated', handler);
     };
   }, []);
+
+  // ── Upload a business picture to the advertisements storage bucket ────────
+  const uploadAdvertImage = async (file: File): Promise<string> => {
+    if (!user?.id) throw new Error('Not signed in');
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `${user.id}/${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from('advertisements')
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from('advertisements').getPublicUrl(path);
+    return data?.publicUrl || '';
+  };
 
   const handleCreateAd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,6 +307,17 @@ export default function Business() {
     setCreating(true);
 
     try {
+      // Upload the business picture (if one was selected) before creating.
+      let imageUrl = formData.imageUrl || '';
+      if (imageFile) {
+        try {
+          imageUrl = await uploadAdvertImage(imageFile);
+        } catch (imgErr) {
+          console.warn('[Business] advert image upload failed:', imgErr);
+          push({ message: '⚠️ Advert created without image — picture upload failed.', type: 'info' });
+        }
+      }
+
       const normalizedPackage = formData.package === 'Weekly Ad'
         ? 'weekly'
         : formData.package === 'Monthly Ad'
@@ -292,6 +336,10 @@ export default function Business() {
         category: formData.category || 'Other',
         package: normalizedPackage,
         is_featured: formData.package === 'Featured Business' || formData.featured,
+        image_url: imageUrl || null,
+        phone: formData.phone || null,
+        website_url: formData.website || null,
+        email: formData.email || null,
         starts_at,
         expires_at,
         amount_paid: 0, // paid via subscription credits
@@ -306,7 +354,8 @@ export default function Business() {
       window.dispatchEvent(new Event('adverts:updated'));
 
       setShowCreateForm(false);
-      setFormData({ businessName: '', title: '', description: '', category: '', package: '', featured: false });
+      setFormData({ businessName: '', title: '', description: '', category: '', package: '', featured: false, phone: '', website: '', email: '', imageUrl: '' });
+      setImageFile(null);
 
       push({
         message: '✅ Advert created successfully!',
@@ -344,6 +393,7 @@ export default function Business() {
       setAdverts(
         data.map((ad) => ({
           id: ad.id,
+          ownerId: ad.owner_id || '',
           businessName: ad.business_name,
           title: ad.title,
           description: ad.description,
@@ -361,6 +411,7 @@ export default function Business() {
           views: ad.views || 0,
           clicks: ad.clicks || 0,
           featured: ad.is_featured || false,
+          imageUrl: ad.image_url || '',
           website: ad.website_url || '',
           phone: ad.phone || '',
           email: ad.email || '',
@@ -411,7 +462,12 @@ export default function Business() {
       category: ad.category,
       package: ad.duration,
       featured: ad.featured,
+      phone: ad.phone || '',
+      website: ad.website || '',
+      email: ad.email || '',
+      imageUrl: ad.imageUrl || '',
     });
+    setEditImageFile(null);
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -419,6 +475,17 @@ export default function Business() {
     if (!editingAdvert) return;
     setSavingEdit(true);
     try {
+      // Upload a newly selected business picture (if any) before saving.
+      let imageUrl = editForm.imageUrl || '';
+      if (editImageFile) {
+        try {
+          imageUrl = await uploadAdvertImage(editImageFile);
+        } catch (imgErr) {
+          console.warn('[Business] edit advert image upload failed:', imgErr);
+          push({ message: '⚠️ Advert updated without image — picture upload failed.', type: 'info' });
+        }
+      }
+
       const normalizedPackage = editForm.package === 'Weekly'
         ? 'weekly'
         : editForm.package === 'Monthly'
@@ -431,6 +498,10 @@ export default function Business() {
         category: editForm.category || 'Other',
         package: normalizedPackage,
         is_featured: editForm.package === 'Featured' || editForm.featured,
+        image_url: imageUrl || null,
+        phone: editForm.phone || null,
+        website_url: editForm.website || null,
+        email: editForm.email || null,
       });
       setEditingAdvert(null);
       window.dispatchEvent(new Event('adverts:updated'));
@@ -458,6 +529,45 @@ export default function Business() {
     setPublicAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
     setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
     action();
+  };
+
+  // ── Chat with the business behind an advert (opens the Message page) ────
+  const handleChatAdvert = async (ad: Advert) => {
+    if (!user?.id) {
+      push({ message: 'Please sign in to message this business.', type: 'info' });
+      navigate(`/login?redirect=${encodeURIComponent('/business')}`);
+      return;
+    }
+    if (!ad.ownerId || ad.ownerId === user.id) {
+      push({ message: 'You cannot message your own business advert.', type: 'info' });
+      return;
+    }
+
+    // Tapping "Chat" counts as a click on the advert.
+    incrementAdvertisementClicks(ad.id);
+    setPublicAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
+    setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
+
+    const senderName = profile?.full_name || user.email || 'A user';
+    try {
+      const conversationId = await createConversationMessage({
+        senderId: user.id,
+        senderName,
+        recipientId: ad.ownerId,
+        recipientName: ad.businessName || 'Business',
+        recipientEmail: ad.email || undefined,
+        message: `Hello ${ad.businessName}! I came across your advert on JobBridge and I'd love to know more about your business.`,
+      });
+      if (conversationId) {
+        navigate(`/messages?conversationId=${encodeURIComponent(conversationId)}`);
+      } else {
+        navigate('/messages');
+      }
+    } catch (error) {
+      console.error('[Business] chat advert failed:', error);
+      push({ message: '❌ Could not start a chat. Please try again.', type: 'error' });
+      navigate('/messages');
+    }
   };
 
   const stats = {
@@ -514,7 +624,7 @@ export default function Business() {
                   }`}
                 >
                   <img
-                    src={advertImage(advert.category)}
+                    src={advert.imageUrl || advertImage(advert.category)}
                     alt={advert.title}
                     className="w-full h-36 object-cover"
                   />
@@ -546,16 +656,33 @@ export default function Business() {
                         <Eye className="w-3.5 h-3.5" />
                         {advert.views.toLocaleString()} views
                       </span>
+                      <span className="flex items-center gap-1">
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        {advert.clicks.toLocaleString()} clicks
+                      </span>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewAdvert(advert);
-                      }}
-                      className="inline-flex items-center gap-1 text-sm text-blue-700 font-medium hover:underline"
-                    >
-                      View advert <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center justify-between mt-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewAdvert(advert);
+                        }}
+                        className="inline-flex items-center gap-1 text-sm text-blue-700 font-medium hover:underline"
+                      >
+                        View advert <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                      {user?.id !== advert.ownerId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleChatAdvert(advert);
+                          }}
+                          className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+                        >
+                          <MessageCircle className="w-4 h-4" /> Chat
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -724,6 +851,65 @@ export default function Business() {
                     placeholder="Describe your product or service..."
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Business Picture</label>
+                  <div className="flex items-center gap-3">
+                    {(formData.imageUrl || imageFile) && (
+                      <img
+                        src={imageFile ? URL.createObjectURL(imageFile) : formData.imageUrl}
+                        alt="Business preview"
+                        className="w-20 h-20 rounded-lg object-cover border border-gray-200"
+                      />
+                    )}
+                    <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
+                      <ImagePlus className="w-4 h-4" />
+                      {formData.imageUrl || imageFile ? 'Change picture' : 'Upload business picture'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setImageFile(file);
+                          if (file) setFormData({ ...formData, imageUrl: '' });
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Recommended: square image, max 5MB. Only subscribed business accounts can add a picture.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      placeholder="0801 234 5678"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                    <input
+                      type="url"
+                      value={formData.website}
+                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="contact@business.com"
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
@@ -851,7 +1037,7 @@ export default function Business() {
                   className={`bg-white rounded-xl overflow-hidden border ${advert.featured ? 'border-amber-200 ring-1 ring-amber-200' : 'border-gray-100'}`}
                 >
                   <img
-                    src={advertImage(advert.category)}
+                    src={advert.imageUrl || advertImage(advert.category)}
                     alt={advert.title}
                     className="w-full h-36 object-cover"
                   />
@@ -979,7 +1165,7 @@ export default function Business() {
           <div className="w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="relative">
               <img
-                src={advertImage(viewAdvert.category)}
+                src={viewAdvert.imageUrl || advertImage(viewAdvert.category)}
                 alt={viewAdvert.title}
                 className="w-full h-48 object-cover"
               />
@@ -1016,6 +1202,14 @@ export default function Business() {
               <p className="text-sm text-gray-700 mt-4 leading-relaxed whitespace-pre-wrap">{viewAdvert.description}</p>
 
               <div className="mt-6 flex flex-wrap gap-2">
+                {user?.id !== viewAdvert.ownerId && (
+                  <button
+                    onClick={() => handleChatAdvert(viewAdvert)}
+                    className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    <MessageCircle className="w-4 h-4" /> Chat with Business
+                  </button>
+                )}
                 {viewAdvert.phone && (
                   <a
                     href={`tel:${viewAdvert.phone}`}
@@ -1097,6 +1291,65 @@ export default function Business() {
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
                   placeholder="Describe your product or service..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Business Picture</label>
+                <div className="flex items-center gap-3">
+                  {(editForm.imageUrl || editImageFile) && (
+                    <img
+                      src={editImageFile ? URL.createObjectURL(editImageFile) : editForm.imageUrl}
+                      alt="Business preview"
+                      className="w-20 h-20 rounded-lg object-cover border border-gray-200"
+                    />
+                  )}
+                  <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
+                    <ImagePlus className="w-4 h-4" />
+                    {editForm.imageUrl || editImageFile ? 'Change picture' : 'Upload business picture'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setEditImageFile(file);
+                        if (file) setEditForm({ ...editForm, imageUrl: '' });
+                      }}
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Recommended: square image, max 5MB.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="0801 234 5678"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                  <input
+                    type="url"
+                    value={editForm.website}
+                    onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contact Email</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="contact@business.com"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">

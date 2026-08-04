@@ -84,10 +84,15 @@ export default function AuthCallback() {
           isRecovery.current = true;
         }
 
-        // Check if we have a session now
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        // Check if we have a session now. After a PKCE code exchange the client
+        // may still be finishing up, so retry briefly before giving up.
+        let session: any = null;
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const { data } = await supabase.auth.getSession();
+          session = data.session;
+          if (session) break;
+          await new Promise((resolve) => setTimeout(resolve, 400));
+        }
 
         if (cancelled) return;
 
