@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { Send, Search, ArrowLeft, Check, CheckCheck, CircleDot, Clock, Lock, MoreVertical } from 'lucide-react';
 import CompanyLogo from '../components/CompanyLogo';
 import { IMG } from '../lib/media';
+import { useToasts } from '../contexts/ToastContext';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -151,6 +152,7 @@ function mapMessage(msg: any, userId: string): MessageItem {
 
 export default function Messages() {
   const { isAuthenticated, profile, user } = useAuth();
+  const { push } = useToasts();
   const [searchParams] = useSearchParams();
   const queryConversationId = searchParams.get('conversationId');
   const navigate = useNavigate();
@@ -162,9 +164,13 @@ export default function Messages() {
   const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [deploying, setDeploying] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Record<string, MessageItem[]>>({});
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -474,6 +480,62 @@ export default function Messages() {
     [navigate],
   );
 
+  const toggleActionsMenu = useCallback(() => {
+    setActionsOpen((open) => !open);
+  }, []);
+
+  const handleAction = useCallback(
+    async (action: 'push' | 'deploy' | 'commit') => {
+      setActionsOpen(false);
+      if (deploying) return;
+      setDeploying(true);
+
+      const labels: Record<string, string> = {
+        commit: 'Committing your changes…',
+        push: 'Pushing changes to production…',
+        deploy: 'Deploying site to jobbridge.com.ng…',
+      };
+      push({ message: labels[action] || 'Triggering deployment…', type: 'info' });
+
+      try {
+        const resp = await fetch('/api/deploy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data?.ok) {
+          push({ message: data.message || 'Deployment triggered successfully ✅', type: 'success' });
+        } else {
+          push({ message: data?.error || 'Deployment could not be triggered.', type: 'error' });
+        }
+      } catch {
+        push({ message: 'Could not reach the deployment service. Check your connection and try again.', type: 'error' });
+      } finally {
+        setDeploying(false);
+      }
+    },
+    [deploying, push],
+  );
+
+  useEffect(() => {
+    if (!actionsOpen) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        menuButtonRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setActionsOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [actionsOpen]);
+
   // Build the message list with WhatsApp-style day separators.
   const renderedMessages: Array<{ type: 'day' | 'message'; key: string; day?: string; msg?: MessageItem }> = [];
   let lastDay = '';
@@ -496,7 +558,7 @@ export default function Messages() {
           <div className="px-4 pt-4 pb-2 border-b border-gray-100">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Messages</h2>
-              <span className="flex items-center gap-1 text-xs text-green-600">
+              <span className="flex items-center gap-1 text-xs text-blue-600">
                 <CircleDot className="w-3 h-3" /> Online
               </span>
             </div>
@@ -561,7 +623,7 @@ export default function Messages() {
                       fallbackClassName={conv.color}
                     />
                     {conv.online && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
+                      <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-blue-600 border-2 border-white rounded-full" />
                     )}
                   </div>
 
@@ -586,7 +648,7 @@ export default function Messages() {
                         {conv.lastMessage}
                       </p>
                       {conv.unread > 0 && (
-                        <span className="shrink-0 w-5 h-5 bg-green-500 text-white text-[11px] font-semibold rounded-full flex items-center justify-center">
+                        <span className="shrink-0 w-5 h-5 bg-blue-600 text-white text-[11px] font-semibold rounded-full flex items-center justify-center">
                           {conv.unread}
                         </span>
                       )}
@@ -599,11 +661,11 @@ export default function Messages() {
         </div>
 
         {/* ── Chat View (full-screen on mobile, panel on desktop) ──────── */}
-        <div className={`flex-1 flex-col bg-[#efeae2] ${selectedId ? 'flex' : 'hidden sm:flex'}`}>
+        <div className={`flex-1 flex-col bg-slate-50 ${selectedId ? 'flex' : 'hidden sm:flex'}`}>
           {!selectedId ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white">
               <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-5">
-                <Send className="w-9 h-9 text-blue-500" />
+                <Send className="w-9 h-9 text-blue-600" />
               </div>
               <h3 className="text-xl font-semibold text-gray-800 mb-2">JobBridge Messages</h3>
               <p className="text-gray-500 text-sm max-w-xs">
@@ -614,7 +676,7 @@ export default function Messages() {
           ) : (
             <>
               {/* Header */}
-              <div className="bg-[#f0f2f5] border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
+              <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     onClick={handleBackToList}
@@ -639,9 +701,53 @@ export default function Messages() {
                     </p>
                   </div>
                 </div>
-                <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                  <MoreVertical className="w-5 h-5 text-gray-500" />
-                </button>
+                <div className="relative">
+                  <button
+                    ref={menuButtonRef}
+                    onClick={toggleActionsMenu}
+                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    aria-haspopup="true"
+                    aria-expanded={actionsOpen}
+                    aria-label="Chat actions"
+                  >
+                    <MoreVertical className="w-5 h-5 text-gray-500" />
+                  </button>
+                  {actionsOpen && (
+                    <div
+                      ref={menuRef}
+                      className="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
+                    >
+                      <button
+                        onClick={() => handleAction('push')}
+                        disabled={deploying}
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 disabled:opacity-50"
+                      >
+                        Push changes
+                      </button>
+                      <button
+                        onClick={() => handleAction('deploy')}
+                        disabled={deploying}
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 disabled:opacity-50"
+                      >
+                        Deploy site
+                      </button>
+                      <button
+                        onClick={() => handleAction('commit')}
+                        disabled={deploying}
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 disabled:opacity-50"
+                      >
+                        Commit changes
+                      </button>
+                      {deploying && (
+                        <div className="px-4 py-2 text-xs text-blue-600 border-t border-gray-100 flex items-center gap-1.5">
+                          <span className="w-3 h-3 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+                          Deploying…
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
               </div>
 
               {/* Messages */}
@@ -681,7 +787,7 @@ export default function Messages() {
                           <div
                             className={`max-w-[75%] sm:max-w-sm rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
                               item.msg!.sender === 'me'
-                                ? 'bg-[#d9fdd3] text-gray-800 rounded-br-sm'
+                                ? 'bg-blue-600 text-white rounded-br-sm'
                                 : 'bg-white text-gray-800 rounded-bl-sm'
                             }`}
                           >
@@ -700,9 +806,9 @@ export default function Messages() {
                               {!item.msg!.temp && item.msg!.time}
                               {item.msg!.sender === 'me' && !item.msg!.temp && (
                                 item.msg!.read ? (
-                                  <CheckCheck className="w-3.5 h-3.5 text-sky-500" />
+                                  <CheckCheck className="w-3.5 h-3.5 text-white" />
                                 ) : (
-                                  <Check className="w-3.5 h-3.5 text-gray-500" />
+                                  <Check className="w-3.5 h-3.5 text-blue-100" />
                                 )
                               )}
                             </div>
@@ -730,7 +836,7 @@ export default function Messages() {
                     <button
                       onClick={handleSend}
                       disabled={!newMessage.trim() || sending}
-                      className="p-2.5 bg-[#00a884] text-white rounded-full hover:bg-[#019374] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                      className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                       aria-label="Send message"
                     >
                       <Send className="w-4 h-4" />

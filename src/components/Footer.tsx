@@ -1,7 +1,11 @@
 import { Instagram, Facebook, Twitter } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import JobBridgeLogo from './JobBridgeLogo';
 
 export default function Footer() {
+  const { pathname } = useLocation();
+  const hideAddress = pathname === '/messages';
+
   return (
     <footer className="bg-white border-t border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -9,7 +13,9 @@ export default function Footer() {
 
         <div className="text-sm text-gray-700">
           <div className="font-semibold text-gray-900">Contact JobBridge</div>
-          <div className="mt-1">No 4, Phenol Crystal Street, Koomi Rd, Saki, Oyo State</div>
+          {!hideAddress && (
+            <div className="mt-1">No 4, Phenol Crystal Street, Koomi Rd, Saki, Oyo State</div>
+          )}
           <div className="mt-1">Email: <a href="mailto:jobbridgesupport@gmail.com" className="text-blue-700 hover:underline">jobbridgesupport@gmail.com</a></div>
           <div>WhatsApp: 09136171354</div>
         </div>
