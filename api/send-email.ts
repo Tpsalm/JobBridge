@@ -37,7 +37,10 @@ function genericTemplate(name: string, type: string): string {
 
 function passwordResetTemplate(name: string, link: string): string {
   const guest = (name || 'there').trim();
-  const safeLink = (link || '#').replace(/&/g, '&').replace(/"/g, '"');
+  // The recovery link is a Supabase URL (safe chars: letters, digits, and
+  // `://?=&%-._`), so it can be used directly in the href without needing
+  // HTML-entity escaping that could corrupt the token.
+  const safeLink = link || '#';
   return `<p style="margin:0 0 24px;font-size:17px;line-height:1.8;color:#0f172a;">Hi <strong>${guest}</strong>,</p><p style="margin:0 0 20px;font-size:16px;line-height:1.8;color:#334155;">We received a request to reset the password for your JobBridge account. Click the button below to choose a new password. This link is valid for 1 hour.</p><div style="text-align:center;margin-bottom:28px;"><a href="${safeLink}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:12px;font-size:16px;font-weight:700;">Reset Password</a></div><p style="margin:0 0 20px;font-size:15px;line-height:1.8;color:#475569;">If the button does not work, copy and paste this link into your browser:<br /><span style="color:#1d4ed8;word-break:break-all;">${safeLink}</span></p><p style="margin:0;font-size:14px;line-height:1.8;color:#64748b;">If you did not request a password reset, you can safely ignore this email — your password will not be changed.</p>`;
 }
 
