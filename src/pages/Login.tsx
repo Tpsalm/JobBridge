@@ -109,7 +109,16 @@ export default function Login() {
       setForgotEmailError(error.message || 'Failed to send reset email. Please try again.');
       return;
     }
-    setView('forgot-sent');
+    // Return to the sign-in form right away with a success notice — the user
+    // can go check their email for the reset link, then sign in.
+    setView('signin');
+    setForgotEmail('');
+    window.dispatchEvent(new CustomEvent('jobbridge:toast', {
+      detail: {
+        message: 'Password reset link sent! Check your email to continue.',
+        type: 'success',
+      },
+    }));
   };
 
   // ── Shared background ──

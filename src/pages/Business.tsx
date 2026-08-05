@@ -658,7 +658,7 @@ export default function Business() {
                       </span>
                       <span className="flex items-center gap-1">
                         <TrendingUp className="w-3.5 h-3.5" />
-                        {advert.clicks.toLocaleString()} clicks
+                        {advert.clicks.toLocaleString()} users clicked
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-1">
@@ -706,7 +706,7 @@ export default function Business() {
           </div>
           <div className="bg-white rounded-xl p-4 border border-gray-100">
             <div className="text-2xl font-bold text-amber-600">{stats.totalClicks}</div>
-            <div className="text-xs text-gray-500">Total Clicks</div>
+            <div className="text-xs text-gray-500">Total User Clicks</div>
           </div>
         </div>
 
@@ -1086,7 +1086,7 @@ export default function Business() {
                     </span>
                     <span className="flex items-center gap-1">
                       <TrendingUp className="w-4 h-4" />
-                      {advert.clicks} clicks
+                      {advert.clicks} users clicked
                     </span>
                   </div>
 
@@ -1196,7 +1196,7 @@ export default function Business() {
                   <Eye className="w-3.5 h-3.5" /> {viewAdvert.views.toLocaleString()} views
                 </span>
                 <span className="flex items-center gap-1">
-                  <TrendingUp className="w-3.5 h-3.5" /> {viewAdvert.clicks} clicks
+                  <TrendingUp className="w-3.5 h-3.5" /> {viewAdvert.clicks} users clicked
                 </span>
               </div>
               <p className="text-sm text-gray-700 mt-4 leading-relaxed whitespace-pre-wrap">{viewAdvert.description}</p>

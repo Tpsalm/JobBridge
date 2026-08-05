@@ -10,10 +10,9 @@ import {
   markConversationRead,
 } from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
-import { Send, Search, ArrowLeft, Check, CheckCheck, CircleDot, Clock, Lock, MoreVertical } from 'lucide-react';
+import { Send, Search, ArrowLeft, Check, CheckCheck, CircleDot, Clock, Lock } from 'lucide-react';
 import CompanyLogo from '../components/CompanyLogo';
 import { IMG } from '../lib/media';
-import { useToasts } from '../contexts/ToastContext';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -152,7 +151,6 @@ function mapMessage(msg: any, userId: string): MessageItem {
 
 export default function Messages() {
   const { isAuthenticated, profile, user } = useAuth();
-  const { push } = useToasts();
   const [searchParams] = useSearchParams();
   const queryConversationId = searchParams.get('conversationId');
   const navigate = useNavigate();
@@ -164,13 +162,9 @@ export default function Messages() {
   const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [actionsOpen, setActionsOpen] = useState(false);
-  const [deploying, setDeploying] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Record<string, MessageItem[]>>({});
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -480,62 +474,6 @@ export default function Messages() {
     [navigate],
   );
 
-  const toggleActionsMenu = useCallback(() => {
-    setActionsOpen((open) => !open);
-  }, []);
-
-  const handleAction = useCallback(
-    async (action: 'push' | 'deploy' | 'commit') => {
-      setActionsOpen(false);
-      if (deploying) return;
-      setDeploying(true);
-
-      const labels: Record<string, string> = {
-        commit: 'Committing your changes…',
-        push: 'Pushing changes to production…',
-        deploy: 'Deploying site to jobbridge.com.ng…',
-      };
-      push({ message: labels[action] || 'Triggering deployment…', type: 'info' });
-
-      try {
-        const resp = await fetch('/api/deploy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action }),
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (resp.ok && data?.ok) {
-          push({ message: data.message || 'Deployment triggered successfully ✅', type: 'success' });
-        } else {
-          push({ message: data?.error || 'Deployment could not be triggered.', type: 'error' });
-        }
-      } catch {
-        push({ message: 'Could not reach the deployment service. Check your connection and try again.', type: 'error' });
-      } finally {
-        setDeploying(false);
-      }
-    },
-    [deploying, push],
-  );
-
-  useEffect(() => {
-    if (!actionsOpen) return;
-
-    const handleOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        menuButtonRef.current?.contains(target) ||
-        menuRef.current?.contains(target)
-      ) {
-        return;
-      }
-      setActionsOpen(false);
-    };
-
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [actionsOpen]);
-
   // Build the message list with WhatsApp-style day separators.
   const renderedMessages: Array<{ type: 'day' | 'message'; key: string; day?: string; msg?: MessageItem }> = [];
   let lastDay = '';
@@ -701,53 +639,6 @@ export default function Messages() {
                     </p>
                   </div>
                 </div>
-                <div className="relative">
-                  <button
-                    ref={menuButtonRef}
-                    onClick={toggleActionsMenu}
-                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    aria-haspopup="true"
-                    aria-expanded={actionsOpen}
-                    aria-label="Chat actions"
-                  >
-                    <MoreVertical className="w-5 h-5 text-gray-500" />
-                  </button>
-                  {actionsOpen && (
-                    <div
-                      ref={menuRef}
-                      className="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
-                    >
-                      <button
-                        onClick={() => handleAction('push')}
-                        disabled={deploying}
-                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 disabled:opacity-50"
-                      >
-                        Push changes
-                      </button>
-                      <button
-                        onClick={() => handleAction('deploy')}
-                        disabled={deploying}
-                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 disabled:opacity-50"
-                      >
-                        Deploy site
-                      </button>
-                      <button
-                        onClick={() => handleAction('commit')}
-                        disabled={deploying}
-                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 disabled:opacity-50"
-                      >
-                        Commit changes
-                      </button>
-                      {deploying && (
-                        <div className="px-4 py-2 text-xs text-blue-600 border-t border-gray-100 flex items-center gap-1.5">
-                          <span className="w-3 h-3 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
-                          Deploying…
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
               </div>
 
               {/* Messages */}
