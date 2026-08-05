@@ -43,11 +43,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect built site
-        run: |
-          echo "Dist contents:"
-          ls -la dist
-          find dist -maxdepth 2 -type f | sort
       - id: deployment
         uses: actions/deploy-pages@v4
         env:
