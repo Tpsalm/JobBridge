@@ -68,6 +68,34 @@ function buildEmailHtml(type: string, name: string, link?: string): { subject: s
   return { subject, html: wrapHtml(body, subject) };
 }
 
+/**
+ * Generates a one-time password-recovery link via the Supabase admin API.
+ * Used for `password_reset` emails because Supabase's built-in GoTrue
+ * mailer fails with "Error sending recovery email" (HTTP 500), so the link
+ * is generated here and delivered through our own Resend mailer instead.
+ * Returns null when the account doesn't exist (keeps enumeration safe).
+ */
+async function generateRecoveryLink(email: string): Promise<string | null> {
+  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+  if (!SUPABASE_URL || !SERVICE_KEY) return null;
+  const baseUrl = SUPABASE_URL.replace(/\/+$/, '');
+  const siteUrl = (process.env.SITE_URL || 'https://www.jobbridge.com.ng').replace(/\/+$/, '');
+  const redirectTo = `${siteUrl}/auth/callback?type=recovery`;
+  const resp = await fetch(`${baseUrl}/auth/v1/admin/generate_link`, {
+    method: 'POST',
+    headers: {
+      'apikey': SERVICE_KEY,
+      'Authorization': `Bearer ${SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ type: 'recovery', email, options: { redirect_to: redirectTo } }),
+  });
+  if (!resp.ok) return null;
+  const json = await resp.json();
+  return json?.action_link || null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 1. Handle CORS Preflight (OPTIONS) requests
   if (req.method === 'OPTIONS') {
@@ -94,8 +122,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { email, name, type, from, link } = body;
     if (!email || !type) return res.status(400).json({ error: 'Missing email or type' });
 
+    // Password reset: generate the one-time recovery link (the Supabase
+    // GoTrue mailer fails to send these), then deliver it via Resend.
+    let resetLink = link;
+    if (type === 'password_reset' && !resetLink) {
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+      if (!serviceKey) {
+        return res.status(500).json({ error: 'Server not configured: missing Supabase service-role key' });
+      }
+      resetLink = await generateRecoveryLink(email);
+      if (!resetLink) {
+        // Unknown account — return generic success (never reveal existence).
+        return res.status(200).json({ success: true, sent: false });
+      }
+    }
+
     const sender = (from && from.trim()) || RESEND_FROM;
-    const { subject, html } = buildEmailHtml(type, name || 'there', link);
+    const { subject, html } = buildEmailHtml(type, name || 'there', resetLink || '');
 
     async function postEmail(fromAddress: string) {
       return fetch(RESEND_API, {
