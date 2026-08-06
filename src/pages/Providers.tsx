@@ -6,6 +6,7 @@ import { useModal } from '../contexts/ModalContext';
 import { useAuthRequired } from '../hooks/useAuthRequired';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchProviders, createConversationMessage } from '../lib/supabaseQueries';
+import { PROVIDER_CATEGORIES } from '../lib/providerCategories';
 import type { Profile } from '../lib/supabase';
 import { Search, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, Sparkles, MapPin, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import FloatingDecorations from '../components/FloatingDecorations';
@@ -34,14 +35,7 @@ interface ProviderDisplay {
   location: string;
 }
 
-const categoryList: string[] = [
-  'Technology', 'Creative & Media', 'Business & Administration',
-  'Sales & Marketing', 'Engineering & Construction', 'Skilled Trades',
-  'Beauty & Fashion', 'Food & Hospitality', 'Health & Wellness',
-  'Education', 'Transportation & Logistics', 'Home & Property Services',
-  'Professional Services', 'Events & Entertainment', 'Agriculture',
-  'Cleaning & Maintenance',
-];
+const categoryList: string[] = [...PROVIDER_CATEGORIES];
 
 const SERVICE_KEYWORDS: Record<string, string[]> = {
   'Technology': ['software', 'developer', 'web', 'mobile', 'programming', 'coding', 'frontend', 'backend', 'fullstack', 'app', 'data analyst', 'data scientist', 'virtual assistant', 'it', 'computer', 'phone repair', 'tech', 'ui/ux', 'ui ux'],

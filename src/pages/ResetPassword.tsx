@@ -125,14 +125,8 @@ export default function ResetPassword() {
       return;
     }
 
-    // Clear the recovery session so the user isn't left in a half-signed-in
-    // state — they should sign in again with their new password.
-    try {
-      await supabase.auth.signOut();
-    } catch (signOutErr) {
-      console.warn('[ResetPassword] sign out after update failed:', signOutErr);
-    }
-
+    // Keep the user signed in and lead them straight to the "Change password"
+    // section of their profile so they can continue managing their account.
     setSuccess(true);
     setNewPassword('');
     setConfirmPassword('');
@@ -169,13 +163,13 @@ export default function ResetPassword() {
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">Password Updated!</h2>
             <p className="text-gray-500 mb-6 text-sm">
-              Your password has been changed successfully. You can now sign in with your new password.
+              Your password has been changed successfully. You can review or update it anytime from the change password section in your profile.
             </p>
             <Link
-              to="/login"
+              to="/profile?section=security"
               className="w-full block bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 active:scale-[0.98] transition-all"
             >
-              Go to Sign In
+              Continue to Profile
             </Link>
           </div>
         </div>

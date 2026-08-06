@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import JobBridgeLogo from "../components/JobBridgeLogo";
 import { checkRateLimit } from "../lib/security";
+import { PROVIDER_CATEGORIES } from "../lib/providerCategories";
 
 // ── Password strength helpers ──────────────────────────────────────────
 function getPasswordStrength(pw: string): { score: number; label: string; color: string; bg: string } {
@@ -650,18 +651,11 @@ export default function Signup() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
                   >
                     <option value="">Select your service category</option>
-                    <option value="consulting">Business Consulting</option>
-                    <option value="development">Web Development</option>
-                    <option value="design">Graphic Design</option>
-                    <option value="writing">Content Writing</option>
-                    <option value="marketing">Digital Marketing</option>
-                    <option value="electrical">Electrical Work</option>
-                    <option value="finance">Financial Services</option>
-                    <option value="legal">Legal Services</option>
-                    <option value="photography">Photography</option>
-                    <option value="plumbing">Plumbing</option>
-                    <option value="tutoring">Tutoring</option>
-                    <option value="other">Other</option>
+                    {PROVIDER_CATEGORIES.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}

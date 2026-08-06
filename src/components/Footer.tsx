@@ -4,7 +4,9 @@ import JobBridgeLogo from './JobBridgeLogo';
 
 export default function Footer() {
   const { pathname } = useLocation();
-  const hideAddress = pathname === '/messages';
+  // Hide the office address on pages where a physical location isn't relevant
+  // (e.g. the Messages and Notifications pages).
+  const hideAddress = pathname === '/messages' || pathname === '/notifications';
 
   return (
     <footer className="bg-white border-t border-gray-100">

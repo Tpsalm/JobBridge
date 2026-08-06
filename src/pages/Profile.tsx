@@ -12,6 +12,7 @@ import {
   lightSanitizeProfileText,
   validatePhoneNumber,
 } from "../lib/profileValidation";
+import { PROVIDER_CATEGORIES } from "../lib/providerCategories";
 import FloatingDecorations from '../components/FloatingDecorations';
 import { subscribeToPush, unsubscribeFromPush, registerServiceWorker } from '../lib/push';
 import {
@@ -485,6 +486,18 @@ export default function Profile() {
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  // When the user lands here via the password-reset flow, bring the "Change
+  // password" (security) section into view so they see it immediately.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("section") === "security") {
+      const timer = window.setTimeout(() => {
+        securityRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
+      return () => window.clearTimeout(timer);
+    }
+  }, []);
+
   const handlePasswordChange = async () => {
     if (!user) return;
     setPasswordError("");
@@ -630,7 +643,7 @@ export default function Profile() {
   ) => {
     const Icon = field.icon;
     const selectOptions: Record<string, Array<{ value: string; label: string }>> = {
-      specialty: ["Data Science", "Software Engineering", "UX Design", "Product Management", "DevOps", "Consulting", "Other"].map((value) => ({ value, label: value })),
+      specialty: [...PROVIDER_CATEGORIES, "Other"].map((value) => ({ value, label: value })),
     };
 
     const isSelect = key in selectOptions;

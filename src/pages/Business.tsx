@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
@@ -134,20 +134,37 @@ export default function Business() {
 
   const shouldOpenCreate = searchParams.get('create') === 'true';
 
+  // Opening the create form prefills the advert with the business's own
+  // picture (profile avatar) so the advert always contains the business's
+  // particular image — the owner can still swap in a dedicated photo.
+  const openCreateForm = useCallback((pkg?: string) => {
+    setFormData({
+      businessName: '',
+      title: '',
+      description: '',
+      category: '',
+      package: pkg || '',
+      featured: false,
+      phone: '',
+      website: '',
+      email: '',
+      imageUrl: profile?.avatar_url || '',
+    });
+    setImageFile(null);
+    setShowCreateForm(true);
+  }, [profile?.avatar_url]);
+
   useEffect(() => {
     if (!shouldOpenCreate || !subscriptionLoaded) return;
 
     if (subscription.status === 'active') {
-      setShowCreateForm(true);
-      if (paidPackageOption) {
-        setFormData((current) => ({ ...current, package: paidPackageOption }));
-      }
+      openCreateForm(paidPackageOption || undefined);
       // Clean up the query param
       navigate('/business', { replace: true });
     } else {
       navigate('/pricing', { replace: true });
     }
-  }, [shouldOpenCreate, subscription.status, subscriptionLoaded, paidPackageOption, navigate]);
+  }, [shouldOpenCreate, subscription.status, subscriptionLoaded, paidPackageOption, navigate, openCreateForm]);
 
   // Refresh adverts when created
   useEffect(() => {
@@ -514,20 +531,22 @@ export default function Business() {
     }
   };
 
-  // ── View detail (counts a view) ─────────────────────────────────────────
+  // ── View detail (counts a view + a "click to view") ─────────────────────
+  // The business "click" metric represents how many people clicked to view
+  // the advert — NOT how many people chose to chat/contact. Opening the
+  // detail view is what counts as a click.
   const handleViewAdvert = (ad: Advert) => {
     setViewAdvert(ad);
     incrementAdvertisementViews(ad.id);
+    incrementAdvertisementClicks(ad.id);
     // Optimistic bump so the counters reflect immediately in the UI.
-    setPublicAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, views: a.views + 1 } : a));
-    setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, views: a.views + 1 } : a));
+    setPublicAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, views: a.views + 1, clicks: a.clicks + 1 } : a));
+    setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, views: a.views + 1, clicks: a.clicks + 1 } : a));
   };
 
-  // ── Contact action from the detail view (counts a click) ────────────────
-  const handleAdvertContact = (ad: Advert, action: () => void) => {
-    incrementAdvertisementClicks(ad.id);
-    setPublicAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
-    setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
+  // ── Contact action from the detail view (call / website / email) ────────
+  // Contact actions do NOT increment the "click" metric — only viewing does.
+  const handleAdvertContact = (_ad: Advert, action: () => void) => {
     action();
   };
 
@@ -542,11 +561,6 @@ export default function Business() {
       push({ message: 'You cannot message your own business advert.', type: 'info' });
       return;
     }
-
-    // Tapping "Chat" counts as a click on the advert.
-    incrementAdvertisementClicks(ad.id);
-    setPublicAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
-    setAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, clicks: a.clicks + 1 } : a));
 
     const senderName = profile?.full_name || user.email || 'A user';
     try {
@@ -779,8 +793,7 @@ export default function Business() {
                 {subscription.status === 'active' ? (
                   <button
                     onClick={() => {
-                      setFormData({ ...formData, package: pkg.name });
-                      setShowCreateForm(true);
+                      openCreateForm(pkg.name);
                     }}
                     className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors ${
                       pkg.popular
@@ -993,7 +1006,7 @@ export default function Business() {
                   });
                   return;
                 }
-                setShowCreateForm(true);
+                openCreateForm();
               }}
               disabled={!subscription.credits || subscription.credits < 1 || hasExistingAdvert}
               className="w-full flex items-center justify-center gap-2 bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
