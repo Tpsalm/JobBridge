@@ -76,6 +76,19 @@ const adPackages = [
 
 const categories = ['Restaurant', 'Fashion', 'Technology', 'Education', 'Health', 'Entertainment', 'Automotive', 'Real Estate', 'Other'];
 
+// Auto-expiry: an advert whose paid duration (expires_at) has elapsed is
+// treated as EXPIRED even if the background sweep hasn't flipped `status`
+// yet. This keeps the owner dashboard accurate the moment the 7/30 day period
+// ends and prevents an expired advert from being re-activated.
+function effectiveAdStatus(status: string, expiresAt?: string | null): AdvertStatus {
+  const base = (status || 'active') as AdvertStatus;
+  if (base !== 'expired' && expiresAt) {
+    const t = new Date(expiresAt).getTime();
+    if (!Number.isNaN(t) && t <= Date.now()) return 'expired';
+  }
+  return base;
+}
+
 export default function Business() {
   const { openModal } = useModal();
   const navigate = useNavigate();
@@ -212,7 +225,7 @@ export default function Business() {
                     ? 'Monthly'
                     : 'Featured',
               price: ad.amount_paid || (ad.package === 'weekly' ? 2000 : ad.package === 'monthly' ? 7500 : 15000),
-              status: ad.status,
+              status: effectiveAdStatus(ad.status, ad.expires_at),
               startDate: ad.starts_at ? ad.starts_at.split('T')[0] : '',
               endDate: ad.expires_at ? ad.expires_at.split('T')[0] : '',
               views: ad.views || 0,
@@ -265,7 +278,7 @@ export default function Business() {
                     ? 'Monthly'
                     : 'Featured',
               price: ad.amount_paid || (ad.package === 'weekly' ? 2000 : ad.package === 'monthly' ? 7500 : 15000),
-              status: ad.status,
+              status: effectiveAdStatus(ad.status, ad.expires_at),
               startDate: ad.starts_at ? ad.starts_at.split('T')[0] : '',
               endDate: ad.expires_at ? ad.expires_at.split('T')[0] : '',
               views: ad.views || 0,
@@ -434,7 +447,7 @@ export default function Business() {
                 ? 'Monthly'
                 : 'Featured',
           price: ad.amount_paid || (ad.package === 'weekly' ? 2000 : ad.package === 'monthly' ? 7500 : 15000),
-          status: ad.status,
+          status: effectiveAdStatus(ad.status, ad.expires_at),
           startDate: ad.starts_at ? ad.starts_at.split('T')[0] : '',
           endDate: ad.expires_at ? ad.expires_at.split('T')[0] : '',
           views: ad.views || 0,
@@ -453,6 +466,13 @@ export default function Business() {
 
   // ── Pause / Activate (persisted to the database) ────────────────────────
   const handleToggleAdStatus = async (ad: Advert) => {
+    if (ad.status === 'expired') {
+      push({
+        message: '⛔ This advert has expired. Subscribe again to create a new advert.',
+        type: 'info',
+      });
+      return;
+    }
     const next = ad.status === 'active' ? 'paused' : 'active';
     try {
       await updateAdvertisement(ad.id, { status: next });
@@ -1137,13 +1157,16 @@ export default function Business() {
                     </button>
                     <button
                       onClick={() => handleToggleAdStatus(advert)}
+                      disabled={advert.status === 'expired'}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
                         advert.status === 'active'
                           ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : advert.status === 'expired'
+                          ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
                           : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                       }`}
                     >
-                      {advert.status === 'active' ? 'Pause' : 'Activate'}
+                      {advert.status === 'active' ? 'Pause' : advert.status === 'expired' ? 'Expired' : 'Activate'}
                     </button>
                     <button
                       onClick={() => openEditAdvert(advert)}

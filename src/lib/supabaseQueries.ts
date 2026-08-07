@@ -785,10 +785,14 @@ export async function fetchPublicAdvertisements() {
     console.warn('[fetchPublicAdvertisements] API network error, falling back to direct query:', e);
   }
 
+  // Auto-expiry: only return adverts whose paid duration (expires_at) has not
+  // elapsed. Adverts without an expiry (legacy rows) remain visible.
+  const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from('advertisements')
     .select('*')
     .eq('status', 'active')
+    .or(`expires_at.is.null,expires_at.gte.${nowIso}`)
     .order('created_at', { ascending: false });
 
   if (error) throw error;

@@ -24,6 +24,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const url = new URL(`${baseUrl}/rest/v1/advertisements`);
     url.searchParams.set('select', '*');
     url.searchParams.set('status', 'eq.active');
+    // Auto-expiry: never serve an advert whose paid duration (expires_at) has
+    // elapsed — even if the background sweep hasn't flipped `status` yet.
+    // Adverts without an expiry (legacy rows) remain visible.
+    const nowIso = new Date().toISOString();
+    url.searchParams.set('or', `(expires_at.is.null,expires_at.gte.${nowIso})`);
     url.searchParams.set('order', 'created_at.desc');
 
     const resp = await fetch(url.toString(), {
