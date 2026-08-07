@@ -82,6 +82,18 @@ export default function Business() {
   const [searchParams] = useSearchParams();
   const { user, profile, subscription, subscriptionLoaded } = useAuth();
   const { push } = useToasts();
+
+  // A user can only create an advert when their subscription is active AND
+  // they have at least 1 advert credit. `subscription.status` alone is not
+  // enough — it reads as "active" for ANY paid plan (AI tools, recruiter job
+  // posts, service listings, business adverts) because every paid plan sets
+  // `is_premium`. Without this check, a user with a premium flag from another
+  // plan but 0 advert credits would see "Create Advert"/"No credits remaining"
+  // and NO "pay to subscribe" button, so they could never purchase advert credits.
+  const canCreateAdvert =
+    subscription.status === 'active' &&
+    typeof subscription.credits === 'number' &&
+    subscription.credits >= 1;
   const [adverts, setAdverts] = useState<Advert[]>(initialAdverts);
   const [loadingAdverts, setLoadingAdverts] = useState(false);
   const [publicAdverts, setPublicAdverts] = useState<Advert[]>([]);
@@ -157,14 +169,14 @@ export default function Business() {
   useEffect(() => {
     if (!shouldOpenCreate || !subscriptionLoaded) return;
 
-    if (subscription.status === 'active') {
+    if (canCreateAdvert) {
       openCreateForm(paidPackageOption || undefined);
       // Clean up the query param
       navigate('/business', { replace: true });
     } else {
       navigate('/pricing', { replace: true });
     }
-  }, [shouldOpenCreate, subscription.status, subscriptionLoaded, paidPackageOption, navigate, openCreateForm]);
+  }, [shouldOpenCreate, canCreateAdvert, subscriptionLoaded, paidPackageOption, navigate, openCreateForm]);
 
   // Refresh adverts when created
   useEffect(() => {
@@ -726,7 +738,7 @@ export default function Business() {
 
         {/* Subscription Status */}
         <AnimatedSection direction="up" className="mb-6">
-          {subscription.status === 'active' ? (
+          {canCreateAdvert ? (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-emerald-800 flex-wrap">
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
@@ -743,7 +755,7 @@ export default function Business() {
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-amber-800 flex-wrap">
                 <CreditCard className="w-4 h-4 text-amber-600" />
-                <span className="font-medium">No active plan</span>
+                <span className="font-medium">{subscription.status === 'active' ? 'No advert credits' : 'No active plan'}</span>
                 <span className="text-xs text-amber-600">Subscribe to create adverts</span>
               </div>
               <Link to="/pricing" className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-amber-700 transition-colors inline-flex items-center">
@@ -790,7 +802,7 @@ export default function Business() {
                     </li>
                   )}
                 </ul>
-                {subscription.status === 'active' ? (
+                {canCreateAdvert ? (
                   <button
                     onClick={() => {
                       openCreateForm(pkg.name);
@@ -975,13 +987,25 @@ export default function Business() {
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={creating || !subscription.credits || subscription.credits < 1}
-                    className="flex-1 py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {creating ? 'Creating...' : 'Create Advert (1 credit)'}
-                  </button>
+                  {canCreateAdvert ? (
+                    <button
+                      type="submit"
+                      disabled={creating}
+                      className="flex-1 py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {creating ? 'Creating...' : 'Create Advert (1 credit)'}
+                    </button>
+                  ) : (
+                    <Link
+                      to={formData.package
+                        ? `/payment?plan=${formData.package === 'Weekly Ad' ? 'business_weekly' : formData.package === 'Monthly Ad' ? 'business_monthly' : 'business_featured'}`
+                        : '/pricing'}
+                      className="flex-1 py-2.5 bg-blue-700 text-white rounded-lg font-medium text-center hover:bg-blue-800 transition-colors inline-flex items-center justify-center gap-2"
+                    >
+                      <Lock className="w-4 h-4" />
+                      Subscribe & Pay
+                    </Link>
+                  )}
                 </div>
               </form>
             </div>
@@ -996,7 +1020,7 @@ export default function Business() {
               <span>You already have an advert. Only <strong>1 advert</strong> is allowed per business. Delete your existing advert to create a new one.</span>
             </div>
           )}
-          {subscription.status === 'active' ? (
+          {canCreateAdvert ? (
             <button
               onClick={() => {
                 if (hasExistingAdvert) {
