@@ -889,7 +889,7 @@ export default function Business() {
                       />
                     </label>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Recommended: square image, max 5MB. Only subscribed business accounts can add a picture.</p>
+                  <p className="text-xs text-gray-400 mt-1">Recommended size: 1220 × 434 pixels. Only subscribed business accounts can add a picture.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1331,7 +1331,7 @@ export default function Business() {
                     />
                   </label>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">Recommended: square image, max 5MB.</p>
+                <p className="text-xs text-gray-400 mt-1">Recommended size: 1220 × 434 pixels.</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

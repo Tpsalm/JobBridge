@@ -1,4 +1,4 @@
-import { supabase, Job, JobAlert, Profile, Advertisement, SubscriptionInfo } from "./supabase";
+import { supabase, Job, JobAlert, Profile, Advertisement, SubscriptionInfo, Review } from "./supabase";
 
 // ─── Jobs ───────────────────────────────────────────────────────────────────
 
@@ -199,6 +199,7 @@ export async function fetchProviders() {
       specialty: record.specialty || profile.specialty || profile.service_category,
       hourly_rate: record.hourly_rate ?? profile.hourly_rate,
       reviews_count: record.reviews_count ?? profile.reviews_count ?? 0,
+      rating: record.rating ?? 0,
       is_verified: record.is_verified ?? profile.is_verified ?? false,
       is_featured: profile.is_featured ?? false,
       is_active: profile.is_active ?? true,
@@ -1124,4 +1125,102 @@ export async function decrementCredits(userId: string) {
       .eq("id", userId);
     if (updateError) throw updateError;
   }
+}
+
+// ─── Reviews & Star Ratings ────────────────────────────────────────────────
+
+export type NewReviewInput = {
+  reviewerId: string;
+  reviewerName: string;
+  revieweeId: string;
+  providerId?: string | null;
+  targetType?: "provider" | "business" | "profile";
+  rating: number;
+  comment: string;
+};
+
+/** Fetch reviews, optionally filtered to a single target profile. */
+export async function fetchReviews(revieweeId?: string): Promise<Review[]> {
+  let query = supabase
+    .from("reviews")
+    .select(
+      "*, reviewee:profiles!reviews_reviewee_id_fkey(id, full_name, avatar_url)",
+    )
+    .order("created_at", { ascending: false });
+
+  if (revieweeId) {
+    query = query.eq("reviewee_id", revieweeId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn("[fetchReviews] error:", error);
+    return [];
+  }
+
+  return (data || []).map((r: any) => ({
+    id: r.id,
+    reviewer_id: r.reviewer_id,
+    reviewer_name: r.reviewer_name || "",
+    reviewee_id: r.reviewee_id,
+    provider_id: r.provider_id,
+    target_type: r.target_type,
+    rating: r.rating,
+    comment: r.comment || "",
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    reviewee_name: r.reviewee?.full_name || "",
+    reviewee_avatar: r.reviewee?.avatar_url || "",
+  }));
+}
+
+/** Check whether a user has already reviewed a target (for one-review limits). */
+export async function fetchMyReviewForTarget(
+  reviewerId: string,
+  revieweeId: string,
+): Promise<Review | null> {
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("*")
+    .eq("reviewer_id", reviewerId)
+    .eq("reviewee_id", revieweeId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[fetchMyReviewForTarget] error:", error);
+    return null;
+  }
+  return (data as Review) || null;
+}
+
+/** Create a new review (star rating + comment). */
+export async function createReview(input: NewReviewInput) {
+  const { error } = await supabase.from("reviews").insert({
+    reviewer_id: input.reviewerId,
+    reviewer_name: input.reviewerName,
+    reviewee_id: input.revieweeId,
+    provider_id: input.providerId || null,
+    target_type: input.targetType || "provider",
+    rating: input.rating,
+    comment: input.comment,
+  });
+  if (error) throw error;
+}
+
+/** Update an existing review's rating/comment. */
+export async function updateReview(
+  id: string,
+  updates: { rating?: number; comment?: string },
+) {
+  const { error } = await supabase
+    .from("reviews")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Delete a review (the reviewer or an admin). */
+export async function deleteReview(id: string) {
+  const { error } = await supabase.from("reviews").delete().eq("id", id);
+  if (error) throw error;
 }

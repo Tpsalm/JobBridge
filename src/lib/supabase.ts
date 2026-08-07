@@ -89,6 +89,7 @@ export type Profile = {
   is_verified?: boolean;
   is_featured?: boolean;
   reviews_count?: number;
+  rating?: number;
   is_premium?: boolean;
   subscription_tier?: string;
   subscription_expires_at?: string;
@@ -231,4 +232,20 @@ export type JobAlert = {
   enabled: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type Review = {
+  id: string;
+  reviewer_id: string;
+  reviewer_name: string;
+  reviewee_id: string;
+  provider_id?: string | null;
+  target_type: "provider" | "business" | "profile";
+  rating: number;
+  comment: string;
+  created_at: string;
+  updated_at: string;
+  // Enriched display fields (joined at query time, not stored).
+  reviewee_name?: string;
+  reviewee_avatar?: string;
 };

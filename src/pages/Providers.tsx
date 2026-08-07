@@ -85,7 +85,7 @@ export default function Providers() {
           email: p.email || '',
           name: p.full_name || 'Provider',
           specialty,
-          rating: 4.8,
+          rating: p.rating && p.reviews_count ? Number(p.rating) : 4.8,
           reviews: p.reviews_count || 0,
           hourlyRate: p.hourly_rate || 0,
           specializations,
