@@ -45,6 +45,7 @@ const CEO: React.FC = () => {
   ];
 
   const imgSrc = `${import.meta.env.BASE_URL}MrVictor1.jpeg.png`;
+  const ctoImgSrc = `${import.meta.env.BASE_URL}images/owoyemi-samuel-tobi.jpeg`;
 
   const ImageOrPlaceholder: React.FC = () => (
     <img
@@ -121,6 +122,33 @@ const CEO: React.FC = () => {
                   </a>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTO Spotlight */}
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 bg-gray-50 rounded-3xl shadow-sm border border-gray-200">
+          <div className="grid gap-10 lg:grid-cols-2 items-center">
+            <div className="rounded-3xl overflow-hidden shadow-lg">
+              <img
+                src={ctoImgSrc}
+                alt="Owoyemi Samuel Tobi, CTO of JobBridge"
+                className="w-full h-full object-cover min-h-[360px]"
+                onError={e => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}images/team-profile.jpeg`; }}
+              />
+            </div>
+            <div>
+              <p className="text-blue-700 font-semibold uppercase tracking-wider mb-4">Leadership Spotlight</p>
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">Owoyemi Samuel Tobi</h2>
+              <p className="text-lg text-blue-700 font-semibold mb-4">Chief Technology Officer & Founding Engineer</p>
+              <p className="text-gray-700 mb-4">
+                Owoyemi is the first member of the JobBridge team and our CTO. He drives the platform’s technical vision, leading engineering, infrastructure, AI, and product development to ensure JobBridge runs reliably and scales beautifully.
+              </p>
+              <ul className="space-y-3 text-gray-700">
+                <li className="flex items-start gap-3"><span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-700" /> Founder of the technical team and architect of our product platform.</li>
+                <li className="flex items-start gap-3"><span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-700" /> Leads AI system design, data pipeline architecture, and platform stability.</li>
+                <li className="flex items-start gap-3"><span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-700" /> Committed to building a secure, fast, and intuitive experience for every JobBridge user.</li>
+              </ul>
             </div>
           </div>
         </section>

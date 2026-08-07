@@ -275,6 +275,54 @@ export default function Payment() {
 
   const successTarget = getSuccessTarget(plan, planKey);
 
+  const getPlanCreditsLabel = () => {
+    if ((plan as any).business) return "1 advert credit";
+    if (plan.ai) return "—";
+    return `${plan.credits} job post credit${plan.credits > 1 ? "s" : ""}`;
+  };
+
+  const getWhatHappensNext = () => {
+    if (step === "success") {
+      return [
+        "Plan activated successfully",
+        "Receipt sent to your email",
+        plan.ai
+          ? "AI Career Tools ready"
+          : plan.service
+            ? "Professional listing ready"
+            : (plan as any).business
+              ? "1 advert credit added after verification"
+              : `${plan.credits} job post credit${plan.credits > 1 ? "s" : ""} added after verification`,
+      ];
+    }
+
+    if (step === "processing") {
+      return [
+        "Your payment is waiting for backend verification",
+        "Webhook + Kora API reconciliation in progress",
+        plan.ai
+          ? "AI Career Tools ready"
+          : plan.service
+            ? "Professional listing ready"
+            : (plan as any).business
+              ? "1 advert credit added after verification"
+              : `${plan.credits} job post credit${plan.credits > 1 ? "s" : ""} added after verification`,
+      ];
+    }
+
+    return [
+      "Complete checkout with KoraPay",
+      "Server verifies the payment before activation",
+      plan.ai
+        ? "AI Career Tools ready"
+        : plan.service
+          ? "Professional listing ready"
+          : (plan as any).business
+            ? "1 advert credit added after verification"
+            : `${plan.credits} job post credit${plan.credits > 1 ? "s" : ""} added after verification`,
+    ];
+  };
+
   const clearPendingReference = () => {
     try {
       sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
@@ -1214,6 +1262,18 @@ export default function Payment() {
           )}
         </button>
 
+        {isGatewayUnavailable && !paying && !isProcessing && (
+          <button
+            onClick={() => {
+              setError("");
+              loadKoraScript();
+            }}
+            className="w-full mt-4 py-3 rounded-2xl border border-[#1A4BCE] bg-white text-[#1A4BCE] font-semibold text-base transition-all duration-200 hover:bg-[#1A4BCE]/5"
+          >
+            Retry payment gateway
+          </button>
+        )}
+
         <p className="mt-4 text-center text-xs text-gray-400">
           Your plan activates after secure server-side verification
         </p>
@@ -1422,9 +1482,7 @@ export default function Payment() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Credits</span>
                         <span className="font-medium text-gray-900">
-                          {plan.ai
-                            ? "—"
-                            : `${plan.credits} job post${plan.credits > 1 ? "s" : ""}`}
+                          {getPlanCreditsLabel()}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
@@ -1454,23 +1512,7 @@ export default function Payment() {
                           : "What happens next"}
                     </p>
                     <div className="space-y-3">
-                      {[
-                        step === "success"
-                          ? "Plan activated successfully"
-                          : step === "processing"
-                            ? "Your payment is waiting for backend verification"
-                            : "Complete checkout with KoraPay",
-                        step === "success"
-                          ? "Receipt sent to your email"
-                          : step === "processing"
-                            ? "Webhook + Kora API reconciliation in progress"
-                            : "Server verifies the payment before activation",
-                        plan.ai
-                          ? "AI Career Tools ready"
-                          : plan.service
-                            ? "Professional listing ready"
-                            : `${plan.credits} job post credit${plan.credits > 1 ? "s" : ""} added after verification`,
-                      ].map((item, i) => (
+                      {getWhatHappensNext().map((item, i) => (
                         <div key={i} className="flex items-start gap-3">
                           <div
                             className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${

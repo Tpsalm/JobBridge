@@ -835,8 +835,8 @@ export default function Business() {
 
         {/* Create Advert Form */}
         {showCreateForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
+            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Create New Advert</h2>
               <p className="text-sm text-emerald-700 mb-4 flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
@@ -1284,8 +1284,8 @@ export default function Business() {
 
       {/* ── Edit Advert Modal ── */}
       {editingAdvert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900">Edit Advert</h2>
               <button

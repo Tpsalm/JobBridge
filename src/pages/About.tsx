@@ -40,6 +40,41 @@ export default function About() {
     },
   ];
 
+  const teamMembers = [
+    {
+      name: 'Owoyemi Samuel Tobi',
+      role: 'Chief Technology Officer',
+      title: 'Founding Engineer',
+      description:
+        'Owoyemi is the first member of the JobBridge team and the CTO behind our platform architecture, AI systems, and data products. He leads engineering, product reliability, and technical innovation for the platform.',
+      image: `${import.meta.env.BASE_URL}images/team-profile.jpeg`,
+      badge: 'Founding Team',
+    },
+  ];
+
+  const services = [
+    {
+      title: 'Professional Services Marketplace',
+      description:
+        'Connect with vetted professionals across development, design, marketing, finance, and legal services.',
+    },
+    {
+      title: 'Business Advertising',
+      description:
+        'Promote your business with featured adverts, priority placement, and category targeting on JobBridge.',
+    },
+    {
+      title: 'AI-Powered Career Tools',
+      description:
+        'Use resume tools, interview preparation, and intelligent job matching to move your career forward.',
+    },
+    {
+      title: 'Recruitment & Talent Solutions',
+      description:
+        'Hire top talent, post jobs, and manage recruiting directly through our unified platform.',
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <Header />
@@ -114,6 +149,58 @@ export default function About() {
                 <div key={idx} className="text-center">
                   <p className="text-4xl lg:text-5xl font-bold text-blue-700 mb-2">{stat.value}</p>
                   <p className="text-gray-600">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+        </AnimatedSection>
+
+        {/* Our Services Section */}
+        <AnimatedSection direction="up">
+        <section className="px-4 lg:px-8 py-12 lg:py-20 bg-white">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-10 text-center">
+              About Our Services
+            </h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              {services.map((service, idx) => (
+                <div key={idx} className="rounded-3xl border border-gray-200 p-8 shadow-sm hover:shadow-lg transition">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-3">{service.title}</h3>
+                  <p className="text-gray-600">{service.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+        </AnimatedSection>
+
+        {/* Team Section */}
+        <AnimatedSection direction="up">
+        <section className="px-4 lg:px-8 py-12 lg:py-20 bg-gray-50">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-10 text-center">
+              Meet Our Team
+            </h2>
+            <div className="grid md:grid-cols-2 gap-8">
+              {teamMembers.map((member, idx) => (
+                <div key={idx} className="bg-white rounded-3xl p-8 border border-gray-200 shadow-sm hover:shadow-lg transition">
+                  <div className="flex flex-col items-center text-center gap-4">
+                    <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-100 shadow-md">
+                      <img
+                        src={member.image}
+                        alt={member.name}
+                        className="w-full h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}images/team-profile.jpeg`; }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold uppercase text-blue-700 tracking-[0.24em]">{member.badge}</p>
+                      <h3 className="text-2xl font-bold text-gray-900">{member.name}</h3>
+                      <p className="text-blue-700 font-semibold">{member.role}</p>
+                      <p className="text-gray-600">{member.description}</p>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
