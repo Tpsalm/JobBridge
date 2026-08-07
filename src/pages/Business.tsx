@@ -737,7 +737,7 @@ export default function Business() {
         </div>
 
         {/* Subscription Status */}
-        <AnimatedSection direction="up" className="mb-6">
+        <div className="mb-6">
           {canCreateAdvert ? (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-emerald-800 flex-wrap">
@@ -763,10 +763,10 @@ export default function Business() {
               </Link>
             </div>
           )}
-        </AnimatedSection>
+        </div>
 
         {/* Pricing Cards */}
-        <AnimatedSection direction="up"><div className="mb-8">
+        <div className="mb-8">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Advert Packages</h2>
           <div className="grid md:grid-cols-3 gap-4">
             {adPackages.map((pkg) => (
@@ -831,7 +831,7 @@ export default function Business() {
               </div>
             ))}
           </div>
-        </div></AnimatedSection>
+        </div>
 
         {/* Create Advert Form */}
         {showCreateForm && (
@@ -1013,7 +1013,7 @@ export default function Business() {
         )}
 
         {/* Limit Notice & Create New Advert Button */}
-        <AnimatedSection direction="up"><div className="mb-8">
+        <div className="mb-8">
           {hasExistingAdvert && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-center gap-2 text-sm text-amber-800">
               <Lock className="w-4 h-4 shrink-0" />
@@ -1051,7 +1051,7 @@ export default function Business() {
               Subscribe to Create Adverts
             </Link>
           )}
-        </div></AnimatedSection>
+        </div>
 
         {/* My Adverts */}
         <div className="mb-8">
