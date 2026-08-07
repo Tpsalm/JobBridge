@@ -14,14 +14,17 @@
 -- This migration adds:
 --   1) public.expire_advertisements() — an idempotent SECURITY DEFINER RPC
 --      that flips status -> 'expired' and is_active -> false for any
---      active/pending/paused advert whose expires_at has passed. It is called
---      by a Vercel Cron job so the database self-cleans automatically.
+--      active/pending/paused advert whose expires_at has passed. This is
+--      OPTIONAL: the deployed runtime already self-cleans via a service-role
+--      PostgREST UPDATE in api/get-advertisements.ts (runs on every marketplace
+--      read and on the daily Vercel cron). Use this function for manual/DB-level
+--      cleanup or admin tooling.
 --   2) An immediate sweep of already-overdue adverts.
 --   3) Execution grants for the service role and authenticated users.
 --
 -- NOTE: Query-time filtering (api/get-advertisements.ts +
 -- fetchPublicAdvertisements) guarantees expired adverts are hidden the exact
--- second their period ends, independent of when this sweep runs.
+-- second their period ends, independent of when any sweep runs.
 -- =========================================================================
 
 CREATE OR REPLACE FUNCTION public.expire_advertisements()

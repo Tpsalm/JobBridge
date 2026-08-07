@@ -60,7 +60,7 @@
   ],
   "crons": [
     {
-      "path": "/api/cron-expire-advertisements",
+      "path": "/api/get-advertisements",
       "schedule": "0 0 * * *"
     }
   ]

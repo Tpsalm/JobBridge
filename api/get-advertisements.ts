@@ -21,13 +21,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const baseUrl = SUPABASE_URL.replace(/\/+$/, '');
+    const nowIso = new Date().toISOString();
+
+    // Auto-expiry sweep (best-effort, fire-and-forget): flips any advert whose
+    // paid duration (expires_at) has elapsed to status='expired' / is_active=
+    // false. Runs on every marketplace read AND on the daily Vercel cron
+    // (vercel.json points the cron at this endpoint) so the stored status
+    // column self-cleans automatically — a 7-day advert expires after day 7
+    // and a 30-day advert after day 30. Failures never block the response.
+    const sweepUrl = new URL(`${baseUrl}/rest/v1/advertisements`);
+    sweepUrl.searchParams.set('status', 'in.(active,pending,paused)');
+    sweepUrl.searchParams.set('expires_at', `lt.${nowIso}`);
+    fetch(sweepUrl.toString(), {
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: 'expired', is_active: false, updated_at: nowIso }),
+    }).catch((e) => console.warn('[api/get-advertisements] expiry sweep failed:', e));
+
     const url = new URL(`${baseUrl}/rest/v1/advertisements`);
     url.searchParams.set('select', '*');
     url.searchParams.set('status', 'eq.active');
     // Auto-expiry: never serve an advert whose paid duration (expires_at) has
-    // elapsed — even if the background sweep hasn't flipped `status` yet.
-    // Adverts without an expiry (legacy rows) remain visible.
-    const nowIso = new Date().toISOString();
+    // elapsed — even if the sweep hasn't flipped `status` yet. Adverts without
+    // an expiry (legacy rows) remain visible.
     url.searchParams.set('or', `(expires_at.is.null,expires_at.gte.${nowIso})`);
     url.searchParams.set('order', 'created_at.desc');
 
