@@ -89,6 +89,19 @@ function effectiveAdStatus(status: string, expiresAt?: string | null): AdvertSta
   return base;
 }
 
+// Rank adverts exactly as requested: Featured Business first, then Monthly Ad,
+// then Weekly Ad at the bottom. Within the same package, featured ads float up.
+function sortAdverts(list: Advert[]): Advert[] {
+  const rank = (a: Advert) => (a.duration === 'Featured' ? 0 : a.duration === 'Monthly' ? 1 : 2);
+  return [...list].sort((a, b) => {
+    const ra = rank(a);
+    const rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    if (a.featured !== b.featured) return a.featured ? -1 : 1;
+    return 0;
+  });
+}
+
 export default function Business() {
   const { openModal } = useModal();
   const navigate = useNavigate();
@@ -582,6 +595,78 @@ export default function Business() {
     action();
   };
 
+  const renderAdCard = (advert: Advert) => (
+    <div
+      key={advert.id}
+      onClick={() => handleViewAdvert(advert)}
+      className={`bg-white rounded-xl overflow-hidden border hover:shadow-lg transition-shadow cursor-pointer ${
+        advert.featured ? 'border-amber-200 ring-1 ring-amber-200' : 'border-gray-100'
+      }`}
+    >
+      <img
+        src={advert.imageUrl || advertImage(advert.category)}
+        alt={advert.title}
+        className="w-full h-36 object-cover"
+      />
+      <div className="p-5">
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-bold text-gray-900">{advert.title}</h3>
+              {advert.featured && (
+                <span className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full shrink-0">
+                  <Star className="w-3 h-3" /> Featured
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-600">{advert.businessName}</p>
+          </div>
+        </div>
+        <p className="text-sm text-gray-500 mb-3 line-clamp-2">{advert.description}</p>
+        <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-3">
+          <span className="flex items-center gap-1">
+            <Building className="w-3.5 h-3.5" />
+            {advert.category}
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5" />
+            {advert.duration}
+          </span>
+          <span className="flex items-center gap-1">
+            <Eye className="w-3.5 h-3.5" />
+            {advert.views.toLocaleString()} views
+          </span>
+          <span className="flex items-center gap-1">
+            <TrendingUp className="w-3.5 h-3.5" />
+            {advert.clicks.toLocaleString()} users clicked
+          </span>
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewAdvert(advert);
+            }}
+            className="inline-flex items-center gap-1 text-sm text-blue-700 font-medium hover:underline"
+          >
+            View advert <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+          {user?.id !== advert.ownerId && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleChatAdvert(advert);
+              }}
+              className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              <MessageCircle className="w-4 h-4" /> Chat
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   // ── Chat with the business behind an advert (opens the Message page) ────
   const handleChatAdvert = async (ad: Advert) => {
     if (!user?.id) {
@@ -615,6 +700,13 @@ export default function Business() {
       navigate('/messages');
     }
   };
+
+  // Structure the Advertisements Showcase exactly as requested:
+  // Featured Business first, then Monthly Ads, then Weekly Ads at the bottom.
+  const sortedPublicAdverts = sortAdverts(publicAdverts);
+  const featuredAdverts = sortedPublicAdverts.filter(a => a.duration === 'Featured');
+  const monthlyAdverts = sortedPublicAdverts.filter(a => a.duration === 'Monthly');
+  const weeklyAdverts = sortedPublicAdverts.filter(a => a.duration === 'Weekly');
 
   const stats = {
     totalAds: adverts.length,
@@ -660,79 +752,49 @@ export default function Business() {
               <p className="text-gray-500">No advertisements yet. Be the first to showcase your business!</p>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {publicAdverts.map((advert) => (
-                <div
-                  key={advert.id}
-                  onClick={() => handleViewAdvert(advert)}
-                  className={`bg-white rounded-xl overflow-hidden border hover:shadow-lg transition-shadow cursor-pointer ${
-                    advert.featured ? 'border-amber-200 ring-1 ring-amber-200' : 'border-gray-100'
-                  }`}
-                >
-                  <img
-                    src={advert.imageUrl || advertImage(advert.category)}
-                    alt={advert.title}
-                    className="w-full h-36 object-cover"
-                  />
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-gray-900">{advert.title}</h3>
-                          {advert.featured && (
-                            <span className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full shrink-0">
-                              <Star className="w-3 h-3" /> Featured
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">{advert.businessName}</p>
-                      </div>
-                    </div>
-                    <p className="text-sm text-gray-500 mb-3 line-clamp-2">{advert.description}</p>
-                    <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-3">
-                      <span className="flex items-center gap-1">
-                        <Building className="w-3.5 h-3.5" />
-                        {advert.category}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        {advert.duration}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Eye className="w-3.5 h-3.5" />
-                        {advert.views.toLocaleString()} views
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        {advert.clicks.toLocaleString()} users clicked
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewAdvert(advert);
-                        }}
-                        className="inline-flex items-center gap-1 text-sm text-blue-700 font-medium hover:underline"
-                      >
-                        View advert <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                      {user?.id !== advert.ownerId && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleChatAdvert(advert);
-                          }}
-                          className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
-                        >
-                          <MessageCircle className="w-4 h-4" /> Chat
-                        </button>
-                      )}
-                    </div>
+            <>
+              {/* Featured Business — subscribed/paid businesses top the page */}
+              {featuredAdverts.length > 0 && (
+                <div className="mb-8">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Star className="w-4 h-4 text-amber-500" />
+                    <h3 className="font-semibold text-gray-900">Featured Business</h3>
+                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">{featuredAdverts.length}</span>
+                  </div>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {featuredAdverts.map(advert => renderAdCard(advert))}
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+
+              {/* Monthly Ads */}
+              {monthlyAdverts.length > 0 && (
+                <div className="mb-8">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <h3 className="font-semibold text-gray-900">Monthly Ads</h3>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{monthlyAdverts.length}</span>
+                  </div>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {monthlyAdverts.map(advert => renderAdCard(advert))}
+                  </div>
+                </div>
+              )}
+
+              {/* Weekly Ads — at the bottom */}
+              {weeklyAdverts.length > 0 && (
+                <div className="mb-8">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Building className="w-4 h-4 text-slate-500" />
+                    <h3 className="font-semibold text-gray-900">Weekly Ads</h3>
+                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">{weeklyAdverts.length}</span>
+                  </div>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {weeklyAdverts.map(advert => renderAdCard(advert))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </AnimatedSection>
 
@@ -1088,7 +1150,7 @@ export default function Business() {
             </div>
           ) : (
             <div className="space-y-4">
-              {adverts.map((advert) => (
+              {sortAdverts(adverts).map((advert) => (
                 <div
                   key={advert.id}
                   className={`bg-white rounded-xl overflow-hidden border ${advert.featured ? 'border-amber-200 ring-1 ring-amber-200' : 'border-gray-100'}`}

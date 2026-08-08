@@ -114,6 +114,7 @@ export type Job = {
   requirements: string[];
   benefits: string[];
   is_featured: boolean;
+  post_plan?: string;
   is_active: boolean;
   expires_at: string;
   views: number;

@@ -172,6 +172,20 @@ export default function Recruiter() {
         return typeMatch && locMatch;
       });
 
+  // Rank the recruiter's job postings exactly as requested: Premium Job Post
+  // first, then Standard Job Post, then Basic Job Post at the bottom. Legacy
+  // posts without a plan (post_plan NULL) are treated as Basic.
+  const jobPlanRank = (j: Job) => {
+    const plan = (j.post_plan || 'basic').toLowerCase();
+    if (plan === 'job_premium' || plan === 'premium') return 0;
+    if (plan === 'job_standard' || plan === 'standard') return 1;
+    return 2;
+  };
+  const sortedJobs = [...filteredJobs].sort((a, b) => jobPlanRank(a) - jobPlanRank(b));
+  const premiumJobs = sortedJobs.filter(j => jobPlanRank(j) === 0);
+  const standardJobs = sortedJobs.filter(j => jobPlanRank(j) === 1);
+  const basicJobs = sortedJobs.filter(j => jobPlanRank(j) === 2);
+
   const candidates = [
     {
       name: 'Alex Chen',
@@ -252,6 +266,51 @@ export default function Recruiter() {
     if (score >= 60) return 'text-amber-700 bg-amber-50';
     return 'text-red-700 bg-red-50';
   }
+
+  const renderJobCard = (job: Job) => (
+    <Card3D
+      key={job.id}
+      className="border border-gray-100 rounded-xl p-4 sm:p-5 hover:shadow-md transition-shadow"
+      strength={6}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:mb-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-gray-900">{job.title}</h3>
+            {job.is_featured && <span className="px-2 py-0.5 bg-pink-100 text-pink-700 text-[10px] font-semibold rounded-full">Featured</span>}
+            {!job.is_active && <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-semibold rounded-full">Inactive</span>}
+          </div>
+          <p className="text-sm text-gray-500 mt-1">{job.company} · {job.location}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-500">
+            <span className="flex items-center gap-1">
+              <Users className="w-4 h-4" />
+              {job.applications_count || 0} applicant{(job.applications_count || 0) !== 1 ? 's' : ''}
+            </span>
+            <span className="flex items-center gap-1">
+              <Eye className="w-4 h-4" />
+              {job.views || 0} views
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
+              {job.type}
+            </span>
+          </div>
+          {job.salary_range && (
+            <p className="text-xs font-medium text-green-700 mt-1.5">{job.salary_range}</p>
+          )}
+        </div>
+        <div className="flex gap-2 sm:ml-3 self-end sm:self-auto">
+          <button
+            onClick={() => navigate(`/jobs?id=${job.id}`)}
+            className="flex items-center gap-1.5 text-blue-700 font-medium text-sm px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors"
+          >
+            <ExternalLink className="w-4 h-4" />
+            View
+          </button>
+        </div>
+      </div>
+    </Card3D>
+  );
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20 md:pb-6">
@@ -535,50 +594,51 @@ export default function Recruiter() {
                     <p className="text-gray-500 font-medium">No jobs posted yet</p>
                     <p className="text-sm text-gray-400 mt-1">Click "Post New Job" to create your first listing.</p>
                   </div>
-                ) : filteredJobs.map((job) => (
-                  <Card3D
-                    key={job.id}
-                    className="border border-gray-100 rounded-xl p-4 sm:p-5 hover:shadow-md transition-shadow"
-                    strength={6}
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:mb-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-gray-900">{job.title}</h3>
-                          {job.is_featured && <span className="px-2 py-0.5 bg-pink-100 text-pink-700 text-[10px] font-semibold rounded-full">Featured</span>}
-                          {!job.is_active && <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-semibold rounded-full">Inactive</span>}
+                ) : (
+                  <>
+                    {/* Premium Job Post — paid subscribers top the page */}
+                    {premiumJobs.length > 0 && (
+                      <div className="mb-6">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Sparkles className="w-4 h-4 text-pink-600" />
+                          <h3 className="font-semibold text-gray-900">Premium Job Post</h3>
+                          <span className="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-medium">{premiumJobs.length}</span>
                         </div>
-                        <p className="text-sm text-gray-500 mt-1">{job.company} · {job.location}</p>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            {job.applications_count || 0} applicant{(job.applications_count || 0) !== 1 ? 's' : ''}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Eye className="w-4 h-4" />
-                            {job.views || 0} views
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            {job.type}
-                          </span>
+                        <div className="space-y-4">
+                          {premiumJobs.map(job => renderJobCard(job))}
                         </div>
-                        {job.salary_range && (
-                          <p className="text-xs font-medium text-green-700 mt-1.5">{job.salary_range}</p>
-                        )}
                       </div>
-                      <div className="flex gap-2 sm:ml-3 self-end sm:self-auto">
-                        <button
-                          onClick={() => navigate(`/jobs?id=${job.id}`)}
-                          className="flex items-center gap-1.5 text-blue-700 font-medium text-sm px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                          View
-                        </button>
+                    )}
+
+                    {/* Standard Job Post */}
+                    {standardJobs.length > 0 && (
+                      <div className="mb-6">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Award className="w-4 h-4 text-blue-600" />
+                          <h3 className="font-semibold text-gray-900">Standard Job Post</h3>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{standardJobs.length}</span>
+                        </div>
+                        <div className="space-y-4">
+                          {standardJobs.map(job => renderJobCard(job))}
+                        </div>
                       </div>
-                    </div>
-                  </Card3D>
-                ))}
+                    )}
+
+                    {/* Basic Job Post — at the bottom */}
+                    {basicJobs.length > 0 && (
+                      <div className="mb-6">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Briefcase className="w-4 h-4 text-slate-500" />
+                          <h3 className="font-semibold text-gray-900">Basic Job Post</h3>
+                          <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">{basicJobs.length}</span>
+                        </div>
+                        <div className="space-y-4">
+                          {basicJobs.map(job => renderJobCard(job))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div></AnimatedSection>
 
