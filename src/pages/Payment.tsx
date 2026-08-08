@@ -102,6 +102,11 @@ interface KoraPayConfig {
     status: string;
   }) => void;
   onPending?: () => void;
+  onTokenized?: (data: {
+    token?: string;
+    card?: { token?: string };
+    card_token?: string;
+  }) => void;
   merchant_bears_cost?: boolean;
 }
 
@@ -245,6 +250,7 @@ export default function Payment() {
   const originalPaymentReferenceRef = useRef<string>("");
   const koraCompletedRef = useRef(false);
   const receiptSentRef = useRef<Set<string>>(new Set());
+  const savedCardTokenRef = useRef<string>("");
 
   const cleanupKora = () => {
     if (typeof window === "undefined") return;
@@ -557,6 +563,8 @@ export default function Payment() {
           reference: reference || '',
           fallback_reference: reference || '',
           original_reference: originalPaymentReferenceRef.current || reference,
+          // KoraPay saved-card token (onTokenized) — enables recurring auto-debit.
+          card_token: savedCardTokenRef.current || '',
         };
 
         // For business plans, include pending advert data from session storage
@@ -1003,6 +1011,14 @@ export default function Payment() {
             await onKoraSuccess(data, reference);
           } catch (e) {
             console.error("[Payment] Error in onSuccess callback:", e);
+          }
+        },
+        onTokenized: (data) => {
+          try {
+            const card = data?.card;
+            savedCardTokenRef.current = data?.token || card?.token || data?.card_token || "";
+          } catch {
+            savedCardTokenRef.current = "";
           }
         },
         onFailed: (data) => {

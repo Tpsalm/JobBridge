@@ -3,9 +3,17 @@ import { supabase, Job, JobAlert, Profile, Advertisement, SubscriptionInfo, Revi
 // ─── Jobs ───────────────────────────────────────────────────────────────────
 
 export async function fetchJobs() {
+  // Billing gates (defense-in-depth; mirrors the jobs RLS policy):
+  //  - only active posts,
+  //  - paid posts OR legacy posts that predate the billing columns,
+  //  - not expired (one-time) OR still inside the grace window (recurring).
+  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("jobs")
     .select("*")
+    .eq("is_active", true)
+    .or(`post_paid.eq.true,post_plan.is.null`)
+    .or(`post_expires_at.is.null,post_expires_at.gt.${now},grace_ends_at.gt.${now}`)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data || [];
@@ -35,6 +43,10 @@ export async function createJob(job: {
   is_featured?: boolean;
   is_active?: boolean;
   expires_at?: string;
+  post_plan?: string;
+  post_paid?: boolean;
+  billing_mode?: string;
+  post_expires_at?: string;
 }) {
   const { data, error } = await supabase
     .from("jobs")
@@ -43,6 +55,8 @@ export async function createJob(job: {
         ...job,
         is_featured: job.is_featured ?? false,
         is_active: job.is_active ?? true,
+        post_paid: job.post_paid ?? true,
+        billing_mode: job.billing_mode ?? "one_time",
         views: 0,
         applications_count: 0,
       },
@@ -68,6 +82,10 @@ export async function updateJob(
     is_featured: boolean;
     is_active: boolean;
     expires_at: string;
+    post_plan: string;
+    post_paid: boolean;
+    billing_mode: string;
+    post_expires_at: string;
   }>,
 ) {
   const { data, error } = await supabase

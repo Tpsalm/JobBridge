@@ -22,7 +22,9 @@ echo "3/4 — Setting secrets..."
 echo ""
 echo "Enter your KoraPay SECRET KEY (starts with sk_live_):"
 echo "  Get it at https://dashboard.korapay.com/settings/api-keys"
+echo "  (also used by billing-daily for recurring saved-card auto-debits)"
 read -s KORA_SECRET
+npx supabase secrets set KORA_SECRET_KEY="$KORA_SECRET"
 npx supabase secrets set VITE_KORA_SECRET_KEY="$KORA_SECRET"
 
 echo ""
@@ -42,12 +44,15 @@ if [ -n "$DEEPSEEK_KEY" ]; then
 fi
 
 echo ""
-echo "4/4 — Deploying all 9 Edge Functions..."
+echo "4/4 — Deploying all 10 Edge Functions..."
 echo ""
 
 # Payment & processing
 npx supabase functions deploy kora-webhook --no-verify-jwt
 npx supabase functions deploy verify-payment --no-verify-jwt
+
+# Monetization engine (recurring billing via KoraPay saved-card tokens)
+npx supabase functions deploy billing-daily --no-verify-jwt
 
 # Email system
 npx supabase functions deploy send-welcome-email --no-verify-jwt
@@ -67,7 +72,7 @@ npx supabase functions deploy admin-create-user --no-verify-jwt
 echo ""
 echo "=== ✅ Deployment Complete ==="
 echo ""
-echo "Deployed 9 functions to project $PROJECT_REF"
+echo "Deployed 10 functions to project $PROJECT_REF"
 echo ""
 echo "Your webhook URL:"
 echo "  https://$PROJECT_REF.supabase.co/functions/v1/kora-webhook"
@@ -75,12 +80,16 @@ echo ""
 echo "Configure this URL in your KoraPay dashboard under Webhook Settings:"
 echo "  https://dashboard.korapay.com/settings/webhooks"
 echo ""
+echo "Schedule billing-daily daily via Supabase pg_cron or Vercel cron:"
+echo "  e.g. 0 0 * * *  @  https://$PROJECT_REF.supabase.co/functions/v1/billing-daily"
+echo ""
 echo "Then verify the webhook sends a test ping — KoraPay will display"
 echo "a green checkmark if your endpoint responds correctly."
 echo ""
 echo "Functions deployed:"
 echo "  - kora-webhook         (payment webhook from KoraPay)"
-echo "  - verify-payment       (verify payment status)"
+echo "  - verify-payment       (verify payment status + capture saved-card token)"
+echo "  - billing-daily        (daily auto-renew/retry/grace cron via KoraPay)"
 echo "  - send-welcome-email   (welcome email on signup)"
 echo "  - send-email           (general email sender with tracking)"
 echo "  - process-email-queue  (email queue processor with retry)"
@@ -89,6 +98,12 @@ echo "  - track-open           (email open tracking pixel)"
 echo "  - ai-operations        (AI chat, resume, cover letter)"
 echo "  - admin-create-user    (admin user creation)"
 echo ""
-echo "Pending database migrations (run in Supabase SQL Editor):"
+echo "Pending migrations (run in Supabase SQL Editor):"
+echo "  - supabase/migrations/20260807_002_monetization_engine.sql"
 echo "  - supabase/migrations/20260728_001_add_profile_sections.sql"
 echo "  - supabase/migrations/20260728_002_add_advertisements_rls_policy.sql"
+echo ""
+echo "Add a Vercel cron for billing-daily (automated renewals retry daily):"
+echo "  In vercel.json crons[] add:"
+echo '    { "path": "/api/billing-cron", "schedule": "0 0 * * *" }'
+echo "  (or configure Supabase cron to ping /functions/v1/billing-daily)"

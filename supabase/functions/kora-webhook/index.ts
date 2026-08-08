@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildSeedPaymentPayload, buildSeedProfilePayload, normalizeSeedUserId, shouldAutoSeedPayment } from "../_shared/payment-seeding.ts";
+import { cardTokenFromVerification, persistKoraCardToken } from "../_shared/korapay-recurring.ts";
 
 const KORA_SECRET_KEY =
   Deno.env.get("KORA_SECRET_KEY") || Deno.env.get("VITE_KORA_SECRET_KEY") || "";
@@ -68,6 +69,9 @@ interface PaymentRow {
   amount: number;
   currency: string | null;
   reference: string;
+  subscription_id?: string | null;
+  billing_phase?: string | null;
+  idempotency_key?: string | null;
 }
 
 function toNumber(value: string | number | undefined | null): number | null {
@@ -99,7 +103,14 @@ function planLabel(plan: string): string {
     case "standard":
       return "Standard Job Post";
     case "premium":
+    case "job_premium":
       return "Premium Job Post";
+    case "svc_basic":
+      return "Basic Service Provider";
+    case "svc_verified":
+      return "Verified Service Provider";
+    case "svc_featured":
+      return "Featured Professional";
     case "ai_monthly":
       return "AI Career Tools Monthly";
     case "ai_annual":
@@ -268,6 +279,66 @@ async function sendPaymentConfirmationEmail(
     );
   } catch (error) {
     console.error("[Kora Webhook] Error sending payment confirmation email:", error);
+  }
+}
+
+async function reconcileRenewal(
+  supabase: ReturnType<typeof createClient>,
+  payment: PaymentRow,
+  reference: string,
+): Promise<void> {
+  try {
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("id, status, current_period_end, last_attempt_ref, plan_key, product_line")
+      .eq("id", payment.subscription_id)
+      .maybeSingle();
+    if (!sub) {
+      console.warn("[Kora Webhook] reconcileRenewal: no subscription for", payment.subscription_id);
+      return;
+    }
+
+    const { data: plan } = await supabase
+      .from("plans")
+      .select("duration_days")
+      .eq("key", sub.plan_key)
+      .maybeSingle();
+    const durationDays = plan?.duration_days || 30;
+
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + durationDays * 86400000).toISOString();
+
+    // Idempotent: never roll the period twice for the same reference — the
+    // cron (`billing-daily`) may race this webhook.
+    const alreadyRolled =
+      sub.last_attempt_ref === reference &&
+      sub.current_period_end &&
+      new Date(sub.current_period_end) >= new Date(periodEnd);
+
+    if (!alreadyRolled) {
+      await supabase.from("subscriptions").update({
+        status: "active",
+        failed_retries: 0,
+        last_attempt_at: now.toISOString(),
+        last_attempt_ref: reference,
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd,
+        next_attempt_at: null,
+        grace_ends_at: null,
+        launch_free_period: false,
+        updated_at: now.toISOString(),
+      }).eq("id", payment.subscription_id);
+    }
+
+    // Restore listing visibility (may have entered grace during retries).
+    if (sub.product_line === "job_post") {
+      await supabase.from("jobs").update({ is_active: true, grace_ends_at: null }).eq("subscription_id", payment.subscription_id);
+    } else {
+      await supabase.from("profiles").update({ visibility_until: periodEnd, is_active: true }).eq("id", payment.user_id);
+      await supabase.from("service_providers").update({ is_active: true }).eq("profile_id", payment.user_id);
+    }
+  } catch (e) {
+    console.error("[Kora Webhook] reconcileRenewal error:", e);
   }
 }
 
@@ -679,7 +750,7 @@ serve(async (req: Request) => {
     // Primary lookup: match by JobBridge reference
     let { data: payment, error: findError } = await supabase
       .from("payments")
-      .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
+      .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata, subscription_id, billing_phase, idempotency_key")
       .eq("reference", reference)
       .maybeSingle<PaymentRow>();
 
@@ -697,7 +768,7 @@ serve(async (req: Request) => {
       if (altRefs.length) {
         const { data: altMatch, error: altErr } = await supabase
           .from("payments")
-          .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
+          .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata, subscription_id, billing_phase, idempotency_key")
           .in("reference", altRefs)
           .limit(1)
           .maybeSingle<PaymentRow>();
@@ -715,7 +786,7 @@ serve(async (req: Request) => {
       if (provRef) {
         const { data: provMatch, error: provErr } = await supabase
           .from("payments")
-          .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
+          .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata, subscription_id, billing_phase, idempotency_key")
           .or(`provider_reference.eq.${provRef},provider_reference.eq.${reference}`)
           .limit(1)
           .maybeSingle<PaymentRow>();
@@ -737,7 +808,7 @@ serve(async (req: Request) => {
         if (metaPlan && metaUser) {
           const q = supabase
             .from("payments")
-            .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata")
+            .select("id, user_id, plan, status, amount, currency, reference, provider_reference, metadata, subscription_id, billing_phase, idempotency_key")
             .eq("user_id", metaUser)
             .eq("plan", metaPlan)
             .in("status", ["pending"])
@@ -974,6 +1045,42 @@ serve(async (req: Request) => {
       });
     }
 
+    // ── Recurring renewal/retry reconciliation ────────────────────────────
+    // Auto-debit charges (ledger rows written by billing-daily) carry a
+    // subscription_id. Reconcile the subscription lifecycle here instead of
+    // the legacy one-time checkout path: roll the period, reset retries,
+    // clear grace, restore visibility. This closes the double-charge race
+    // where the gateway succeeds but the cron saw a network/timeout error.
+    const isRecurringCharge =
+      Boolean(payment.subscription_id) ||
+      payment.billing_phase === "renewal" ||
+      payment.billing_phase === "retry";
+
+    if (isRecurringCharge) {
+      await reconcileRenewal(supabase, payment, reference);
+      await sendPaymentConfirmationEmail(supabase, payment, reference);
+      await insertNotification(supabase, {
+        userId: payment.user_id,
+        type: "payment",
+        title: "Renewal confirmed",
+        content: `Your ${planLabel(payment.plan)} has been renewed successfully.`,
+        data: { reference, plan: payment.plan, amount: payment.amount, status: "verified", billing_phase: payment.billing_phase },
+      });
+      console.log(`[Kora Webhook] Renewal ${reference} reconciled for subscription ${payment.subscription_id}`);
+      return new Response("ok", { status: 200, headers: corsHeaders });
+    }
+
+    // Card-token capture for recurring auto-debit (KoraPay saved card).
+    const savedCardToken = cardTokenFromVerification(verification);
+    if (savedCardToken) {
+      const tokenRes = await persistKoraCardToken(supabase, payment.user_id, payment.plan, savedCardToken);
+      if (tokenRes?.error) {
+        console.error("[Kora Webhook] Failed to persist card token:", tokenRes.error);
+      } else if (tokenRes && !tokenRes.skipped) {
+        console.log(`[Kora Webhook] Card token saved for user ${payment.user_id}, plan ${payment.plan}`);
+      }
+    }
+
     // Activate the subscription on the user's profile as a fallback
     // in case the database trigger is not present or not enabled.
     const tier =
@@ -1045,6 +1152,17 @@ serve(async (req: Request) => {
         profileUpdates.is_featured = true;
       }
 
+      // Service subscribers must appear in the public marketplace feed
+      // (feed gates on profiles.visibility_until > now + is_active).
+      const isServicePlan =
+        payment.plan === "service_monthly" ||
+        payment.plan === "service_verified" ||
+        payment.plan === "service_featured";
+      if (isServicePlan) {
+        profileUpdates.visibility_until = expiresAt;
+        profileUpdates.is_active = true;
+      }
+
       const { error: profileUpdateError } = await supabase
         .from("profiles")
         .update(profileUpdates)
@@ -1055,6 +1173,12 @@ serve(async (req: Request) => {
           "[Kora Webhook] Failed to activate subscription on profile:",
           profileUpdateError.message,
         );
+      } else if (isServicePlan) {
+        await supabase
+          .from("service_providers")
+          .update({ is_active: true })
+          .eq("profile_id", payment.user_id)
+          .catch(() => {});
       }
     } else if (profileFetchError) {
       console.error(

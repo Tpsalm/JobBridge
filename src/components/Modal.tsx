@@ -2,6 +2,7 @@ import { useModal } from '../contexts/ModalContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { createJob, createApplication, decrementCredits } from '../lib/supabaseQueries';
+import { resolveJobPost } from '../lib/billing';
 import { sendEmail } from '../lib/email';
 import { checkRateLimit } from '../lib/security';
 import { useState } from 'react';
@@ -192,6 +193,7 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
                     category: '',
                     requirements: [],
                     benefits: [],
+                    ...resolveJobPost(subscription?.tier),
                   });
                   // Decrement credits after successful job post
                   try {

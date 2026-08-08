@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildReferenceCandidates, isChargeNotFoundError } from "../_shared/reference-normalization.ts";
+import { cardTokenFromVerification, persistKoraCardToken } from "../_shared/korapay-recurring.ts";
 
 const KORA_SECRET_KEY = Deno.env.get("KORA_SECRET_KEY") || Deno.env.get("VITE_KORA_SECRET_KEY") || "";
 const KORA_ALLOW_SIMULATED_VERIFICATION = Boolean(Deno.env.get("KORA_ALLOW_SIMULATED_VERIFICATION"));
@@ -103,6 +104,13 @@ serve(async (req: Request) => {
         profileUpdates.is_featured = true;
       }
 
+      // Service subscribers must appear in the public marketplace feed
+      // (feed gates on profiles.visibility_until > now + is_active).
+      if (isServicePlan) {
+        profileUpdates.visibility_until = expiresAt;
+        profileUpdates.is_active = true;
+      }
+
       const { error: profileErr } = await supabase
         .from("profiles")
         .update(profileUpdates)
@@ -112,6 +120,9 @@ serve(async (req: Request) => {
         console.error("[verify-payment] Universal activation profile update failed:", profileErr.message);
       } else {
         console.log(`[verify-payment] Profile activated for user ${userId}, plan ${planKey}, ${durationDays} days`);
+        if (isServicePlan) {
+          await supabase.from("service_providers").update({ is_active: true }).eq("profile_id", userId).catch(() => {});
+        }
       }
 
       // 2) For business plans, create the advertisement from pending data
@@ -157,6 +168,17 @@ serve(async (req: Request) => {
         } catch (advertErr) {
           console.error("[verify-payment] Business advert processing error:", advertErr);
         }
+      }
+
+      // 3) Save the KoraPay card token (if present) so monthly renewals auto-debit.
+      const cardToken = String(requestBody.card_token || "");
+      const tokenResult = cardToken
+        ? await persistKoraCardToken(supabase, userId, planKey, cardToken)
+        : null;
+      if (cardToken && tokenResult && !tokenResult.skipped && !tokenResult.error) {
+        console.log(`[verify-payment] Card token saved for user ${userId}, plan ${planKey}`);
+      } else if (tokenResult?.error) {
+        console.error("[verify-payment] Failed to persist card token:", tokenResult.error);
       }
 
       const result: Record<string, unknown> = { 
@@ -307,6 +329,17 @@ serve(async (req: Request) => {
     // Update payment to verified
     const { error: updateErr } = await supabase.from("payments").update({ status: "verified", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || chargeReference, currency: charge.currency || paymentRow.currency || "NGN", metadata: { verification_response: charge } }).eq("id", paymentRow.id).neq("status", "verified");
     if (updateErr) console.error("[verify-payment] update error", updateErr.message);
+
+    // Card-token capture for recurring auto-debit (KoraPay saved card).
+    const savedCardToken = cardTokenFromVerification(chargeResponse);
+    if (savedCardToken) {
+      const tokenRes = await persistKoraCardToken(supabase, paymentRow.user_id, paymentRow.plan, savedCardToken);
+      if (tokenRes?.error) {
+        console.error("[verify-payment] Failed to persist card token:", tokenRes.error);
+      } else if (tokenRes && !tokenRes.skipped) {
+        console.log(`[verify-payment] Card token saved for user ${paymentRow.user_id}, plan ${paymentRow.plan}`);
+      }
+    }
 
     // Activate profile similar to webhook
     const tier = (paymentRow.plan === "ai_monthly" || paymentRow.plan === "ai_annual") ? "ai_tools" : paymentRow.plan;

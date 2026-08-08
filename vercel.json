@@ -62,6 +62,10 @@
     {
       "path": "/api/get-advertisements",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/billing-cron",
+      "schedule": "0 0 * * *"
     }
   ]
 }

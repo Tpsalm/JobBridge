@@ -310,6 +310,20 @@ function paymentInitiatedTemplate(name: string, plan: string, amount: string): s
 <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0;">This is an automated notification. No action is needed if you are already completing the payment.</p>`;
 }
 
+function paymentFailedTemplate(name: string, plan: string): string {
+  const safeName = sanitize(name, MAX_NAME_LENGTH) || 'there';
+  const safePlan = sanitize(plan, MAX_STR_LENGTH) || 'your subscription';
+  return T`<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${safeName}</strong>,</p>
+<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">We could not renew <strong>${safePlan}</strong> — the payment on your card on file failed.</p>
+<div style="background:#fef2f2;border-radius:18px;padding:24px;margin-bottom:24px;border:1px solid #fecaca;">
+  <p style="font-size:15px;color:#b91c1c;margin:0 0 8px;font-weight:700;">Action needed</p>
+  <p style="font-size:14px;color:#7f1d1d;line-height:1.7;margin:0;">Update your card in Settings before the grace period ends, otherwise your listing will be hidden.</p>
+</div>
+<p style="font-size:15px;color:${BRAND_MUTED};line-height:1.7;margin:0 0 24px;">We retry automatically, but you can also update your payment method now to avoid any interruption.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,${BRAND_PRIMARY},${BRAND_SECONDARY});border-radius:12px;padding:14px 28px;"><a href="https://jobbridge.com.ng/profile?billing=1" target="_blank" style="color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">Update Payment Method</a></td></tr></table></td></tr></table>
+<p style="font-size:14px;color:${BRAND_MUTED};line-height:1.7;margin:24px 0 0;">Questions? Reply to this email or visit <a href="https://jobbridge.com.ng/support" style="color:${BRAND_PRIMARY};text-decoration:underline;">JobBridge Support</a>.</p>`;
+}
+
 function signInTemplate(name: string): string {
   const n = escapeHtml(name || 'there');
   return `<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${n}</strong>,</p>
@@ -406,7 +420,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid email format' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'advert_created', 'daily_digest', 'sign_in', 'sign_out', 'profile_reminder'];
+    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'advert_created', 'daily_digest', 'sign_in', 'sign_out', 'profile_reminder', 'payment_failed'];
     if (!VALID_TYPES.includes(type)) {
       return new Response(JSON.stringify({ error: `Unknown email type: ${type}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -434,6 +448,10 @@ serve(async (req) => {
       case 'payment':
         subject = `Payment Confirmed — ${sanitize(plan, MAX_STR_LENGTH) || 'Plan'} Activated 🎉`;
         htmlBody = paymentTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(plan, MAX_STR_LENGTH), sanitize(amount, MAX_STR_LENGTH));
+        break;
+      case 'payment_failed':
+        subject = 'Payment Failed — Update Your Card on JobBridge';
+        htmlBody = paymentFailedTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(plan, MAX_STR_LENGTH));
         break;
       case 'payment_initiated':
         subject = 'Payment Initiated — JobBridge';

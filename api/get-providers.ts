@@ -19,11 +19,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const baseUrl = SUPABASE_URL.replace(/\/+$/, '');
 
+    // Billing gate: only providers whose marketplace visibility window is open
+    // (visibility_until > now) may appear in the public feed. This is the
+    // monetization source of truth — subscriptions/renewals set it, and the
+    // billing cron clears it at lapse/grace end.
+    const nowISO = new Date().toISOString();
+
     // Fetch dedicated service_providers rows joined with profiles so we can
     // return enriched listings plus any profile-only providers that exist.
     const serviceProviderUrl = new URL(`${baseUrl}/rest/v1/service_providers`);
     serviceProviderUrl.searchParams.set('select', '*,profile:profiles(*)');
     serviceProviderUrl.searchParams.set('is_active', 'eq.true');
+    serviceProviderUrl.searchParams.set('profile.visibility_until', `gt.${nowISO}`);
 
     const [spResponse, profileResponse] = await Promise.all([
       fetch(serviceProviderUrl.toString(), {
@@ -39,6 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         profileUrl.searchParams.set('select', '*');
         profileUrl.searchParams.set('role', 'eq.provider');
         profileUrl.searchParams.set('is_active', 'eq.true');
+        profileUrl.searchParams.set('visibility_until', `gt.${nowISO}`);
 
         return fetch(profileUrl.toString(), {
           method: 'GET',
