@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchProviders, createConversationMessage } from '../lib/supabaseQueries';
 import { PROVIDER_CATEGORIES } from '../lib/providerCategories';
 import type { Profile } from '../lib/supabase';
-import { Search, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, Sparkles, MapPin, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, Sparkles, MapPin, Clock, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import FloatingDecorations from '../components/FloatingDecorations';
 import { IMG } from '../lib/media';
 
@@ -171,6 +171,14 @@ export default function Providers() {
     return b.reviews - a.reviews;
   });
 
+  // Structure the feed exactly as requested:
+  //   1. Featured Professional (paid subscribers) — top
+  //   2. Verified Professional — middle
+  //   3. Everyone else (unfeatured / unverified) — last
+  const featuredProviders = sortedProviders.filter(p => p.featured);
+  const verifiedProviders = sortedProviders.filter(p => !p.featured && p.verified);
+  const standardProviders = sortedProviders.filter(p => !p.featured && !p.verified);
+
   const renderStars = (rating: number) => (
     <div className="flex items-center gap-0.5">
       {Array(5).fill(null).map((_, i) => (
@@ -182,6 +190,115 @@ export default function Providers() {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'PR';
   };
+
+  const renderProviderCard = (p: ProviderDisplay) => (
+    <div
+      key={p.id}
+      className={`group bg-white rounded-xl border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden ${
+        p.featured
+          ? 'border-amber-200 shadow-sm hover:shadow-amber-100/50'
+          : p.verified
+          ? 'border-blue-100 shadow-sm hover:shadow-blue-100/30'
+          : 'border-slate-100 shadow-sm'
+      }`}
+    >
+      {/* Featured banner */}
+      {p.featured && (
+        <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2 flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-white shrink-0" />
+          <span className="text-white text-xs font-semibold tracking-wide">Featured Professional</span>
+        </div>
+      )}
+
+      <div className="p-5">
+        {/* Avatar + Name row */}
+        <div className="flex items-start gap-4 mb-4">
+          {p.img ? (
+            <img
+              src={p.img}
+              alt={p.name}
+              className="w-14 h-14 rounded-xl object-cover border-2 border-slate-100 shrink-0"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+          ) : null}
+          <div className={`${p.img ? '' : ''} ${!p.img ? 'flex items-center gap-3' : ''}`}>
+            {!p.img && (
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
+                {getInitials(p.name)}
+              </div>
+            )}
+            <div className={p.img ? '' : ''}>
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-bold text-slate-900 truncate text-base">{p.name}</h3>
+                {p.verified && <BadgeCheck className="w-4 h-4 text-blue-600 shrink-0" />}
+              </div>
+              <p className="text-sm text-slate-600 mt-0.5">{p.specialty}</p>
+              {p.location && (
+                <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                  <MapPin className="w-3 h-3" /> {p.location}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Rating */}
+        <div className="flex items-center gap-2 mb-3">
+          {renderStars(p.rating)}
+          <span className="text-xs text-slate-400">
+            {p.rating.toFixed(1)} ({p.reviews} {p.reviews === 1 ? 'review' : 'reviews'})
+          </span>
+        </div>
+
+        {/* Rate */}
+        <div className="text-xl font-bold text-blue-700 mb-3">
+          {p.hourlyRate > 0 ? `₦${p.hourlyRate.toLocaleString()}/hr` : 'Rate negotiable'}
+        </div>
+
+        {/* Specializations */}
+        {p.specializations.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {p.specializations.map(spec => (
+              <span key={spec} className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-medium">
+                {spec}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => openChat(p)}
+            className="flex-1 flex items-center justify-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+          >
+            <MessageCircle className="w-4 h-4" /> Chat
+          </button>
+          <button
+            onClick={() => openModal('profile', {
+              name: p.name,
+              role: p.specialty,
+              specialty: p.specialty,
+              match: `${p.rating}★`,
+              skills: p.specializations,
+              bio: '',
+              location: p.location,
+              hourlyRate: p.hourlyRate,
+              email: p.email,
+              verified: p.verified,
+              reviews: p.reviews,
+            })}
+            className="flex-1 border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+          >
+            View Profile
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24">
@@ -237,118 +354,57 @@ export default function Providers() {
           </p>
         </div>
 
-        {/* ─── Provider Grid (all providers in one unified grid) ─── */}
+        {/* ─── Provider Sections (Featured → Verified → All) ─── */}
         {sortedProviders.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
-            {sortedProviders.map(p => (
-              <div
-                key={p.id}
-                className={`group bg-white rounded-xl border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden ${
-                  p.featured
-                    ? 'border-amber-200 shadow-sm hover:shadow-amber-100/50'
-                    : p.verified
-                    ? 'border-blue-100 shadow-sm hover:shadow-blue-100/30'
-                    : 'border-slate-100 shadow-sm'
-                }`}
-              >
-                {/* Featured banner */}
-                {p.featured && (
-                  <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2 flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-white shrink-0" />
-                    <span className="text-white text-xs font-semibold tracking-wide">Featured Professional</span>
-                  </div>
-                )}
-
-                <div className="p-5">
-                  {/* Avatar + Name row */}
-                  <div className="flex items-start gap-4 mb-4">
-                    {p.img ? (
-                      <img
-                        src={p.img}
-                        alt={p.name}
-                        className="w-14 h-14 rounded-xl object-cover border-2 border-slate-100 shrink-0"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                        }}
-                      />
-                    ) : null}
-                    <div className={`${p.img ? '' : ''} ${!p.img ? 'flex items-center gap-3' : ''}`}>
-                      {!p.img && (
-                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
-                          {getInitials(p.name)}
-                        </div>
-                      )}
-                      <div className={p.img ? '' : ''}>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-bold text-slate-900 truncate text-base">{p.name}</h3>
-                          {p.verified && <BadgeCheck className="w-4 h-4 text-blue-600 shrink-0" />}
-                        </div>
-                        <p className="text-sm text-slate-600 mt-0.5">{p.specialty}</p>
-                        {p.location && (
-                          <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                            <MapPin className="w-3 h-3" /> {p.location}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Rating */}
-                  <div className="flex items-center gap-2 mb-3">
-                    {renderStars(p.rating)}
-                    <span className="text-xs text-slate-400">
-                      {p.rating.toFixed(1)} ({p.reviews} {p.reviews === 1 ? 'review' : 'reviews'})
-                    </span>
-                  </div>
-
-                  {/* Rate */}
-                  <div className="text-xl font-bold text-blue-700 mb-3">
-                    {p.hourlyRate > 0 ? `₦${p.hourlyRate.toLocaleString()}/hr` : 'Rate negotiable'}
-                  </div>
-
-                  {/* Specializations */}
-                  {p.specializations.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-4">
-                      {p.specializations.map(spec => (
-                        <span key={spec} className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-medium">
-                          {spec}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openChat(p)}
-                      className="flex-1 flex items-center justify-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
-                    >
-                      <MessageCircle className="w-4 h-4" /> Chat
-                    </button>
-                    <button
-                      onClick={() => openModal('profile', {
-                        name: p.name,
-                        role: p.specialty,
-                        specialty: p.specialty,
-                        match: `${p.rating}★`,
-                        skills: p.specializations,
-                        bio: '',
-                        location: p.location,
-                        hourlyRate: p.hourlyRate,
-                        email: p.email,
-                        verified: p.verified,
-                        reviews: p.reviews,
-                      })}
-                      className="flex-1 border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
-                    >
-                      View Profile
-                    </button>
-                  </div>
+          <>
+            {/* Featured Professionals — paid subscribers appear first */}
+            {featuredProviders.length > 0 && (
+              <section className="mb-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </span>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900">Featured Professionals</h2>
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full font-bold">{featuredProviders.length}</span>
                 </div>
-              </div>
-            ))}
-          </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {featuredProviders.map(p => renderProviderCard(p))}
+                </div>
+              </section>
+            )}
+
+            {/* Verified Professionals — verified badge holders */}
+            {verifiedProviders.length > 0 && (
+              <section className="mb-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0">
+                    <BadgeCheck className="w-4 h-4" />
+                  </span>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900">Verified Professionals</h2>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full font-bold">{verifiedProviders.length}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {verifiedProviders.map(p => renderProviderCard(p))}
+                </div>
+              </section>
+            )}
+
+            {/* All other service providers — unpaid / unverified */}
+            {standardProviders.length > 0 && (
+              <section className="mb-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                    <Users className="w-4 h-4" />
+                  </span>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900">All Service Providers</h2>
+                  <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold">{standardProviders.length}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {standardProviders.map(p => renderProviderCard(p))}
+                </div>
+              </section>
+            )}
+          </>
         ) : (
           /* ─── Empty State ─── */
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center mb-10">
