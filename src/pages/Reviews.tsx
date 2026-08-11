@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { Star, ArrowRight, Trash2, Send, LogIn, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -78,6 +78,7 @@ function formatDate(iso: string) {
 }
 
 export default function Reviews() {
+  const location = useLocation();
   const { user, profile } = useAuth();
 
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -110,6 +111,14 @@ export default function Reviews() {
       .then(setProviders)
       .catch(() => setProviders([]));
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const providerId = params.get('providerId') || '';
+    if (providerId) {
+      setSelectedProviderId(providerId);
+    }
+  }, [location.search]);
 
   // When a provider is picked, detect whether the user already reviewed them.
   useEffect(() => {
@@ -303,6 +312,11 @@ export default function Reviews() {
                 <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                   {error}
                 </p>
+              )}
+              {selectedProvider && (
+                <div className="text-xs text-gray-500 mt-1">
+                  Reviewing: <span className="font-semibold text-gray-700">{selectedProvider.full_name || selectedProvider.email}</span>
+                </div>
               )}
 
               <button

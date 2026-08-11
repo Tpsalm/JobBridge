@@ -80,8 +80,9 @@ export default function Home() {
       try {
         const ads = await fetchPublicAdvertisements();
         if (cancelled) return;
+        const featuredAds = ads.filter((ad) => ad.package === 'featured' && ad.payment_status === 'paid');
         const rank = (a: Advertisement) => (a.package === 'featured' ? 0 : a.package === 'monthly' ? 1 : 2);
-        const sorted = [...ads].sort((a, b) => {
+        const sorted = [...featuredAds].sort((a, b) => {
           const rd = rank(a) - rank(b);
           if (rd !== 0) return rd;
           const fd = (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
@@ -199,7 +200,7 @@ export default function Home() {
               </span>
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Featured Business Spotlight</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Premium businesses on the JobBridge homepage</p>
+                <p className="text-xs text-gray-500 mt-0.5">Only paid Featured Business subscribers appear here</p>
               </div>
             </div>
             <Link to="/business" className="text-sm font-medium text-blue-700 hover:text-blue-800 flex items-center gap-1 shrink-0">

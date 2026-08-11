@@ -278,7 +278,7 @@ export default function Providers() {
         )}
 
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={() => openChat(p)}
             className="flex-1 flex items-center justify-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
@@ -303,6 +303,12 @@ export default function Providers() {
           >
             View Profile
           </button>
+          <Link
+            to={`/reviews?providerId=${encodeURIComponent(p.id)}`}
+            className="flex-1 flex items-center justify-center gap-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+          >
+            <Star className="w-4 h-4" /> Rate Provider
+          </Link>
         </div>
       </div>
     </div>
