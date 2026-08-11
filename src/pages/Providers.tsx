@@ -85,7 +85,7 @@ export default function Providers() {
           email: p.email || '',
           name: p.full_name || 'Provider',
           specialty,
-          rating: p.rating && p.reviews_count ? Number(p.rating) : 4.8,
+          rating: Number(p.rating) || 0,
           reviews: p.reviews_count || 0,
           hourlyRate: p.hourly_rate || 0,
           specializations,
@@ -245,12 +245,20 @@ export default function Providers() {
           </div>
         </div>
 
-        {/* Rating */}
+        {/* Rating — real, live aggregate from the reviews table */}
         <div className="flex items-center gap-2 mb-3">
-          {renderStars(p.rating)}
-          <span className="text-xs text-slate-400">
-            {p.rating.toFixed(1)} ({p.reviews} {p.reviews === 1 ? 'review' : 'reviews'})
-          </span>
+          {p.reviews > 0 ? (
+            <>
+              {renderStars(p.rating)}
+              <span className="text-xs text-slate-500">
+                {p.rating.toFixed(1)} ({p.reviews} {p.reviews === 1 ? 'review' : 'reviews'})
+              </span>
+            </>
+          ) : (
+            <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+              New — no reviews yet
+            </span>
+          )}
         </div>
 
         {/* Rate */}

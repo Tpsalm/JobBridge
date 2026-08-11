@@ -49,6 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // elapsed — even if the sweep hasn't flipped `status` yet. Adverts without
     // an expiry (legacy rows) remain visible.
     url.searchParams.set('or', `(expires_at.is.null,expires_at.gte.${nowIso})`);
+    // Fetch most recent first; featured-priority sorting happens below so the
+    // "spotlight" placement is always accurate regardless of DB ordering.
     url.searchParams.set('order', 'created_at.desc');
 
     const resp = await fetch(url.toString(), {
@@ -68,6 +70,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const json = await resp.json();
     const rows = Array.isArray(json) ? json : [];
+
+    // Strategic priority: adverts from the premium business plan (Featured
+    // Business / package='featured' / is_featured=true) rank first so they land
+    // in the homepage spotlight. Then monthly, then weekly, then oldest.
+    const packageRank = (ad: any) => (ad.package === 'featured' ? 0 : ad.package === 'monthly' ? 1 : 2);
+    rows.sort((a: any, b: any) => {
+      const rankDiff = packageRank(a) - packageRank(b);
+      if (rankDiff !== 0) return rankDiff;
+      // Within the same package, featured-flagged ads float to the top.
+      const featuredDiff = (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
+      if (featuredDiff !== 0) return featuredDiff;
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
+
     return res.status(200).json(rows);
   } catch (err: any) {
     console.error('[api/get-advertisements] error:', err);

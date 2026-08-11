@@ -5,12 +5,14 @@ import BottomNav from '../components/BottomNav';
 import JobBridgeLogo from '../components/JobBridgeLogo';
 import { useModal } from '../contexts/ModalContext';
 import { useAuthRequired } from '../hooks/useAuthRequired';
-import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight } from 'lucide-react';
+import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight, Sparkles, Building, ExternalLink, MapPin } from 'lucide-react';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 import FloatingDecorations from '../components/FloatingDecorations';
 import HeroSlides from '../components/HeroSlides';
-import { pexel } from '../lib/media';
+import { pexel, advertImage } from '../lib/media';
+import { fetchPublicAdvertisements, incrementAdvertisementViews, incrementAdvertisementClicks } from '../lib/supabaseQueries';
+import type { Advertisement } from '../lib/supabase';
 
 const stats = [
   { label: 'Active Jobs', value: '24,500+', icon: Briefcase, color: 'bg-blue-50 text-blue-700' },
@@ -64,6 +66,42 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
 export default function Home() {
   const { openModal } = useModal();
   const { openProtectedModal } = useAuthRequired();
+
+  // ── Featured Business Spotlight ───────────────────────────────────────────
+  // Adverts created by premium business-plan (Featured Business) subscribers
+  // are shown prominently in the homepage spotlight. Featured adverts
+  // (package='featured' / is_featured) rank first, then monthly, then weekly.
+  const [spotlightAds, setSpotlightAds] = useState<Advertisement[]>([]);
+  const [spotlightLoading, setSpotlightLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const ads = await fetchPublicAdvertisements();
+        if (cancelled) return;
+        const rank = (a: Advertisement) => (a.package === 'featured' ? 0 : a.package === 'monthly' ? 1 : 2);
+        const sorted = [...ads].sort((a, b) => {
+          const rd = rank(a) - rank(b);
+          if (rd !== 0) return rd;
+          const fd = (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
+          if (fd !== 0) return fd;
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        });
+        setSpotlightAds(sorted);
+      } catch (e) {
+        console.warn('[Home] spotlight ads failed to load:', e);
+      } finally {
+        if (!cancelled) setSpotlightLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSpotlightView = (ad: Advertisement) => {
+    incrementAdvertisementViews(ad.id);
+    incrementAdvertisementClicks(ad.id);
+  };
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -150,6 +188,76 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Featured Business Spotlight — premium business plan adverts */}
+      {!spotlightLoading && spotlightAds.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-8">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shadow-md shadow-amber-200/50">
+                <Sparkles className="w-5 h-5" />
+              </span>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Featured Business Spotlight</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Premium businesses on the JobBridge homepage</p>
+              </div>
+            </div>
+            <Link to="/business" className="text-sm font-medium text-blue-700 hover:text-blue-800 flex items-center gap-1 shrink-0">
+              View all <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children stagger-visible">
+            {spotlightAds.slice(0, 6).map((ad) => (
+              <Card3D
+                key={ad.id}
+                className="bg-white rounded-2xl overflow-hidden border border-amber-100 shadow-sm hover:shadow-lg group"
+                strength={6}
+              >
+                <Link to="/business" onClick={() => handleSpotlightView(ad)} className="block">
+                  <div className="relative">
+                    <img
+                      src={ad.image_url || advertImage(ad.category)}
+                      alt={ad.title}
+                      className="w-full h-36 object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                    {(ad.package === 'featured' || ad.is_featured) && (
+                      <span className="absolute top-2 left-2 inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-500 text-white px-2 py-1 rounded-full shadow">
+                        <Star className="w-3 h-3 fill-white" /> Featured
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors truncate">{ad.title}</h3>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                      <Building className="w-3.5 h-3.5 text-gray-400" /> {ad.business_name || 'Business'}
+                      {ad.location && (
+                        <span className="inline-flex items-center gap-0.5 text-xs text-gray-400 ml-1">
+                          <MapPin className="w-3 h-3" /> {ad.location}
+                        </span>
+                      )}
+                    </p>
+                    {ad.description && (
+                      <p className="text-xs text-gray-500 line-clamp-2 mb-3">{ad.description}</p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                        {ad.package === 'featured' ? 'Premium Plan' : ad.package === 'monthly' ? 'Monthly' : 'Weekly'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-blue-700 font-semibold">
+                        View advert <ExternalLink className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </Card3D>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Stats */}
       <AnimatedSection className="max-w-7xl mx-auto px-4 sm:px-6 py-12">

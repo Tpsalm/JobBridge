@@ -121,6 +121,7 @@ function normalizeProviders(rows: any[]): any[] {
       updated_at: profile.updated_at || row.updated_at,
       specialty: row.specialty || profile.specialty || profile.service_category,
       hourly_rate: row.hourly_rate ?? profile.hourly_rate,
+      rating: row.rating ?? profile.rating ?? 0,
       reviews_count: row.reviews_count ?? profile.reviews_count ?? 0,
       is_verified: row.is_verified ?? profile.is_verified ?? false,
       is_featured: profile.is_featured ?? false,
