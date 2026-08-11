@@ -80,11 +80,15 @@ export default function Home() {
       try {
         const ads = await fetchPublicAdvertisements();
         if (cancelled) return;
-        const featuredAds = ads.filter((ad) => ad.package === 'featured' && ad.payment_status === 'paid');
-        const rank = (a: Advertisement) => (a.package === 'featured' ? 0 : a.package === 'monthly' ? 1 : 2);
+        // A Featured Business ad is one flagged `is_featured` OR created under
+        // the `featured` package. Only confirmed-paid ads appear in the paid-only
+        // homepage spotlight. Some featured ads carry package 'weekly'/'monthly'
+        // when the owner toggled "featured" on a base plan, so we must not rely
+        // solely on the package column — `is_featured` is the authoritative flag.
+        const featuredAds = ads.filter(
+          (ad) => (ad.is_featured || ad.package === 'featured') && ad.payment_status === 'paid',
+        );
         const sorted = [...featuredAds].sort((a, b) => {
-          const rd = rank(a) - rank(b);
-          if (rd !== 0) return rd;
           const fd = (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
           if (fd !== 0) return fd;
           return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();

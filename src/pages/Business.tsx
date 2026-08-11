@@ -91,8 +91,11 @@ function effectiveAdStatus(status: string, expiresAt?: string | null): AdvertSta
 
 // Rank adverts exactly as requested: Featured Business first, then Monthly Ad,
 // then Weekly Ad at the bottom. Within the same package, featured ads float up.
+// `featured` (is_featured) is the authoritative Featured Business indicator —
+// some featured ads carry a weekly/monthly package, so it must win over the
+// package-derived duration when ranking.
 function sortAdverts(list: Advert[]): Advert[] {
-  const rank = (a: Advert) => (a.duration === 'Featured' ? 0 : a.duration === 'Monthly' ? 1 : 2);
+  const rank = (a: Advert) => (a.featured || a.duration === 'Featured' ? 0 : a.duration === 'Monthly' ? 1 : 2);
   return [...list].sort((a, b) => {
     const ra = rank(a);
     const rb = rank(b);
@@ -703,10 +706,14 @@ export default function Business() {
 
   // Structure the Advertisements Showcase exactly as requested:
   // Featured Business first, then Monthly Ads, then Weekly Ads at the bottom.
+  // Featured = flagged `featured` (is_featured) OR a 'featured' package, so
+  // featured ads always land in the Featured Business section and never repeat
+  // under monthly/weekly.
+  const isFeaturedAd = (a: Advert) => a.featured || a.duration === 'Featured';
   const sortedPublicAdverts = sortAdverts(publicAdverts);
-  const featuredAdverts = sortedPublicAdverts.filter(a => a.duration === 'Featured');
-  const monthlyAdverts = sortedPublicAdverts.filter(a => a.duration === 'Monthly');
-  const weeklyAdverts = sortedPublicAdverts.filter(a => a.duration === 'Weekly');
+  const featuredAdverts = sortedPublicAdverts.filter(isFeaturedAd);
+  const monthlyAdverts = sortedPublicAdverts.filter(a => !isFeaturedAd(a) && a.duration === 'Monthly');
+  const weeklyAdverts = sortedPublicAdverts.filter(a => !isFeaturedAd(a) && a.duration === 'Weekly');
 
   const stats = {
     totalAds: adverts.length,

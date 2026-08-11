@@ -74,7 +74,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Strategic priority: adverts from the premium business plan (Featured
     // Business / package='featured' / is_featured=true) rank first so they land
     // in the homepage spotlight. Then monthly, then weekly, then oldest.
-    const packageRank = (ad: any) => (ad.package === 'featured' ? 0 : ad.package === 'monthly' ? 1 : 2);
+    // Featured priority is driven by the `is_featured` flag (the authoritative
+    // "Featured Business" indicator) OR the `featured` package, then monthly,
+    // then weekly — this mirrors the homepage spotlight so featured ads always
+    // surface first regardless of which package the owner originally chose.
+    const packageRank = (ad: any) =>
+      ad.is_featured || ad.package === 'featured' ? 0 : ad.package === 'monthly' ? 1 : 2;
     rows.sort((a: any, b: any) => {
       const rankDiff = packageRank(a) - packageRank(b);
       if (rankDiff !== 0) return rankDiff;
