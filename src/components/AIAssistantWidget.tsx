@@ -821,6 +821,9 @@ function AIAssistantWidget() {
                 onClick={() => {
                   const next = !assistantVoiceEnabled;
                   setAssistantVoiceEnabled(next);
+                  if (!next) {
+                    window.speechSynthesis?.cancel();
+                  }
                   try { localStorage.setItem("assistant_voice_enabled", next ? "1" : "0"); } catch {}
                 }}
                 title={assistantVoiceEnabled ? "Disable voice" : "Enable voice"}

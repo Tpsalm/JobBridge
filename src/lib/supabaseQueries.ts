@@ -116,7 +116,7 @@ export async function incrementJobViews(id: string, currentViews: number) {
 export async function fetchApplications(recruiterId?: string) {
   let query = supabase
     .from("applications")
-    .select("*, job:jobs(*), applicant:profiles(*)")
+    .select("*, job:jobs!inner(*), applicant:profiles(*)")
     .order("created_at", { ascending: false });
   if (recruiterId) {
     query = query.eq("job.recruiter_id", recruiterId);

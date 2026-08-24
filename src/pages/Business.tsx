@@ -253,8 +253,8 @@ export default function Business() {
               email: ad.email || '',
             })),
           );
-          // User can only have 1 advert total
-          setHasExistingAdvert(data.length >= 1);
+          // One active advert is allowed; expired adverts can be replaced.
+          setHasExistingAdvert(data.some((ad) => effectiveAdStatus(ad.status, ad.expires_at) !== 'expired'));
         }
       } catch (error) {
         console.error('Failed to load business adverts:', error);
@@ -343,10 +343,10 @@ export default function Business() {
     const selectedPackage = adPackages.find(p => p.name === formData.package);
     if (!selectedPackage) return;
 
-    // Check if user already has an advert (limit to 1)
+    // Check if user already has an active advert (limit to 1).
     if (hasExistingAdvert) {
       push({
-        message: '❌ You already have an advert. Only 1 advert is allowed per business. Delete your existing advert to create a new one.',
+        message: '❌ You already have an active advert. Pause or delete it before creating another one.',
         type: 'error',
       });
       return;
@@ -1106,7 +1106,7 @@ export default function Business() {
           {hasExistingAdvert && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-center gap-2 text-sm text-amber-800">
               <Lock className="w-4 h-4 shrink-0" />
-              <span>You already have an advert. Only <strong>1 advert</strong> is allowed per business. Delete your existing advert to create a new one.</span>
+              <span>You already have an active advert. Only <strong>1 active advert</strong> is allowed per business.</span>
             </div>
           )}
           {canCreateAdvert ? (
@@ -1114,7 +1114,7 @@ export default function Business() {
               onClick={() => {
                 if (hasExistingAdvert) {
                   push({
-                    message: '❌ You already have an advert. Only 1 advert is allowed per business. Delete your existing advert to create a new one.',
+                    message: '❌ You already have an active advert. Pause or delete it before creating another one.',
                     type: 'error',
                   });
                   return;
@@ -1126,7 +1126,7 @@ export default function Business() {
             >
               <Plus className="w-5 h-5" />
               {hasExistingAdvert
-                ? 'Advert limit reached (1 per business)'
+                ? 'Active advert limit reached (1 per business)'
                 : subscription.credits && subscription.credits > 0
                   ? `Create New Advert (${subscription.credits} credit${subscription.credits !== 1 ? 's' : ''} remaining)`
                   : 'No credits remaining'}

@@ -118,6 +118,7 @@ export default function Recruiter() {
   const [applications, setApplications] = useState<any[]>([]);
   const [appsLoading, setAppsLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState<any>(null);
+  const [resumeError, setResumeError] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
   async function fetchApps() {
@@ -707,13 +708,15 @@ export default function Recruiter() {
                     )}
 
                     {selectedApp.resume_url && (
-                      <button
-                        onClick={async () => {
+                        <div>
+                          <button
+                            onClick={async () => {
+                              setResumeError('');
                           const url = selectedApp.resume_url;
-                          const match = url.match(/\/object\/public\/resumes\/(.+)$/) || url.match(/\/resumes\/(.+)$/);
-                          const path = match ? decodeURIComponent(match[1]) : null;
+                            const pathMatch = url.match(/\/resumes\/([^?]+)/);
+                            const path = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
                           if (!path) {
-                            window.open(url, '_blank');
+                              setResumeError('This resume link is invalid. Ask the applicant to upload it again.');
                             return;
                           }
                           try {
@@ -726,13 +729,15 @@ export default function Recruiter() {
                             }
                           } catch (err) {
                             console.error('Error generating signed URL:', err);
-                            window.open(url, '_blank');
+                            setResumeError('Unable to fetch this resume. Please try again or ask the applicant to upload it again.');
                           }
-                        }}
-                        className="inline-flex items-center gap-2 text-sm text-blue-700 hover:underline bg-transparent border-none cursor-pointer p-0"
-                      >
-                        <Download className="w-4 h-4" /> Download CV
-                      </button>
+                          }}
+                          className="inline-flex items-center gap-2 text-sm text-blue-700 hover:underline bg-transparent border-none cursor-pointer p-0"
+                        >
+                          <Download className="w-4 h-4" /> Download CV
+                        </button>
+                        {resumeError && <p className="mt-2 text-xs text-red-600">{resumeError}</p>}
+                      </div>
                     )}
 
                     {/* Status actions */}
