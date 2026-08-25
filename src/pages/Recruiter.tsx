@@ -562,7 +562,18 @@ export default function Recruiter() {
                     </div>
 
                     <button
-                      onClick={() => openProtectedModal({ action: 'post-job', requiredRole: 'recruiter', modalData: { title: generatedJD.title, description: generatedJD.description } })}
+                      onClick={() => openProtectedModal({
+                        action: 'post-job',
+                        requiredRole: 'recruiter',
+                        modalData: {
+                          autoPublish: true,
+                          title: generatedJD.title,
+                          description: generatedJD.description,
+                          company: user?.user_metadata?.company || '',
+                          requirements: generatedJD.requirements,
+                          benefits: generatedJD.benefits,
+                        },
+                      })}
                       className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors"
                     >
                       <Plus className="w-4 h-4" /> Publish This Job

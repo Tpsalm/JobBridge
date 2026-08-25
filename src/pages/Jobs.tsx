@@ -43,6 +43,16 @@ function parseBenefits(benefits: string | string[] | null): string[] {
   try { return JSON.parse(benefits); } catch { return []; }
 }
 
+function parseList(value: string | string[] | null): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean);
+  } catch { /* Keep plain comma-separated values below. */ }
+  return value.split(',').map(item => item.trim()).filter(Boolean);
+}
+
 const Jobs = () => {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
@@ -184,12 +194,13 @@ const Jobs = () => {
   };
 
   const benefits = selectedJob ? parseBenefits(selectedJob.benefits) : [];
+  const requirements = selectedJob ? parseList(selectedJob.requirements) : [];
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-gray-100 overflow-hidden">
+    <div className="flex flex-col min-h-[100dvh] bg-gray-100">
       <Header />
 
-      <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
+      <main className="flex-1 flex flex-col pb-16 md:pb-0">
         <PageHero
           compact
           title="Find your next role"
@@ -273,9 +284,9 @@ const Jobs = () => {
         </div>
 
         {/* Main Split Panel */}
-        <div className="flex-1 flex overflow-hidden max-w-7xl mx-auto w-full min-h-0">
+        <div className="flex-1 flex max-w-7xl mx-auto w-full min-h-0 lg:overflow-hidden">
           {/* Left Column: Job Cards */}
-          <div className={`${selectedJob ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[420px] xl:w-[460px] flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto min-h-0`}>
+          <div className={`${selectedJob ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[420px] xl:w-[460px] flex-shrink-0 border-r border-gray-200 bg-white lg:overflow-y-auto lg:min-h-0`}>
             {loadingJobs ? (
               <div className="p-12 text-center">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-700 mx-auto mb-3" />
@@ -296,7 +307,7 @@ const Jobs = () => {
                   <Card3D
                     key={job.id}
                     onClick={() => selectJob(job)}
-                    className={`px-5 py-4 border-b border-gray-100 cursor-pointer transition-colors ${
+                    className={`px-4 sm:px-5 py-5 border-b border-gray-100 cursor-pointer transition-colors ${
                       isActive ? 'bg-blue-50 border-l-4 border-l-blue-700' : 'hover:bg-gray-50 border-l-4 border-l-transparent'
                     }`}
                     strength={6}
@@ -304,12 +315,11 @@ const Jobs = () => {
                     <div className="flex items-start gap-3">
                       <CompanyLogo company={job.company} fallbackClassName={getCompanyColor(job.company)} />
                       <div className="flex-1 min-w-0">
-                        <h3 className={`font-semibold text-sm leading-snug ${isActive ? 'text-blue-700' : 'text-gray-900'}`}>{job.title}</h3>
-                        <p className="text-xs text-gray-600 mt-0.5">{job.company}</p>
-                        <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
-                          <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3" />{job.location}</span>
-                          <span>·</span>
-                          <span>{job.type}</span>
+                        <h3 className={`font-bold text-base leading-snug break-words ${isActive ? 'text-blue-700' : 'text-gray-900'}`}>{job.title}</h3>
+                        <p className="text-sm text-gray-600 mt-1 break-words">{job.company}</p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-sm text-gray-600">
+                          <span className="flex items-start gap-1 min-w-0"><MapPin className="w-4 h-4 flex-shrink-0 text-gray-500 mt-0.5" /><span className="break-words">{job.location || 'Location not provided'}</span></span>
+                          <span className="flex items-center gap-1"><Briefcase className="w-3.5 h-3.5 flex-shrink-0" />{job.type}</span>
                         </div>
                         {job.salary_range && (
                           <p className="text-xs font-medium text-green-700 mt-1.5">{job.salary_range}</p>
@@ -362,12 +372,12 @@ const Jobs = () => {
                 </button>
 
                 {/* Detail Header */}
-                <div className="px-6 py-6 border-b border-gray-100">
+                <div className="px-4 sm:px-6 py-5 sm:py-6 border-b border-gray-100">
                   <div className="flex items-start gap-4">
                     <CompanyLogo company={selectedJob.company} className="w-14 h-14 rounded-xl" fallbackClassName={`${getCompanyColor(selectedJob.company)} shadow-sm`} />
                     <div className="flex-1 min-w-0">
-                      <h1 className="text-xl font-bold text-gray-900 leading-tight">{selectedJob.title}</h1>
-                      <p className="text-sm text-gray-600 mt-1 flex items-center gap-1.5">
+                      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight break-words">{selectedJob.title}</h1>
+                      <p className="text-sm text-gray-600 mt-1 flex flex-wrap items-center gap-1.5 break-words">
                         <Building className="w-4 h-4 text-gray-400" />
                         {selectedJob.company}
                         {selectedJob.category && (
@@ -375,7 +385,7 @@ const Jobs = () => {
                         )}
                       </p>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-sm text-gray-500">
-                        <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{selectedJob.location}</span>
+                        <span className="flex items-start gap-1 w-full font-medium text-gray-700"><MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" /><span className="break-words">{selectedJob.location || 'Location not provided'}</span></span>
                         <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{timeAgo(selectedJob.created_at)}</span>
                         <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{selectedJob.applications_count || 0} applicants</span>
                       </div>
@@ -438,6 +448,21 @@ const Jobs = () => {
                     <span className="text-sm font-medium text-gray-900">{selectedJob.type}</span>
                   </div>
                 </div>
+
+                {/* Requirements */}
+                {requirements.length > 0 && (
+                  <div className="px-4 sm:px-6 py-5 border-b border-gray-100">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Requirements ({requirements.length})</h3>
+                    <ul className="space-y-2">
+                      {requirements.map((requirement: string) => (
+                        <li key={requirement} className="flex items-start gap-2 text-sm leading-relaxed text-gray-700">
+                          <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <span>{requirement}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Benefits */}
                 {benefits.length > 0 && (

@@ -5,7 +5,7 @@ import { createJob, createApplication, decrementCredits } from '../lib/supabaseQ
 import { resolveJobPost } from '../lib/billing';
 import { sendEmail } from '../lib/email';
 import { checkRateLimit } from '../lib/security';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building, Wrench, ArrowRight, BadgeCheck, Loader2, CheckCircle, Mail, Eye, EyeOff, Lock } from 'lucide-react';
 
@@ -23,7 +23,7 @@ export function ModalRenderer() {
         className={`bg-white rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto ${modalType === 'signup' || modalType === 'auth-required' ? 'max-w-lg w-full' : 'max-w-md w-full'}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {modalType === 'post-job' && <PostJobModal onClose={closeModal} />}
+        {modalType === 'post-job' && <PostJobModal data={modalData} onClose={closeModal} />}
         {modalType === 'message' && <MessageModal data={modalData} onClose={closeModal} />}
         {modalType === 'profile' && <ProfileModal data={modalData} onClose={closeModal} />}
         {modalType === 'hire' && <HireModal data={modalData} onClose={closeModal} />}
@@ -66,14 +66,68 @@ function SuccessState({ message, onClose }: { message: string; onClose: () => vo
   );
 }
 
-function PostJobModal({ onClose }: { onClose: () => void }) {
+function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClose: () => void }) {
+  const isAutoPublish = data.autoPublish === true;
+  const autoPublishStarted = useRef(false);
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [noCredits, setNoCredits] = useState(false);
-  const [form, setForm] = useState({ title: '', company: '', location: '', type: 'Full-time', salary: '', description: '' });
-  const { user, profile, subscription, fetchSubscription } = useAuth();
+  const [form, setForm] = useState({
+    title: typeof data.title === 'string' ? data.title : '',
+    company: typeof data.company === 'string' ? data.company : '',
+    location: typeof data.location === 'string' ? data.location : '',
+    type: typeof data.type === 'string' ? data.type : 'Full-time',
+    salary: typeof data.salary === 'string' ? data.salary : '',
+    description: typeof data.description === 'string' ? data.description : '',
+  });
+  const { user, profile, subscription, subscriptionLoaded, fetchSubscription } = useAuth();
   const navigate = useNavigate();
+
+  const publishJob = async () => {
+    if (subscription.status !== 'active' || subscription.credits < 1) {
+      setNoCredits(true);
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await createJob({
+        recruiter_id: profile?.id || user?.id || '',
+        title: form.title,
+        company: form.company || profile?.company || profile?.full_name || 'JobBridge Employer',
+        description: form.description,
+        location: form.location || profile?.location || 'Remote',
+        type: form.type,
+        salary_range: form.salary || '',
+        category: typeof data.category === 'string' ? data.category : '',
+        requirements: Array.isArray(data.requirements) ? data.requirements.filter((item): item is string => typeof item === 'string') : [],
+        benefits: Array.isArray(data.benefits) ? data.benefits.filter((item): item is string => typeof item === 'string') : [],
+        ...resolveJobPost(subscription?.tier),
+      });
+      try {
+        await decrementCredits(user?.id || profile?.id || '');
+      } catch (creditErr) {
+        console.warn('Failed to decrement credits:', creditErr);
+      }
+      try { window.dispatchEvent(new CustomEvent('jobs:updated')); } catch (e) { console.warn('Failed to dispatch jobs:updated event', e); }
+      await fetchSubscription();
+      if (user?.email) {
+        sendEmail({ type: 'job_posted', email: user.email, name: profile?.full_name || 'there', jobTitle: form.title, company: form.company });
+      }
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Post job error', err);
+      alert('Failed to post job. See console for details.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAutoPublish || !subscriptionLoaded || autoPublishStarted.current) return;
+    autoPublishStarted.current = true;
+    void publishJob();
+  }, [isAutoPublish, publishJob, subscriptionLoaded]);
 
   if (noCredits) {
     return (
@@ -98,6 +152,15 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
   }
 
   if (submitted) return <SuccessState message="Your job posting is live! Candidates can now apply." onClose={onClose} />;
+
+  if (isAutoPublish) {
+    return (
+      <div className="p-8 text-center">
+        <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
+        <p className="text-on-surface font-semibold">Publishing your AI-generated job...</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -174,47 +237,7 @@ function PostJobModal({ onClose }: { onClose: () => void }) {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setStep(2)} className="flex-1 border border-outline text-on-surface py-2.5 rounded-lg font-semibold hover:bg-surface-container transition-colors">Back</button>
-              <button onClick={async () => {
-                // Check subscription credits first
-                if (subscription.status !== 'active' || subscription.credits < 1) {
-                  setNoCredits(true);
-                  return;
-                }
-                try {
-                  setSubmitting(true);
-                  await createJob({
-                    recruiter_id: profile?.id || user?.id || '',
-                    title: form.title,
-                    company: form.company,
-                    description: form.description,
-                    location: form.location,
-                    type: form.type,
-                    salary_range: form.salary || '',
-                    category: '',
-                    requirements: [],
-                    benefits: [],
-                    ...resolveJobPost(subscription?.tier),
-                  });
-                  // Decrement credits after successful job post
-                  try {
-                    await decrementCredits(user?.id || profile?.id || '');
-                  } catch (creditErr) {
-                    console.warn('Failed to decrement credits:', creditErr);
-                  }
-                  try { window.dispatchEvent(new CustomEvent('jobs:updated')); } catch (e) { console.warn('Failed to dispatch jobs:updated event', e); }
-                  await fetchSubscription();
-                  // Send job posted confirmation email
-                  if (user?.email) {
-                    sendEmail({ type: 'job_posted', email: user.email, name: profile?.full_name || 'there', jobTitle: form.title, company: form.company });
-                  }
-                  setSubmitted(true);
-                } catch (err) {
-                  console.error('Post job error', err);
-                  alert('Failed to post job. See console for details.');
-                } finally {
-                  setSubmitting(false);
-                }
-              }} disabled={submitting} className="flex-1 bg-primary text-white py-2.5 rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity flex items-center justify-center gap-2">
+              <button onClick={() => void publishJob()} disabled={submitting} className="flex-1 bg-primary text-white py-2.5 rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity flex items-center justify-center gap-2">
                 <span className="material-symbols-outlined text-lg">publish</span>
                 {submitting ? 'Posting...' : 'Post Job'}
               </button>
