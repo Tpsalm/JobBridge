@@ -114,6 +114,11 @@ export async function incrementJobViews(id: string, currentViews: number) {
 // ─── Applications ───────────────────────────────────────────────────────────
 
 export async function fetchApplications(recruiterId?: string) {
+  if (recruiterId) {
+    const { data, error } = await supabase.rpc("get_recruiter_applications");
+    if (error) throw error;
+    return data || [];
+  }
   let query = supabase
     .from("applications")
     .select("*, job:jobs!inner(*), applicant:profiles(*)")
@@ -1147,6 +1152,14 @@ export async function decrementCredits(userId: string) {
       .eq("id", userId);
     if (updateError) throw updateError;
   }
+}
+
+export async function decrementAdvertCredits(userId: string) {
+  const { data, error } = await supabase.rpc("consume_advert_credit", {
+    p_user_id: userId,
+  });
+  if (error) throw error;
+  if (!data) throw new Error("No advert credits remaining");
 }
 
 // ─── Reviews & Star Ratings ────────────────────────────────────────────────

@@ -72,6 +72,7 @@ const AuthContext = createContext<AuthContextType>({
     status: "inactive",
     expires_at: null,
     credits: 0,
+    advert_credits: 0,
   },
   fetchSubscription: async (userId?: string) => {},
   aiSubscription: { ai_tier: null, ai_status: "inactive", ai_expires_at: null },
@@ -99,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     status: "inactive",
     expires_at: null,
     credits: 0,
+    advert_credits: 0,
   });
   const [aiSubscription, setAiSubscription] = useState<AiSubscriptionInfo>({
     ai_tier: null,
@@ -137,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: "inactive",
         expires_at: null,
         credits: 0,
+        advert_credits: 0,
       });
       setSubscriptionLoaded(true);
       return;
@@ -146,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "is_premium, subscription_tier, subscription_expires_at, credits",
+          "is_premium, subscription_tier, subscription_expires_at, credits, advert_credits",
         )
         .eq("id", uid)
         .maybeSingle();
@@ -157,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           status: "inactive",
           expires_at: null,
           credits: 0,
+          advert_credits: 0,
         });
         return;
       }
@@ -179,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status,
         expires_at: data.subscription_expires_at || null,
         credits: data.credits || 0,
+        advert_credits: data.advert_credits || 0,
       });
     } catch {
       setSubscription({
@@ -186,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: "inactive",
         expires_at: null,
         credits: 0,
+        advert_credits: 0,
       });
     } finally {
       setSubscriptionLoaded(true);

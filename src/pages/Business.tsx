@@ -13,7 +13,7 @@ import {
   deleteAdvertisement,
   incrementAdvertisementViews,
   incrementAdvertisementClicks,
-  decrementCredits,
+  decrementAdvertCredits,
   createConversationMessage,
 } from '../lib/supabaseQueries';
 import { supabase } from '../lib/supabase';
@@ -109,7 +109,7 @@ export default function Business() {
   const { openModal } = useModal();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, profile, subscription, subscriptionLoaded } = useAuth();
+  const { user, profile, subscription, subscriptionLoaded, fetchSubscription } = useAuth();
   const { push } = useToasts();
 
   // A user can only create an advert when their subscription is active AND
@@ -121,8 +121,7 @@ export default function Business() {
   // and NO "pay to subscribe" button, so they could never purchase advert credits.
   const canCreateAdvert =
     subscription.status === 'active' &&
-    typeof subscription.credits === 'number' &&
-    subscription.credits >= 1;
+    subscription.advert_credits >= 1;
   const [adverts, setAdverts] = useState<Advert[]>(initialAdverts);
   const [loadingAdverts, setLoadingAdverts] = useState(false);
   const [publicAdverts, setPublicAdverts] = useState<Advert[]>([]);
@@ -353,7 +352,7 @@ export default function Business() {
     }
 
     // If no subscription/credits, redirect to pricing
-    if (subscription.status !== 'active' || !subscription.credits || subscription.credits < 1) {
+    if (subscription.status !== 'active' || subscription.advert_credits < 1) {
       push({
         message: 'No advert credits remaining. Please purchase a plan.',
         type: 'info',
@@ -404,9 +403,8 @@ export default function Business() {
       });
 
       // Decrement credits
-      await decrementCredits(user!.id).catch(e => {
-        console.warn('[Business] Failed to decrement credits:', e);
-      });
+      await decrementAdvertCredits(user!.id);
+      await fetchSubscription(user!.id);
 
       // Refresh subscription state
       window.dispatchEvent(new Event('adverts:updated'));
@@ -832,7 +830,7 @@ export default function Business() {
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-emerald-800 flex-wrap">
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
-                <span className="font-medium">{subscription.credits} advert credit{subscription.credits !== 1 ? 's' : ''} remaining</span>
+                <span className="font-medium">{subscription.advert_credits} advert credit{subscription.advert_credits !== 1 ? 's' : ''} remaining</span>
                 {subscription.tier && (
                   <span className="text-xs bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded capitalize">
                     {subscription.tier.replace(/_/g, ' ')} plan
@@ -930,7 +928,7 @@ export default function Business() {
               <h2 className="text-xl font-bold text-gray-900 mb-4">Create New Advert</h2>
               <p className="text-sm text-emerald-700 mb-4 flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
-                You have {subscription.credits} advert credit{subscription.credits !== 1 ? 's' : ''} remaining. Creating this will use 1 credit.
+                You have {subscription.advert_credits} advert credit{subscription.advert_credits !== 1 ? 's' : ''} remaining. Creating this will use 1 credit.
               </p>
               <form onSubmit={handleCreateAd} className="space-y-4">
                 <div>
@@ -1122,14 +1120,14 @@ export default function Business() {
                 }
                 openCreateForm();
               }}
-              disabled={!subscription.credits || subscription.credits < 1 || hasExistingAdvert}
+              disabled={subscription.advert_credits < 1 || hasExistingAdvert}
               className="w-full flex items-center justify-center gap-2 bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-5 h-5" />
               {hasExistingAdvert
                 ? 'Active advert limit reached (1 per business)'
-                : subscription.credits && subscription.credits > 0
-                  ? `Create New Advert (${subscription.credits} credit${subscription.credits !== 1 ? 's' : ''} remaining)`
+                : subscription.advert_credits > 0
+                  ? `Create New Advert (${subscription.advert_credits} credit${subscription.advert_credits !== 1 ? 's' : ''} remaining)`
                   : 'No credits remaining'}
             </button>
           ) : (

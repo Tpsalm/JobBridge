@@ -449,6 +449,7 @@ function AIAssistantWidget() {
   });
   const [isSpeaking, setIsSpeaking] = useState(false);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speechGenerationRef = useRef(0);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: nextId(),
@@ -486,6 +487,7 @@ function AIAssistantWidget() {
 
   useEffect(() => {
     return () => {
+      speechGenerationRef.current += 1;
       window.speechSynthesis?.cancel();
       speechRef.current = null;
     };
@@ -710,17 +712,25 @@ function AIAssistantWidget() {
           if (cleaned) {
             try {
               if (assistantVoiceEnabled && typeof window !== "undefined" && window.speechSynthesis) {
+                speechGenerationRef.current += 1;
                 window.speechSynthesis.cancel();
+                const speechGeneration = speechGenerationRef.current;
                 const utter = new SpeechSynthesisUtterance(cleaned.replace(/\s+/g, " "));
                 speechRef.current = utter;
-                utter.onstart = () => setIsSpeaking(true);
+                utter.onstart = () => {
+                  if (speechGeneration === speechGenerationRef.current) setIsSpeaking(true);
+                };
                 utter.onend = () => {
-                  speechRef.current = null;
-                  setIsSpeaking(false);
+                  if (speechGeneration === speechGenerationRef.current) {
+                    speechRef.current = null;
+                    setIsSpeaking(false);
+                  }
                 };
                 utter.onerror = () => {
-                  speechRef.current = null;
-                  setIsSpeaking(false);
+                  if (speechGeneration === speechGenerationRef.current) {
+                    speechRef.current = null;
+                    setIsSpeaking(false);
+                  }
                 };
                 utter.lang = "en-US";
                 utter.rate = 1.02;
@@ -839,6 +849,7 @@ function AIAssistantWidget() {
               <button
                 onClick={() => {
                   if (isSpeaking) {
+                    speechGenerationRef.current += 1;
                     window.speechSynthesis?.cancel();
                     speechRef.current = null;
                     setIsSpeaking(false);
@@ -847,6 +858,7 @@ function AIAssistantWidget() {
                   const next = !assistantVoiceEnabled;
                   setAssistantVoiceEnabled(next);
                   if (!next) {
+                    speechGenerationRef.current += 1;
                     window.speechSynthesis?.cancel();
                   }
                   try { localStorage.setItem("assistant_voice_enabled", next ? "1" : "0"); } catch {}
@@ -858,6 +870,7 @@ function AIAssistantWidget() {
               </button>
               <button
                 onClick={() => {
+                  speechGenerationRef.current += 1;
                   window.speechSynthesis?.cancel();
                   speechRef.current = null;
                   setIsSpeaking(false);

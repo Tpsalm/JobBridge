@@ -52,6 +52,7 @@ export type SubscriptionInfo = {
   status: "active" | "inactive" | "expired";
   expires_at: string | null;
   credits: number;
+  advert_credits: number;
 };
 
 export type AiSubscriptionInfo = {
@@ -95,6 +96,7 @@ export type Profile = {
   subscription_expires_at?: string;
   profile_reminder_sent_at?: string;
   credits?: number;
+  advert_credits?: number;
   is_active?: boolean;
   subscription?: SubscriptionInfo;
   created_at: string;
