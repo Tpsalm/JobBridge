@@ -17,7 +17,6 @@ import {
   fetchAdvertisementsByOwner,
   activateSubscription,
   activateAiSubscription as activateAiDb,
-  addCredits,
 } from "../lib/supabaseQueries";
 import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
@@ -139,7 +138,7 @@ const PLANS: Record<
     name: "Premium Job Post",
     duration: "30 days",
     price: 5000,
-    credits: 2,
+    credits: 3,
   },
   ai_monthly: {
     name: "AI Career Tools Monthly",
@@ -536,18 +535,12 @@ export default function Payment() {
 
       const durationDays = getDurationDays();
 
-      // 1) Client-side DB writes as primary (anon key — works if RLS permits)
+      // 1) AI/service flags are handled locally; paid posting credits are granted
+      // only by the server verifier below to prevent duplicate credit grants.
       if (plan.ai) {
         await activateAiDb(user?.id || '', durationDays).catch(e => console.warn("[Payment] AI DB activation failed:", e));
       } else if ((plan as any).service) {
         await activateSubscription(user?.id || '', 'service_monthly', 0, durationDays).catch(e => console.warn("[Payment] service DB activation failed:", e));
-      } else {
-        // Recruiter or Business plan: add credits.
-        // Business plans (business_*) intentionally define credits: 0 in PLANS,
-        // but a paid business advert must grant exactly 1 advert credit so the
-        // user can create their ad on the Business page (each advert uses 1 credit).
-        const creditGrant = (plan as any).business ? 1 : plan.credits || 1;
-        await addCredits(user?.id || '', creditGrant).catch(e => console.warn("[Payment] credits DB activation failed:", e));
       }
 
       // 2) Universal server-side activation (service role key — ALWAYS works, bypasses RLS)

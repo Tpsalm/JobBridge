@@ -475,6 +475,7 @@ export default function Business() {
           email: ad.email || '',
         })),
       );
+      setHasExistingAdvert(data.some((ad) => effectiveAdStatus(ad.status, ad.expires_at) !== 'expired'));
     } catch (error) {
       console.error('Failed to load business adverts:', error);
     }

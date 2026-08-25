@@ -447,6 +447,8 @@ function AIAssistantWidget() {
       return false;
     }
   });
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: nextId(),
@@ -480,6 +482,13 @@ function AIAssistantWidget() {
 
   useEffect(() => {
     prewarmEmbeddings();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis?.cancel();
+      speechRef.current = null;
+    };
   }, []);
 
   const currentPath = location.pathname.replace(/\/$/, "") || "/";
@@ -703,6 +712,16 @@ function AIAssistantWidget() {
               if (assistantVoiceEnabled && typeof window !== "undefined" && window.speechSynthesis) {
                 window.speechSynthesis.cancel();
                 const utter = new SpeechSynthesisUtterance(cleaned.replace(/\s+/g, " "));
+                speechRef.current = utter;
+                utter.onstart = () => setIsSpeaking(true);
+                utter.onend = () => {
+                  speechRef.current = null;
+                  setIsSpeaking(false);
+                };
+                utter.onerror = () => {
+                  speechRef.current = null;
+                  setIsSpeaking(false);
+                };
                 utter.lang = "en-US";
                 utter.rate = 1.02;
                 utter.pitch = 1.08;
@@ -819,6 +838,12 @@ function AIAssistantWidget() {
               </button>
               <button
                 onClick={() => {
+                  if (isSpeaking) {
+                    window.speechSynthesis?.cancel();
+                    speechRef.current = null;
+                    setIsSpeaking(false);
+                    return;
+                  }
                   const next = !assistantVoiceEnabled;
                   setAssistantVoiceEnabled(next);
                   if (!next) {
@@ -826,13 +851,18 @@ function AIAssistantWidget() {
                   }
                   try { localStorage.setItem("assistant_voice_enabled", next ? "1" : "0"); } catch {}
                 }}
-                title={assistantVoiceEnabled ? "Disable voice" : "Enable voice"}
+                title={isSpeaking ? "Stop speaking" : assistantVoiceEnabled ? "Disable voice" : "Enable voice"}
                 className="p-2 hover:bg-white/10 rounded-xl transition-colors"
               >
-                {assistantVoiceEnabled ? <Volume2 className="w-4 h-4 text-white" /> : <VolumeX className="w-4 h-4 text-white" />}
+                {isSpeaking ? <VolumeX className="w-4 h-4 text-white" /> : assistantVoiceEnabled ? <Volume2 className="w-4 h-4 text-white" /> : <VolumeX className="w-4 h-4 text-white" />}
               </button>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  window.speechSynthesis?.cancel();
+                  speechRef.current = null;
+                  setIsSpeaking(false);
+                  setIsOpen(false);
+                }}
                 className="p-2 hover:bg-white/10 rounded-xl transition-colors"
               >
                 <X className="w-4 h-4 text-white" />
