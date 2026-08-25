@@ -285,7 +285,7 @@ function MessageModal({ data, onClose }: { data: { name?: string; role?: string 
   );
 }
 
-function ProfileModal({ data, onClose }: { data: { name?: string; role?: string; match?: string; specialty?: string; skills?: string[]; bio?: string; location?: string; hourlyRate?: number; email?: string; verified?: boolean; reviews?: number }; onClose: () => void }) {
+function ProfileModal({ data, onClose }: { data: { name?: string; role?: string; match?: string; specialty?: string; skills?: string[]; bio?: string; location?: string; avatarUrl?: string; hourlyRate?: number; email?: string; verified?: boolean; reviews?: number }; onClose: () => void }) {
   const { openModal } = useModal();
   const displaySkills = data.skills || (data.role ? [data.role] : []);
   const displayLocation = data.location || 'Available for Remote / Hybrid';
@@ -295,9 +295,13 @@ function ProfileModal({ data, onClose }: { data: { name?: string; role?: string;
       <ModalHeader title="Service Provider Profile" onClose={onClose} />
       <div className="p-5 space-y-5">
         <div className="flex items-start gap-4">
-          <div className="w-16 h-16 rounded-xl bg-secondary-container flex items-center justify-center font-bold text-on-secondary-container text-xl flex-shrink-0">
-            {(data.name || 'P').split(' ').map(n => n[0]).join('').slice(0, 2)}
-          </div>
+          {data.avatarUrl ? (
+            <img src={data.avatarUrl} alt={data.name || 'Provider'} className="w-16 h-16 rounded-xl object-cover border border-gray-200 flex-shrink-0" />
+          ) : (
+            <div className="w-16 h-16 rounded-xl bg-secondary-container flex items-center justify-center font-bold text-on-secondary-container text-xl flex-shrink-0">
+              {(data.name || 'P').split(' ').map(n => n[0]).join('').slice(0, 2)}
+            </div>
+          )}
           <div className="flex-1">
             <div className="flex items-start justify-between">
               <div>

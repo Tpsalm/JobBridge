@@ -294,6 +294,7 @@ export default function Providers() {
               skills: p.specializations,
               bio: '',
               location: p.location,
+              avatarUrl: p.img,
               hourlyRate: p.hourlyRate,
               email: p.email,
               verified: p.verified,

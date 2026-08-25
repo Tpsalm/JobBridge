@@ -96,13 +96,14 @@ export default function Reviews() {
   const isAuthenticated = !!user;
 
   const loadReviews = useCallback(async () => {
-    const data = await fetchReviews();
+    setLoading(true);
+    const data = await fetchReviews(selectedProviderId || undefined);
     setReviews(data);
     setLoading(false);
-  }, []);
+  }, [selectedProviderId]);
 
   useEffect(() => {
-    loadReviews();
+    loadReviews().catch(() => setLoading(false));
   }, [loadReviews]);
 
   useEffect(() => {
@@ -172,11 +173,11 @@ export default function Reviews() {
           comment,
         });
       }
-      setMyExisting(null);
-      setRating(0);
-      setComment('');
-      setSelectedProviderId('');
       await loadReviews();
+      const updatedReview = await fetchMyReviewForTarget(user.id, selectedProviderId);
+      setMyExisting(updatedReview);
+      setRating(updatedReview?.rating || rating);
+      setComment(updatedReview?.comment || comment);
     } catch (err) {
       console.error('[Reviews] submit failed:', err);
       setError('Could not save your review. Please try again.');
@@ -337,7 +338,9 @@ export default function Reviews() {
 
         {/* Reviews list */}
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">All Reviews</h2>
+          <h2 className="text-lg font-bold text-gray-900">
+            {selectedProvider ? `Reviews for ${selectedProvider.full_name || selectedProvider.email}` : 'All Reviews'}
+          </h2>
           <span className="text-xs text-gray-500">{reviews.length} total</span>
         </div>
 
