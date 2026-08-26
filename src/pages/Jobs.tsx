@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, Clock, Bookmark, Share2, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send, FileText, Edit3, Loader2 } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
@@ -11,6 +10,7 @@ import PageHero from '../components/PageHero';
 import CompanyLogo from '../components/CompanyLogo';
 import { HERO_CAROUSELS } from '../lib/media';
 import Card3D from '../components/Card3D';
+import { useAuthRequired } from '../hooks/useAuthRequired';
 
 const COMPANY_COLORS = [
   'bg-blue-600', 'bg-emerald-600', 'bg-purple-600', 'bg-rose-600', 'bg-amber-600',
@@ -54,18 +54,15 @@ function parseList(value: string | string[] | null): string[] {
 }
 
 const Jobs = () => {
-  const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const { isAuthenticated } = useAuth();
   const { savedJobs, toggleSaveJob, markApplied, appliedJobs } = useAuth();
+  const { openProtectedModal } = useAuthRequired();
 
   const handleApply = (job: any) => {
-    if (!isAuthenticated) {
-      navigate('/signup');
-      return;
-    }
-    setShowApplication(true);
-    setApplyMethod(null);
+    openProtectedModal({
+      action: 'apply-job',
+      modalData: { job_id: job.id, title: job.title, company: job.company },
+    });
   };
 
   // Application form state

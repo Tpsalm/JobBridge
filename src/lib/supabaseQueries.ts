@@ -144,6 +144,18 @@ export async function fetchUserApplications(userId: string) {
 export async function createApplication(app: {
   job_id: string;
   applicant_id: string;
+  date_of_birth?: string;
+  gender?: string;
+  is_disabled?: string;
+  is_displaced?: string;
+  professional_headline?: string;
+  years_of_experience?: string;
+  function?: string;
+  work_type?: string;
+  highest_qualification?: string;
+  location?: string;
+  availability?: string;
+  salary_expectation?: string;
   cover_letter?: string;
   resume_url?: string;
 }) {

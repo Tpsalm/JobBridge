@@ -7,7 +7,7 @@ import { sendEmail } from '../lib/email';
 import { checkRateLimit } from '../lib/security';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building, Wrench, ArrowRight, BadgeCheck, Loader2, CheckCircle, Mail, Eye, EyeOff, Lock } from 'lucide-react';
+import { Building, Wrench, ArrowRight, BadgeCheck, Loader2, CheckCircle, Mail, Eye, EyeOff, Lock, Sparkles } from 'lucide-react';
 
 export function ModalRenderer() {
   const { modalType, modalData, closeModal } = useModal();
@@ -531,6 +531,7 @@ function ApplyJobModal({ data, onClose }: { data: { job_id?: string; title?: str
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     date_of_birth: '',
@@ -571,8 +572,18 @@ function ApplyJobModal({ data, onClose }: { data: { job_id?: string; title?: str
   };
 
   const handleSubmit = async () => {
-    if (!form.professional_headline || !form.years_of_experience) {
-      setError('Professional headline and years of experience are required');
+    if (!form.date_of_birth || !form.gender || !form.professional_headline || !form.years_of_experience || !form.function) {
+      setError('Complete all required personal and professional details');
+      setStep(1);
+      return;
+    }
+    if (!form.work_type || !form.highest_qualification || !form.location || !form.availability || !form.salary_expectation) {
+      setError('Complete all required work preference details');
+      setStep(2);
+      return;
+    }
+    if (!cvFile) {
+      setError('Please upload your CV before submitting');
       return;
     }
     setSubmitting(true);
@@ -597,6 +608,18 @@ function ApplyJobModal({ data, onClose }: { data: { job_id?: string; title?: str
       await createApplication({
         job_id: data.job_id || '',
         applicant_id: user?.id || '',
+        date_of_birth: form.date_of_birth,
+        gender: form.gender,
+        is_disabled: form.is_disabled,
+        is_displaced: form.is_displaced,
+        professional_headline: form.professional_headline,
+        years_of_experience: form.years_of_experience,
+        function: form.function,
+        work_type: form.work_type,
+        highest_qualification: form.highest_qualification,
+        location: form.location,
+        availability: form.availability,
+        salary_expectation: form.salary_expectation,
         cover_letter: form.cover_letter,
         resume_url,
       });
@@ -779,7 +802,7 @@ function ApplyJobModal({ data, onClose }: { data: { job_id?: string; title?: str
           <div className="space-y-4">
             {/* CV Upload */}
             <div>
-              <label className={labelClass}>Upload your CV</label>
+              <label className={labelClass}>Upload your CV *</label>
               <p className="text-xs text-on-surface-variant mb-2">pdf, doc, docx & rtf files no bigger than 10MB.</p>
               <label className="border-2 border-dashed border-outline-variant rounded-xl p-6 text-center cursor-pointer hover:border-primary transition-colors block">
                 <input type="file" accept=".pdf,.doc,.docx,.rtf" onChange={handleCvChange} className="hidden" />
@@ -796,6 +819,11 @@ function ApplyJobModal({ data, onClose }: { data: { job_id?: string; title?: str
                 )}
               </label>
             </div>
+
+            <button type="button" onClick={() => { onClose(); navigate('/ai-resume'); }}
+              className="w-full flex items-center justify-center gap-2 border border-primary text-primary py-2.5 rounded-lg font-semibold hover:bg-primary/5 transition-colors text-sm">
+              <Sparkles className="w-4 h-4" /> Create your cv and cover letter with Jobbridge
+            </button>
 
             {/* Cover Letter */}
             <div>

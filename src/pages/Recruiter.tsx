@@ -683,7 +683,7 @@ export default function Recruiter() {
                   <div className="bg-gray-50 rounded-xl p-5 space-y-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <h3 className="font-bold text-gray-900 text-base sm:text-lg break-words">{selectedApp.applicant?.professional_headline || selectedApp.professional_headline || 'Applicant'}</h3>
+                        <h3 className="font-bold text-gray-900 text-base sm:text-lg break-words">{selectedApp.professional_headline || selectedApp.applicant?.professional_headline || 'Applicant'}</h3>
                         <p className="text-sm text-gray-500">{selectedApp.applicant?.full_name || 'Applicant'} · {selectedApp.applicant?.email}</p>
                         <p className="text-xs text-gray-400">Applied for: {selectedApp.job?.title || 'Job'} · {new Date(selectedApp.created_at).toLocaleDateString()}</p>
                       </div>
@@ -697,19 +697,19 @@ export default function Recruiter() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div><span className="text-gray-500">DOB:</span> <span className="font-medium">{selectedApp.applicant?.date_of_birth || '-'}</span></div>
-                      <div><span className="text-gray-500">Gender:</span> <span className="font-medium capitalize">{selectedApp.applicant?.gender || '-'}</span></div>
-                      <div><span className="text-gray-500">Experience:</span> <span className="font-medium">{selectedApp.applicant?.years_of_experience || '-'}</span></div>
-                      <div><span className="text-gray-500">Function:</span> <span className="font-medium">{selectedApp.applicant?.function || '-'}</span></div>
-                      <div><span className="text-gray-500">Work Type:</span> <span className="font-medium">{selectedApp.applicant?.work_type || '-'}</span></div>
-                      <div><span className="text-gray-500">Qualification:</span> <span className="font-medium">{selectedApp.applicant?.highest_qualification || '-'}</span></div>
-                      <div><span className="text-gray-500">Location:</span> <span className="font-medium">{selectedApp.applicant?.location || '-'}</span></div>
-                      <div><span className="text-gray-500">Availability:</span> <span className="font-medium">{selectedApp.applicant?.availability || '-'}</span></div>
-                      <div className="col-span-2"><span className="text-gray-500">Salary:</span> <span className="font-medium">{selectedApp.applicant?.salary_expectation ? `NGN ${Number.parseInt(selectedApp.applicant.salary_expectation, 10).toLocaleString()}` : '-'}</span></div>
+                      <div><span className="text-gray-500">DOB:</span> <span className="font-medium">{selectedApp.date_of_birth || selectedApp.applicant?.date_of_birth || '-'}</span></div>
+                      <div><span className="text-gray-500">Gender:</span> <span className="font-medium capitalize">{selectedApp.gender || selectedApp.applicant?.gender || '-'}</span></div>
+                      <div><span className="text-gray-500">Experience:</span> <span className="font-medium">{selectedApp.years_of_experience || selectedApp.applicant?.years_of_experience || '-'}</span></div>
+                      <div><span className="text-gray-500">Function:</span> <span className="font-medium">{selectedApp.function || selectedApp.applicant?.function || '-'}</span></div>
+                      <div><span className="text-gray-500">Work Type:</span> <span className="font-medium">{selectedApp.work_type || selectedApp.applicant?.work_type || '-'}</span></div>
+                      <div><span className="text-gray-500">Qualification:</span> <span className="font-medium">{selectedApp.highest_qualification || selectedApp.applicant?.highest_qualification || '-'}</span></div>
+                      <div><span className="text-gray-500">Location:</span> <span className="font-medium">{selectedApp.location || selectedApp.applicant?.location || '-'}</span></div>
+                      <div><span className="text-gray-500">Availability:</span> <span className="font-medium">{selectedApp.availability || selectedApp.applicant?.availability || '-'}</span></div>
+                      <div className="col-span-2"><span className="text-gray-500">Salary:</span> <span className="font-medium">{selectedApp.salary_expectation || selectedApp.applicant?.salary_expectation ? `NGN ${Number.parseInt(selectedApp.salary_expectation || selectedApp.applicant?.salary_expectation || '0', 10).toLocaleString()}` : '-'}</span></div>
                     </div>
 
-                    {selectedApp.applicant?.is_disabled ? <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">PWD</span> : null}
-                    {selectedApp.applicant?.is_displaced ? <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded ml-2">Internally Displaced</span> : null}
+                    {(selectedApp.is_disabled || selectedApp.applicant?.is_disabled) === 'yes' ? <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">PWD</span> : null}
+                    {(selectedApp.is_displaced || selectedApp.applicant?.is_displaced) === 'yes' ? <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded ml-2">Internally Displaced</span> : null}
 
                     {selectedApp.cover_letter && (
                       <div>
@@ -802,7 +802,7 @@ export default function Recruiter() {
                               app.status === 'hired' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
                             }`}>{app.status}</span>
                           </div>
-                          <p className="text-sm font-medium text-gray-700">{app.professional_headline}</p>
+                          <p className="text-sm font-medium text-gray-700">{app.professional_headline || app.applicant?.professional_headline || 'Applicant'}</p>
                           <p className="text-xs text-gray-400 mt-1">
                             {app.function} · {app.location} · {app.years_of_experience} exp · NGN {parseInt(app.salary_expectation || 0).toLocaleString()}
                           </p>

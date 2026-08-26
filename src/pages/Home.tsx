@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import JobBridgeLogo from '../components/JobBridgeLogo';
 import { useModal } from '../contexts/ModalContext';
-import { useAuthRequired } from '../hooks/useAuthRequired';
-import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight, Sparkles, Building, ExternalLink, MapPin } from 'lucide-react';
+import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight, Building, ExternalLink, MapPin } from 'lucide-react';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 import FloatingDecorations from '../components/FloatingDecorations';
@@ -65,7 +64,7 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
 
 export default function Home() {
   const { openModal } = useModal();
-  const { openProtectedModal } = useAuthRequired();
+  const navigate = useNavigate();
 
   // ── Featured Business Spotlight ───────────────────────────────────────────
   // Adverts created by premium business-plan (Featured Business) subscribers
@@ -325,10 +324,10 @@ export default function Home() {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">{job.match} match</span>
                   <button
-                    onClick={() => openProtectedModal({ action: 'apply-job', modalData: { title: job.title, company: job.company } })}
+                    onClick={() => navigate('/jobs')}
                     className="text-xs bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-blue-800 transition-colors"
                   >
-                    Apply
+                    View job
                   </button>
                 </div>
               </div>
