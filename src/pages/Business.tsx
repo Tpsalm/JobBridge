@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
@@ -194,17 +194,73 @@ export default function Business() {
     setShowCreateForm(true);
   }, [profile?.avatar_url]);
 
-  useEffect(() => {
-    if (!shouldOpenCreate || !subscriptionLoaded) return;
+  // When the page lands with ?create=true&paidPackage=... (redirected from the
+  // payment page), we must wait for the DB write to propagate before checking
+  // canCreateAdvert. The payment flow already refreshes the subscription once,
+  // but network/DB lag can mean advert_credits is still 0 on the first read.
+  //
+  // Strategy: poll fetchSubscription up to MAX_RETRIES times (every 1.5 s).
+  // Once credits are confirmed (canCreateAdvert===true) → open the form.
+  // If credits never arrive within the window → fall back to /pricing.
+  const CREATE_POLL_INTERVAL_MS = 1500;
+  const CREATE_POLL_MAX_RETRIES = 6; // up to 9 seconds total
+  const createPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const createPollCountRef = useRef(0);
 
+  useEffect(() => {
+    // Only run when the "create from payment" params are present.
+    if (!shouldOpenCreate) return;
+    // Wait until the initial subscription load is done before starting the
+    // poll — otherwise we'd start the timer before any data is even available.
+    if (!subscriptionLoaded) return;
+
+    // Happy path: credits are already present (or became present on a re-run).
     if (canCreateAdvert) {
+      if (createPollRef.current) {
+        clearInterval(createPollRef.current);
+        createPollRef.current = null;
+      }
+      createPollCountRef.current = 0;
       openCreateForm(paidPackageOption || undefined);
-      // Clean up the query param
       navigate('/business', { replace: true });
-    } else {
-      navigate('/pricing', { replace: true });
+      return;
     }
-  }, [shouldOpenCreate, canCreateAdvert, subscriptionLoaded, paidPackageOption, navigate, openCreateForm]);
+
+    // Don't start a second interval if one is already running.
+    if (createPollRef.current) return;
+
+    // Start polling.
+    createPollRef.current = setInterval(async () => {
+      createPollCountRef.current += 1;
+
+      try {
+        await fetchSubscription();
+      } catch {
+        // ignore — canCreateAdvert will just stay false for this tick
+      }
+
+      // canCreateAdvert is derived from subscription state; if it has become
+      // true by now the re-render will re-enter the effect and hit the happy
+      // path above, clearing the interval there.
+
+      if (createPollCountRef.current >= CREATE_POLL_MAX_RETRIES) {
+        if (createPollRef.current) {
+          clearInterval(createPollRef.current);
+          createPollRef.current = null;
+        }
+        // Credits never arrived — send the user to pricing so they can subscribe.
+        navigate('/pricing', { replace: true });
+      }
+    }, CREATE_POLL_INTERVAL_MS);
+
+    return () => {
+      if (createPollRef.current) {
+        clearInterval(createPollRef.current);
+        createPollRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldOpenCreate, canCreateAdvert, subscriptionLoaded, paidPackageOption]);
 
   // Refresh adverts when created
   useEffect(() => {
@@ -341,15 +397,6 @@ export default function Business() {
     e.preventDefault();
     const selectedPackage = adPackages.find(p => p.name === formData.package);
     if (!selectedPackage) return;
-
-    // Check if user already has an active advert (limit to 1).
-    if (hasExistingAdvert) {
-      push({
-        message: '❌ You already have an active advert. Pause or delete it before creating another one.',
-        type: 'error',
-      });
-      return;
-    }
 
     // If no subscription/credits, redirect to pricing
     if (subscription.status !== 'active' || subscription.advert_credits < 1) {

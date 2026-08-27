@@ -1140,6 +1140,27 @@ export async function addCredits(userId: string, creditsToAdd: number) {
   if (updateError) throw updateError;
 }
 
+/**
+ * Add advert credits to a user's profile.
+ * Used as a client-side fallback after business plan payment when the
+ * server-side edge function activation may not have completed yet.
+ */
+export async function addAdvertCredits(userId: string, creditsToAdd: number) {
+  const { data: profile, error: fetchError } = await supabase
+    .from("profiles")
+    .select("advert_credits")
+    .eq("id", userId)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+  const current = profile?.advert_credits || 0;
+  const updated = current + creditsToAdd;
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ advert_credits: updated, updated_at: new Date().toISOString() })
+    .eq("id", userId);
+  if (updateError) throw updateError;
+}
+
 export async function decrementCredits(userId: string) {
   const { error } = await supabase.rpc("decrement_credits", {
     user_id: userId,

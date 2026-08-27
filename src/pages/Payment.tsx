@@ -17,6 +17,7 @@ import {
   fetchAdvertisementsByOwner,
   activateSubscription,
   activateAiSubscription as activateAiDb,
+  addAdvertCredits,
 } from "../lib/supabaseQueries";
 import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
@@ -544,6 +545,7 @@ export default function Payment() {
       }
 
       // 2) Universal server-side activation (service role key — ALWAYS works, bypasses RLS)
+      let serverActivationVerified = false;
       if (serverUrl) {
         const body: Record<string, unknown> = {
           activate_plan: true,
@@ -576,6 +578,7 @@ export default function Payment() {
           });
           const result = await resp.json().catch(() => ({}));
           if (resp.ok && result?.verified) {
+            serverActivationVerified = true;
             console.log(`[Payment] Server-side activation successful for plan ${planKey}`);
           } else {
             console.warn("[Payment] Server-side activation response:", result);
@@ -585,11 +588,24 @@ export default function Payment() {
         }
       }
 
-      // Wait for DB write propagation before redirecting
-      // This ensures the target page reads the updated subscription data
-      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      // 3) Client-side fallback for business plans: if the edge function did not
+      // confirm activation, write advert_credits directly from the browser so
+      // the user is never stuck at the "subscribe" gate after a valid payment.
+      // The Business.tsx polling loop will pick this up within ~1.5 s.
+      if ((plan as any).business && !serverActivationVerified && user?.id) {
+        try {
+          await addAdvertCredits(user.id, 1);
+          console.log("[Payment] Client-side advert credit fallback applied for", user.id);
+        } catch (fallbackErr) {
+          console.warn("[Payment] Client-side advert credit fallback failed:", fallbackErr);
+        }
+      }
 
-      // Refresh subscription state
+      // Wait for DB write propagation before redirecting (increased from 1.5 s
+      // to 2.5 s to give Supabase edge function writes more time to settle).
+      await new Promise((resolve) => window.setTimeout(resolve, 2500));
+
+      // Refresh subscription state so the landing page sees the latest credits.
       if (plan.ai) {
         await fetchAiSubscription().catch(() => {});
       } else {
