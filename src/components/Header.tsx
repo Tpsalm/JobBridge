@@ -189,8 +189,8 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-16">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6">
+        <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
             <JobBridgeLogo variant="horizontal" iconSize={32} />
@@ -252,7 +252,7 @@ export default function Header() {
             {/* Saved Jobs */}
             <Link
               to="/my-jobs"
-              className={`relative p-2 rounded-lg transition-colors ${
+              className={`relative hidden sm:inline-flex p-2 rounded-lg transition-colors ${
                 isActive("/my-jobs")
                   ? "text-blue-700 bg-blue-50"
                   : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
@@ -271,7 +271,7 @@ export default function Header() {
             {/* Messages */}
             <Link
               to="/messages"
-              className={`p-2 rounded-lg transition-colors ${
+              className={`hidden sm:inline-flex p-2 rounded-lg transition-colors ${
                 isActive("/messages")
                   ? "text-blue-700 bg-blue-50"
                   : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
@@ -285,7 +285,7 @@ export default function Header() {
             {/* Notifications */}
             <Link
               to="/notifications"
-              className={`relative p-2 rounded-lg transition-colors ${
+              className={`relative hidden sm:inline-flex p-2 rounded-lg transition-colors ${
                 isActive("/notifications")
                   ? "text-blue-700 bg-blue-50"
                   : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
@@ -307,7 +307,7 @@ export default function Header() {
 
             {/* Profile Dropdown or Login */}
             {authLoading ? (
-              <div className="flex items-center gap-2 ml-2">
+              <div className="flex items-center gap-2 sm:ml-2">
                 <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-500">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="ml-2">Checking...</span>
@@ -416,8 +416,8 @@ export default function Header() {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-gray-100 bg-white">
-          <div className="px-4 py-3 space-y-1">
+        <div className="md:hidden max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-t border-gray-100 bg-white">
+          <div className="px-3 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-1">
             {[...navLinks, ...moreLinks].map(({ label, path }) => (
               <Link
                 key={path}

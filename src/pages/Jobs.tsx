@@ -207,9 +207,9 @@ const Jobs = () => {
         />
 
         {/* Search Bar */}
-        <div className="bg-white border-b border-gray-200 px-4 py-4 flex-shrink-0">
+        <div className="bg-white border-b border-gray-200 px-3 py-3 sm:px-4 sm:py-4 flex-shrink-0">
           <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:gap-3">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -217,7 +217,7 @@ const Jobs = () => {
                   placeholder="Job title, company, or keywords"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
               <div className="flex-1 relative">
@@ -227,10 +227,10 @@ const Jobs = () => {
                   placeholder="City, state, or 'remote'"
                   value={locationFilter}
                   onChange={e => setLocationFilter(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <button className="bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 px-8 rounded-lg text-sm transition whitespace-nowrap">
+              <button className="w-full rounded-lg bg-blue-700 px-8 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 sm:w-auto sm:py-2.5">
                 Find Jobs
               </button>
             </div>
@@ -271,7 +271,7 @@ const Jobs = () => {
         </div>
 
         {/* Results count */}
-        <div className="bg-white border-b border-gray-100 px-4 py-2 flex-shrink-0">
+        <div className="bg-white border-b border-gray-100 px-3 py-2 sm:px-4 flex-shrink-0">
           <div className="max-w-7xl mx-auto">
             <p className="text-sm text-gray-600">
               <span className="font-semibold text-gray-900">{filteredJobs.length}</span> jobs found
@@ -369,7 +369,7 @@ const Jobs = () => {
                 </button>
 
                 {/* Detail Header */}
-                <div className="px-4 sm:px-6 py-5 sm:py-6 border-b border-gray-100">
+                <div className="px-4 py-4 sm:px-6 sm:py-6 border-b border-gray-100">
                   <div className="flex items-start gap-4">
                     <CompanyLogo company={selectedJob.company} className="w-14 h-14 rounded-xl" fallbackClassName={`${getCompanyColor(selectedJob.company)} shadow-sm`} />
                     <div className="flex-1 min-w-0">
@@ -390,7 +390,7 @@ const Jobs = () => {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center gap-3 mt-5">
+                  <div className="flex items-center gap-2.5 mt-4 sm:mt-5">
                     <button
                       onClick={() => handleApply(selectedJob)}
                       disabled={appliedLocal.includes(selectedJob.id) || applied}

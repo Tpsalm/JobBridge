@@ -16,21 +16,21 @@ export default function BottomNav() {
     path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white border-t border-gray-200 safe-area-inset-bottom">
-      <div className="flex items-center">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 backdrop-blur border-t border-gray-200 safe-area-inset-bottom">
+      <div className="flex items-stretch min-h-14">
         {tabs.map(({ label, path, icon: Icon }) => {
           const active = isActive(path);
           return (
             <Link
               key={path}
               to={path}
-              className="flex-1 flex flex-col items-center justify-center py-2.5 gap-1 transition-colors"
+              className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 transition-colors"
             >
               <Icon
-                className={`w-5 h-5 transition-colors ${active ? 'text-blue-700' : 'text-gray-400'}`}
+                className={`h-5 w-5 transition-colors ${active ? 'text-blue-700' : 'text-gray-400'}`}
                 strokeWidth={active ? 2.5 : 1.75}
               />
-              <span className={`text-[10px] font-medium transition-colors ${active ? 'text-blue-700' : 'text-gray-400'}`}>
+              <span className={`max-w-full truncate text-[10px] font-medium transition-colors ${active ? 'text-blue-700' : 'text-gray-400'}`}>
                 {label}
               </span>
             </Link>
