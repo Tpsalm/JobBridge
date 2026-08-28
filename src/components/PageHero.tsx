@@ -37,17 +37,17 @@ export default function PageHero({
         <div className="absolute top-1/3 right-0 h-20 w-20 rounded-full bg-sky-300/20 blur-3xl animate-drift" />
       </div>
       <div
-        className={`relative max-w-7xl mx-auto px-4 sm:px-6 transition-all duration-700 ease-out ${compact ? 'py-8' : 'py-12 sm:py-16'}`}
+        className={`relative mx-auto max-w-7xl px-4 sm:px-6 transition-all duration-700 ease-out ${compact ? 'py-7 sm:py-8' : 'py-10 sm:py-16'}`}
       >
         <h1
-          className={`font-bold text-white leading-tight ${compact ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-4xl'}`}
+          className={`max-w-[22rem] font-bold leading-tight text-white ${compact ? 'text-[1.75rem] sm:text-3xl' : 'text-3xl sm:text-4xl'}`}
           style={{ transformStyle: 'preserve-3d', transform: 'translateZ(30px)' }}
         >
           {title}
         </h1>
         {subtitle && (
           <p
-            className={`text-blue-100 mt-2 max-w-2xl ${compact ? 'text-sm' : 'text-base sm:text-lg'}`}
+            className={`mt-2 max-w-2xl text-blue-100 ${compact ? 'text-[0.8125rem] leading-5 sm:text-sm' : 'text-base sm:text-lg'}`}
             style={{ transformStyle: 'preserve-3d', transform: 'translateZ(15px)' }}
           >
             {subtitle}

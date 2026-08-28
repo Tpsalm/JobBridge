@@ -11,7 +11,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <>
       <Header />
-      <main className="flex-1 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+      <main className="flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
       <Footer />
       <BottomNav />
     </>

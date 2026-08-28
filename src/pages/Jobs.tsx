@@ -197,7 +197,7 @@ const Jobs = () => {
     <div className="flex flex-col min-h-[100dvh] bg-gray-100">
       <Header />
 
-      <main className="flex-1 flex flex-col pb-16 md:pb-0">
+      <main className="flex-1 flex flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
         <PageHero
           compact
           title="Find your next role"
@@ -207,7 +207,7 @@ const Jobs = () => {
         />
 
         {/* Search Bar */}
-        <div className="bg-white border-b border-gray-200 px-3 py-3 sm:px-4 sm:py-4 flex-shrink-0">
+        <div className="sticky top-14 z-30 bg-white/95 border-b border-gray-200 px-3 py-3 backdrop-blur sm:top-16 sm:px-4 sm:py-4 flex-shrink-0">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col gap-2.5 sm:flex-row sm:gap-3">
               <div className="flex-1 relative">
@@ -236,11 +236,11 @@ const Jobs = () => {
             </div>
 
             {/* Filter Chips */}
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
               <select
                 value={typeFilter}
                 onChange={e => setTypeFilter(e.target.value)}
-                className="text-xs font-medium border border-gray-300 rounded-full px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  className="min-h-9 max-w-full rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 <option value="">Job Type</option>
                 <option>Full-time</option>
@@ -253,7 +253,7 @@ const Jobs = () => {
               <select
                 value={categoryFilter}
                 onChange={e => setCategoryFilter(e.target.value)}
-                className="text-xs font-medium border border-gray-300 rounded-full px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  className="min-h-9 max-w-full rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 <option value="">Category</option>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -261,7 +261,7 @@ const Jobs = () => {
               {(typeFilter || categoryFilter || search || locationFilter) && (
                 <button
                   onClick={() => { setTypeFilter(''); setCategoryFilter(''); setSearch(''); setLocationFilter(''); }}
-                  className="text-xs font-medium text-red-600 border border-red-200 rounded-full px-3 py-1.5 hover:bg-red-50 transition"
+                  className="min-h-9 rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
                 >
                   Clear all
                 </button>
@@ -363,7 +363,7 @@ const Jobs = () => {
                 {/* Mobile back button */}
                 <button
                   onClick={() => { setMobileDetail(false); setSelectedJob(null); setShowApplication(false); }}
-                  className="lg:hidden flex items-center gap-1 text-sm text-blue-700 font-medium px-4 py-3 border-b border-gray-100 hover:bg-gray-50"
+                  className="lg:hidden flex min-h-11 items-center gap-1 border-b border-gray-100 px-4 py-3 text-sm font-medium text-blue-700 hover:bg-gray-50"
                 >
                   <ArrowLeft className="w-4 h-4" /> Back to jobs
                 </button>
