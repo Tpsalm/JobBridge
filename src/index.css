@@ -6,6 +6,17 @@
   font-family: 'Inter', sans-serif;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent long unbroken tokens (emails, URLs, hashtags) from causing horizontal scroll */
+h1, h2, h3, h4, h5, h6, p, li, a, button, label, span {
+  overflow-wrap: break-word;
+}
+
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   display: inline-block;
@@ -24,6 +35,32 @@
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 .safe-area-inset-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-area-inset-top { padding-top: env(safe-area-inset-top, 0px); }
+.safe-area-inset-left { padding-left: env(safe-area-inset-left, 0px); }
+.safe-area-inset-right { padding-right: env(safe-area-inset-right, 0px); }
+
+/* Fluid media & assets — never exceed screen boundaries */
+img, picture, video, canvas, svg {
+  max-width: 100%;
+}
+
+/* Apple (44pt) / Google (48dp) touch-target floors on phones & tablets */
+@media (pointer: coarse) and (max-width: 767px) {
+  button,
+  [role="button"],
+  [type="submit"],
+  [type="reset"],
+  select,
+  textarea,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]) {
+    min-height: 44px;
+  }
+
+  /* Links styled as buttons/CTAs (i.e. they carry horizontal padding) */
+  a[class*="px-"] {
+    min-height: 44px;
+  }
+}
 
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -51,7 +88,7 @@
 }
 .animate-pulse-subtle { animation: pulse-subtle 2s infinite ease-in-out; }
 
-body { min-height: 100dvh; background-color: #faf9f6; }
+body { min-height: 100dvh; background-color: #faf9f6; overflow-x: hidden; overflow-y: auto; }
 
 /* Dark mode overrides (minimal — Tailwind `dark:` utilities would be ideal for full support) */
 .dark body { background-color: #0b1220; color: #e5e7eb; }

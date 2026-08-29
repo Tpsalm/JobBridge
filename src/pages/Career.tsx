@@ -208,7 +208,7 @@ export default function Career() {
                   <h3 className="text-xl font-bold text-gray-900 mt-2">Get Beta Access & Launch Alerts</h3>
                   <p className="text-xs text-gray-500 mt-1 max-w-md">Subscribe to be notified the instant these tools go live and secure your spot in our early-access coaching cohorts.</p>
                 </div>
-                <div className="w-full md:w-auto shrink-0 min-w-[280px]">
+                <div className="w-full md:w-auto md:min-w-[280px] shrink-0">
                   {subscribed ? (
                     <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center text-emerald-700 flex flex-col items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">

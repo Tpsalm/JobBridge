@@ -30,7 +30,7 @@ export default function BottomNav() {
                 className={`h-5 w-5 transition-colors ${active ? 'text-blue-700' : 'text-gray-400'}`}
                 strokeWidth={active ? 2.5 : 1.75}
               />
-              <span className={`max-w-full truncate text-[10px] font-medium transition-colors ${active ? 'text-blue-700' : 'text-gray-400'}`}>
+              <span className={`max-w-full truncate text-[11px] font-medium transition-colors ${active ? 'text-blue-700' : 'text-gray-400'}`}>
                 {label}
               </span>
             </Link>

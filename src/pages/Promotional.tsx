@@ -129,7 +129,7 @@ export default function Promotional() {
             </div>
             <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/70 shadow-2xl shadow-slate-950/40">
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-slate-950/20" />
-              <div className="relative h-[420px] px-8 py-10 flex flex-col justify-between">
+              <div className="relative h-[340px] sm:h-[420px] px-8 py-10 flex flex-col justify-between">
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 rounded-full bg-white/5 px-4 py-2 text-sm text-slate-200 ring-1 ring-white/10">
                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
