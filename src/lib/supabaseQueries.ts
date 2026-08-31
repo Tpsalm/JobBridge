@@ -181,6 +181,17 @@ export async function updateApplicationStatus(id: string, status: string) {
   return data;
 }
 
+export async function withdrawApplication(id: string) {
+  const { data, error } = await supabase
+    .from("applications")
+    .update({ status: "withdrawn", updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // ─── Profiles ───────────────────────────────────────────────────────────────
 
 export async function fetchProfile(userId: string) {
@@ -677,7 +688,7 @@ export async function createConversationMessage(params: {
     user_id: recipientId,
     type: 'message',
     title: `New message from ${senderName}`,
-    content: 'You have a new message. Open Messages to read and reply.',
+    content: `${senderName} sent you a message on JobBridge. Open Messages to read and reply.`,
     data: {
       conversation_id: conversationId,
       sender_id: senderId,
@@ -693,7 +704,7 @@ export async function createConversationMessage(params: {
     user_id: senderId,
     type: 'message',
     title: `Message sent to ${recipientName}`,
-    content: 'Your message was sent. Open Messages to continue the chat.',
+    content: `Your message to ${recipientName} was sent successfully. Open Messages to continue the conversation.`,
     data: {
       conversation_id: conversationId,
       sender_id: senderId,
@@ -1015,6 +1026,15 @@ export async function updateJobAlertEnabled(alertId: string, enabled: boolean) {
 
   if (error) throw error;
   return data as JobAlert;
+}
+
+export async function deleteJobAlert(alertId: string) {
+  const { error } = await supabase
+    .from("job_alerts")
+    .delete()
+    .eq("id", alertId);
+
+  if (error) throw error;
 }
 
 export async function fetchUnreadNotificationCount(userId: string) {

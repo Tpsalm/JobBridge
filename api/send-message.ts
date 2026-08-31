@@ -113,7 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       user_id: recipientId,
       type: 'message',
       title: `New message from ${senderName || 'Someone'}`,
-      content: 'You have a new message. Open Messages to read and reply.',
+      content: `${senderName || 'Someone'} sent you a message on JobBridge. Open Messages to read and reply.`,
       data: {
         conversation_id: conversationId,
         sender_id: senderId,
@@ -129,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       user_id: senderId,
       type: 'message',
       title: `Message sent to ${recipientName || 'Someone'}`,
-      content: 'Your message was sent. Open Messages to continue the chat.',
+      content: `Your message to ${recipientName || 'someone'} was sent successfully. Open Messages to continue the conversation.`,
       data: {
         conversation_id: conversationId,
         sender_id: senderId,

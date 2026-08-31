@@ -40,17 +40,7 @@ export default function About() {
     },
   ];
 
-  const teamMembers = [
-    {
-      name: 'Owoyemi Samuel Tobi',
-      role: 'Chief Technology Officer',
-      title: 'Founding Engineer',
-      description:
-        'Owoyemi is the first member of the JobBridge team and the CTO behind our platform architecture, AI systems, and data products. He leads engineering, product reliability, and technical innovation for the platform.',
-      image: `${import.meta.env.BASE_URL}images/owoyemi-samuel-tobi.jpeg`,
-      badge: 'Founding Team',
-    },
-  ];
+  const teamMembers = [];
 
   const services = [
     {

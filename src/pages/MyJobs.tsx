@@ -5,8 +5,9 @@ import AppLayout from '../components/AppLayout';
 import CompanyLogo from '../components/CompanyLogo';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, IMG } from '../lib/media';
-import { Bookmark, Briefcase, Calendar, Clock, MapPin, ChevronRight, Search, Archive, X, FileText } from 'lucide-react';
-import { fetchJobs, fetchUserApplications } from '../lib/supabaseQueries';
+import { Bookmark, Briefcase, Calendar, Clock, MapPin, ChevronRight, Search, Archive, X, FileText, XCircle, Loader2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { fetchJobs, fetchUserApplications, withdrawApplication } from '../lib/supabaseQueries';
 
 type Tab = 'saved' | 'applied' | 'interviews' | 'archived';
 
@@ -242,15 +243,31 @@ export default function MyJobs() {
                         </button>
                       )}
                       {activeTab === 'applied' && (
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                          (job as any).application_status === 'shortlisted' ? 'bg-green-50 text-green-700' :
-                          (job as any).application_status === 'reviewed' ? 'bg-blue-50 text-blue-700' :
-                          (job as any).application_status === 'rejected' ? 'bg-red-50 text-red-700' :
-                          (job as any).application_status === 'hired' ? 'bg-emerald-50 text-emerald-700' :
-                          'bg-amber-50 text-amber-700'
-                        }`}>
-                          {(job as any).application_status || 'Applied'}
-                        </span>
+                        <>
+                          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                            (job as any).application_status === 'shortlisted' ? 'bg-green-50 text-green-700' :
+                            (job as any).application_status === 'reviewed' ? 'bg-blue-50 text-blue-700' :
+                            (job as any).application_status === 'rejected' ? 'bg-red-50 text-red-700' :
+                            (job as any).application_status === 'hired' ? 'bg-emerald-50 text-emerald-700' :
+                            'bg-amber-50 text-amber-700'
+                          }`}>
+                            {(job as any).application_status || 'Applied'}
+                          </span>
+                          {(job as any).application_status !== 'rejected' && (job as any).application_status !== 'hired' && (
+                            <button
+                              onClick={() => {
+                                if (confirm('Are you sure you want to withdraw your application?')) {
+                                  withdrawApplication((job as any).id).then(() => {
+                                    setMyApplications(prev => prev.filter(a => a.job_id !== job.id));
+                                  });
+                                }
+                              }}
+                              className="text-xs text-red-600 hover:text-red-700 font-medium underline"
+                            >
+                              Withdraw
+                            </button>
+                          )}
+                        </>
                       )}
                       <Link
                         to="/jobs"

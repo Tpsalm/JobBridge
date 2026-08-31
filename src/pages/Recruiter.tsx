@@ -45,10 +45,6 @@ export default function Recruiter() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [postJobOpened, setPostJobOpened] = useState(false);
-  const [activeFilters, setActiveFilters] = useState({
-    jobType: [] as string[],
-    location: [] as string[],
-  });
 
   // Real jobs from database
   const [myJobs, setMyJobs] = useState<Job[]>([]);
@@ -106,6 +102,8 @@ export default function Recruiter() {
   // AI JD Generator state
   const [showAIJD, setShowAIJD] = useState(false);
   const [aiTitle, setAiTitle] = useState('');
+  const [aiCompany, setAiCompany] = useState('');
+  const [aiSalary, setAiSalary] = useState('');
   const [aiReqs, setAiReqs] = useState(['', '', '']);
   const [generating, setGenerating] = useState('');
   const [generatedJD, setGeneratedJD] = useState<any>(null);
@@ -156,22 +154,11 @@ export default function Recruiter() {
     }
   }
 
-  const filteredApps = (statusFilter === 'all'
+  const filteredApps = statusFilter === 'all'
     ? applications
-    : applications.filter(a => a.status === statusFilter)
-  ).filter(app => {
-    const typeMatch = activeFilters.jobType.length === 0 || activeFilters.jobType.includes(app.work_type);
-    const locMatch = activeFilters.location.length === 0 || activeFilters.location.includes(app.location);
-    return typeMatch && locMatch;
-  });
+    : applications.filter(a => a.status === statusFilter);
 
-  const filteredJobs = activeFilters.jobType.length === 0 && activeFilters.location.length === 0
-    ? myJobs
-    : myJobs.filter(job => {
-        const typeMatch = activeFilters.jobType.length === 0 || activeFilters.jobType.includes(job.type);
-        const locMatch = activeFilters.location.length === 0 || activeFilters.location.includes(job.location);
-        return typeMatch && locMatch;
-      });
+  const filteredJobs = myJobs;
 
   // Rank the recruiter's job postings exactly as requested: Premium Job Post
   // first, then Standard Job Post, then Basic Job Post at the bottom. Legacy
@@ -214,15 +201,6 @@ export default function Recruiter() {
     },
   ];
 
-  const toggleFilter = (category: string, value: string) => {
-    setActiveFilters((prev) => ({
-      ...prev,
-      [category]: prev[category as keyof typeof prev].includes(value)
-        ? (prev[category as keyof typeof prev] as string[]).filter((v) => v !== value)
-        : [...(prev[category as keyof typeof prev] as string[]), value],
-    }));
-  };
-
   async function handleGenerateJD() {
     if (!aiTitle.trim()) return;
     setGenerating('jd');
@@ -233,7 +211,9 @@ export default function Recruiter() {
       // For now this is a placeholder — AI JD gen is disabled.
       setGeneratedJD({
         title: aiTitle,
-        description: `We are looking for a talented ${aiTitle} to join our team.`,
+        company: aiCompany,
+        salary: aiSalary,
+        description: `We are looking for a talented ${aiTitle} to join ${aiCompany.trim() || 'our team'}.`,
         responsibilities: ['Collaborate with cross-functional teams', 'Deliver high-quality work', 'Contribute to team goals'],
         requirements: aiReqs.filter(Boolean).length > 0 ? aiReqs.filter(Boolean) : ['Relevant experience', 'Strong communication skills'],
         benefits: ['Competitive salary', 'Health insurance', 'Flexible work hours'],
@@ -395,58 +375,9 @@ export default function Recruiter() {
         </AnimatedSection>
 
         {/* Main Grid */}
-        <div className="grid lg:grid-cols-4 gap-6">
-          {/* Sidebar - Filters */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-20">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="font-bold text-gray-900">Quick Filters</h3>
-                {(activeFilters.jobType.length > 0 || activeFilters.location.length > 0) && (
-                  <button onClick={() => setActiveFilters({ jobType: [], location: [] })}
-                    className="text-xs text-blue-700 hover:underline font-medium">
-                    Clear all
-                  </button>
-                )}
-              </div>
-
-              <div className="mb-6">
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">Job Type</h4>
-                <div className="space-y-2">
-                  {['Full-time', 'Part-time', 'Contract', 'Internship'].map((type) => (
-                    <label key={type} className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={activeFilters.jobType.includes(type)}
-                        onChange={() => toggleFilter('jobType', type)}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-700 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-600">{type}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">Location</h4>
-                <div className="space-y-2">
-                  {['Remote', 'On-site', 'Hybrid'].map((loc) => (
-                    <label key={loc} className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={activeFilters.location.includes(loc)}
-                        onChange={() => toggleFilter('location', loc)}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-700 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-600">{loc}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 gap-6">
           {/* Main Content */}
-          <div className="lg:col-span-3">
+          <div>
             {/* Action Buttons Row */}
             <AnimatedSection direction="up"><div className="grid grid-cols-2 gap-3 mb-8">
               {subscription.status === 'active' ? (
@@ -498,15 +429,36 @@ export default function Recruiter() {
                     <X className="w-4 h-4 text-gray-400" />
                   </button>
                 </div>
-                <p className="text-sm text-gray-500 mb-4">Enter a job title and up to 3 core requirements. AI will generate an optimized, bias-free job description.</p>
+                <p className="text-sm text-gray-500 mb-4">Enter the job title, company name, salary range, and up to 3 core requirements. AI will generate an optimized, bias-free job description you can review and publish.</p>
 
                 <div className="space-y-3 mb-4">
-                  <input
-                    value={aiTitle}
-                    onChange={e => setAiTitle(e.target.value)}
-                    placeholder="Job title (e.g. Senior Frontend Engineer)"
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Job Title *</label>
+                    <input
+                      value={aiTitle}
+                      onChange={e => setAiTitle(e.target.value)}
+                      placeholder="Job title (e.g. Senior Frontend Engineer)"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Company Name</label>
+                    <input
+                      value={aiCompany}
+                      onChange={e => setAiCompany(e.target.value)}
+                      placeholder="Company name (e.g. TechStream Ltd.)"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Salary Range</label>
+                    <input
+                      value={aiSalary}
+                      onChange={e => setAiSalary(e.target.value)}
+                      placeholder="Salary range (e.g. ₦300,000 – ₦450,000)"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
                   {aiReqs.map((req, i) => (
                     <input
                       key={i}
@@ -531,7 +483,27 @@ export default function Recruiter() {
 
                 {generatedJD && (
                   <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                    <h4 className="font-bold text-gray-900 mb-1">{generatedJD.title}</h4>
+                    <h4 className="font-bold text-gray-900 mb-3">{generatedJD.title}</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Company Name</label>
+                        <input
+                          value={aiCompany}
+                          onChange={e => { setAiCompany(e.target.value); setGeneratedJD({ ...generatedJD, company: e.target.value }); }}
+                          placeholder="Company name"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Salary Range</label>
+                        <input
+                          value={aiSalary}
+                          onChange={e => { setAiSalary(e.target.value); setGeneratedJD({ ...generatedJD, salary: e.target.value }); }}
+                          placeholder="e.g. ₦300,000 – ₦450,000"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
                     <p className="text-sm text-gray-600 mb-3">{generatedJD.description}</p>
 
                     <div className="mb-3">
@@ -569,7 +541,8 @@ export default function Recruiter() {
                           autoPublish: true,
                           title: generatedJD.title,
                           description: generatedJD.description,
-                          company: user?.user_metadata?.company || '',
+                          company: generatedJD.company || user?.user_metadata?.company || '',
+                          salary: generatedJD.salary || '',
                           requirements: generatedJD.requirements,
                           benefits: generatedJD.benefits,
                         },
@@ -587,12 +560,6 @@ export default function Recruiter() {
             <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 mb-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900">Active Job Postings ({filteredJobs.length})</h2>
-                {(activeFilters.jobType.length > 0 || activeFilters.location.length > 0) && (
-                  <button onClick={() => setActiveFilters({ jobType: [], location: [] })}
-                    className="text-xs text-blue-700 hover:underline font-medium self-start">
-                    Clear filters
-                  </button>
-                )}
               </div>
 
               <div className="space-y-4 stagger-children stagger-visible">

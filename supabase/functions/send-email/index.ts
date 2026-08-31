@@ -152,16 +152,17 @@ function applicationTemplate(name: string, jobTitle: string, company: string): s
   const co = company || 'the company';
   return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
 <div style="background:#eff6ff;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #bfdbfe;">
-<p style="font-size:15px;color:#1e40af;margin:0 0 4px;font-weight:600;">✅ Application Submitted</p>
+<p style="font-size:15px;color:#1e40af;margin:0 0 4px;font-weight:600;">✅ Application Submitted Successfully</p>
 <p style="font-size:22px;font-weight:700;color:#111827;margin:8px 0;">${jt}</p>
-<p style="font-size:15px;color:#4b5563;margin:0;">${co}</p>
+<p style="font-size:15px;color:#4b5563;margin:0;"><strong>Company:</strong> ${co}</p>
 </div>
-<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Your application has been received successfully. The recruiter will review your profile and get back to you if there's a match.</p>
-<div style="background:#f8fafc;border-radius:12px;padding:24px;margin-bottom:24px;">
-<p style="font-size:14px;font-weight:600;color:#111827;margin:0 0 12px;">💡 Tips while you wait</p>
-<p style="font-size:14px;color:#4b5563;margin:0;line-height:1.6;">• Keep your JobBridge profile up to date<br>• Set up job alerts for similar roles<br>• Continue exploring other opportunities on the platform</p>
+<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Great! Your application has been received successfully. The recruiter will review your profile and reach out to you if you're a match for the role. This typically takes 1-7 business days.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:10px;padding:14px 36px;"><a href="https://jobbridge.com.ng/my-jobs" target="_blank" style="color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;">Track Your Applications</a></td></tr></table></td></tr></table>
+<div style="background:#f8fafc;border-radius:12px;padding:24px;margin-top:20px;">
+<p style="font-size:14px;font-weight:600;color:#111827;margin:0 0 12px;">💡 While You Wait</p>
+<p style="font-size:14px;color:#4b5563;margin:0;line-height:1.6;">• <strong>Keep your profile fresh:</strong> Update your JobBridge profile to highlight relevant skills and experience<br>• <strong>Set up job alerts:</strong> Get notified about similar roles that match your profile<br>• <strong>Keep exploring:</strong> Apply to multiple opportunities to increase your chances of landing an interview<br>• <strong>Prepare for interviews:</strong> Use our AI Resume Studio for interview prep and mock interviews</p>
 </div>
-<p style="font-size:15px;color:#374151;line-height:1.7;margin:0;">Good luck! 🎯</p>`;
+<p style="font-size:14px;color:#6b7280;line-height:1.7;margin:20px 0 0;"><strong>Need help?</strong> Visit our <a href="https://jobbridge.com.ng/support" style="color:#1d4ed8;text-decoration:underline;">support center</a> or check our <a href="https://jobbridge.com.ng/blog" style="color:#1d4ed8;text-decoration:underline;">career articles</a> for interview tips and advice.</p>`;
 }
 
 function recruiterNotificationTemplate(jobTitle: string, applicantName: string): string {
@@ -169,12 +170,16 @@ function recruiterNotificationTemplate(jobTitle: string, applicantName: string):
   const an = applicantName || 'a candidate';
   return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi there,</p>
 <div style="background:#fefce8;border-radius:12px;padding:24px;margin-bottom:24px;border:1px solid #fde68a;">
-<p style="font-size:15px;color:#92400e;margin:0 0 4px;font-weight:600;">📩 New Application Received</p>
+<p style="font-size:15px;color:#92400e;margin:0 0 4px;font-weight:600;">📩 New Application Alert</p>
 <p style="font-size:20px;font-weight:700;color:#111827;margin:8px 0;">${jt}</p>
-<p style="font-size:15px;color:#4b5563;margin:0;">Applicant: <strong>${an}</strong></p>
+<p style="font-size:15px;color:#4b5563;margin:0;"><strong>Applicant:</strong> ${an}</p>
+<p style="font-size:14px;color:#92400e;margin:8px 0 0;">A qualified candidate has just applied to your job posting!</p>
 </div>
-<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">A new candidate has applied to your job posting. Visit your dashboard to review their profile and application.</p>
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:10px;padding:14px 36px;"><a href="https://jobbridge.com.ng/dashboard" target="_blank" style="color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;">View Applications</a></td></tr></table></td></tr></table>`;
+<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Review their profile and application details in your recruiter dashboard. Quick action may help you secure top talent before other employers do.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:10px;padding:14px 36px;"><a href="https://jobbridge.com.ng/recruiter" target="_blank" style="color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;">Review Application</a></td></tr></table></td></tr></table>
+<div style="background:#f0f9ff;border-radius:12px;padding:16px;margin-top:20px;">
+<p style="font-size:13px;color:#0c4a6e;line-height:1.6;margin:0;"><strong>💡 Quick tip:</strong> Respond to quality candidates quickly to improve your hiring success rate. Use the shortlist or interview scheduling features to keep candidates engaged.</p>
+</div>`;
 }
 
 function statusDisplay(status: string): string {
@@ -202,6 +207,7 @@ function applicationStatusTemplate(name: string, jobTitle: string, company: stri
   let statusBg = '#eff6ff';
   let statusBorder = '#bfdbfe';
   let message = '';
+  let nextStep = '';
 
   switch (st) {
     case 'shortlisted':
@@ -209,31 +215,36 @@ function applicationStatusTemplate(name: string, jobTitle: string, company: stri
       statusColor = '#059669';
       statusBg = '#f0fdf4';
       statusBorder = '#bbf7d0';
-      message = 'Congratulations! The recruiter has shortlisted you for this position. You may be contacted for an interview shortly.';
+      message = 'Great news! The recruiter has shortlisted your application. You\'re moving forward in the hiring process and may be contacted for an interview or next steps soon.';
+      nextStep = 'Watch your inbox and notifications closely for the recruiter to reach out.';
       break;
     case 'reviewed':
       statusEmoji = '👀';
       statusColor = '#2563eb';
       statusBg = '#eff6ff';
       statusBorder = '#bfdbfe';
-      message = 'Your application has been reviewed by the recruiter. They will reach out if you are a match.';
+      message = 'Your application has been reviewed by the recruiter. They are evaluating your profile against other candidates and will make a decision soon.';
+      nextStep = 'Continue applying to other relevant jobs while you wait for a response.';
       break;
     case 'rejected':
       statusEmoji = '💡';
       statusColor = '#dc2626';
       statusBg = '#fef2f2';
       statusBorder = '#fecaca';
-      message = 'Unfortunately, the recruiter has decided to move forward with other candidates for this position. Don\'t be discouraged — keep applying to other opportunities on JobBridge!';
+      message = 'Unfortunately, the recruiter has decided to move forward with other candidates for this position at this time. This is not a reflection of your skills or potential.';
+      nextStep = 'Don\'t be discouraged! Keep exploring other opportunities on JobBridge that match your profile. The right role is out there for you.';
       break;
     case 'hired':
       statusEmoji = '🎉';
       statusColor = '#059669';
       statusBg = '#f0fdf4';
       statusBorder = '#bbf7d0';
-      message = 'Congratulations! The recruiter has selected you for this position. You will be contacted with next steps to finalize your offer.';
+      message = 'Congratulations! The recruiter has selected you for this position! You\'re one step closer to your dream job.';
+      nextStep = 'The recruiter will contact you shortly with next steps, including interview scheduling and offer details.';
       break;
     default:
       message = `Your application status has been updated to: ${st}`;
+      nextStep = 'Log in to JobBridge to view the details of your application.';
   }
 
   return T`<p style="font-size:16px;color:#374151;line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${name}</strong>,</p>
@@ -243,10 +254,13 @@ function applicationStatusTemplate(name: string, jobTitle: string, company: stri
 <p style="font-size:15px;color:#4b5563;margin:0;">${co}</p>
 <div style="margin-top:16px;padding-top:16px;border-top:1px solid ${statusBorder};">
 <p style="font-size:15px;color:#374151;line-height:1.7;margin:0;">${message}</p>
+<p style="font-size:14px;color:#4b5563;line-height:1.6;margin:12px 0 0;"><strong>Next Step:</strong> ${nextStep}</p>
 </div>
 </div>
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:10px;padding:14px 36px;"><a href="https://jobbridge.com.ng/my-jobs" target="_blank" style="color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;display:inline-block;">View My Applications</a></td></tr></table></td></tr></table>
-<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:20px 0 0;">Keep your JobBridge profile updated and continue exploring other opportunities.</p>`;
+<div style="background:#f8fafc;border-radius:12px;padding:16px;margin-top:20px;">
+<p style="font-size:13px;color:#4b5563;line-height:1.6;margin:0;"><strong>💡 Pro Tip:</strong> Keep your JobBridge profile up to date and continue exploring other opportunities. Each application is a step closer to your ideal role.</p>
+</div>`;
 }
 
 function paymentTemplate(name: string, plan: string, amount: string): string {

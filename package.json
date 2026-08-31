@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/copy-admin-assets.cjs",
+    "android:sync": "npm run build && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:run": "npm run build && npx cap sync android && npx cap run android",
     "ai:start": "node scripts/ai_server.js",
     "ai:index": "node scripts/index_embeddings.js",
     "ai:train": "node scripts/train_and_test.js",
@@ -16,6 +19,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@genkit-ai/googleai": "^1.28.0",
     "@google/genai": "^2.12.0",
     "@supabase/supabase-js": "^2.108.2",

@@ -194,6 +194,7 @@ function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClos
                   <option>Part-time</option>
                   <option>Contract</option>
                   <option>Freelance</option>
+                  <option>Internship</option>
                   <option>Entry level</option>
                 </select>
               </div>
