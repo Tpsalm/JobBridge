@@ -1,6 +1,7 @@
 export function getSupabaseFunctionsUrl(): string | null {
-  const functionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL?.trim();
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
+  const defaultSupabaseUrl = "https://ppramomuckkjzssrfghi.supabase.co";
+  const functionsUrl = (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || `${defaultSupabaseUrl}/functions/v1`).trim();
+  const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || defaultSupabaseUrl).trim();
   const candidates = [functionsUrl, supabaseUrl ? `${supabaseUrl.replace(/\/+$/, '')}/functions/v1` : undefined];
 
   for (const candidate of candidates) {
