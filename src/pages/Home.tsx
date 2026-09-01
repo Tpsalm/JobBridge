@@ -4,13 +4,13 @@ import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import JobBridgeLogo from '../components/JobBridgeLogo';
 import { useModal } from '../contexts/ModalContext';
-import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight, Building, ExternalLink, MapPin } from 'lucide-react';
+import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight, Building, ExternalLink, MapPin, Loader2 } from 'lucide-react';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 import FloatingDecorations from '../components/FloatingDecorations';
 import HeroSlides from '../components/HeroSlides';
 import { pexel, advertImage } from '../lib/media';
-import { fetchPublicAdvertisements, incrementAdvertisementViews, incrementAdvertisementClicks } from '../lib/supabaseQueries';
+import { fetchPublicAdvertisements, incrementAdvertisementViews, incrementAdvertisementClicks, fetchJobs } from '../lib/supabaseQueries';
 import type { Advertisement } from '../lib/supabase';
 
 const stats = [
@@ -18,13 +18,6 @@ const stats = [
   { label: 'Companies', value: '3,200+', icon: Users, color: 'bg-emerald-50 text-emerald-700' },
   { label: 'Placements', value: '18,900+', icon: Star, color: 'bg-amber-50 text-amber-700' },
   { label: 'Success Rate', value: '94%', icon: TrendingUp, color: 'bg-rose-50 text-rose-700' },
-];
-
-const featuredJobs = [
-  { title: 'Senior Frontend Engineer', company: 'TechCorp', location: 'Remote', salary: '₦120k–₦160k', match: '98%', badge: 'Hot' },
-  { title: 'Product Manager', company: 'InnovateCo', location: 'New York', salary: '₦110k–₦140k', match: '92%', badge: 'New' },
-  { title: 'Data Scientist', company: 'DataFlow', location: 'San Francisco', salary: '₦130k–₦170k', match: '89%', badge: '' },
-  { title: 'UX Designer', company: 'DesignHub', location: 'Hybrid', salary: '₦90k–₦120k', match: '95%', badge: 'Featured' },
 ];
 
 const testimonials = [
@@ -65,6 +58,33 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
 export default function Home() {
   const { openModal } = useModal();
   const navigate = useNavigate();
+
+  // ── Featured Jobs (from database) ────────────────────────────────────────
+  // Fetch all jobs from the database and display them on the homepage.
+  // This ensures parity between the homepage and the main Jobs page.
+  const [homeJobs, setHomeJobs] = useState<any[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setJobsLoading(true);
+        const jobs = await fetchJobs();
+        if (cancelled) return;
+        // Take up to 4 jobs to display on homepage. If fewer jobs exist, display all.
+        setHomeJobs(jobs.slice(0, 4));
+        setJobsError('');
+      } catch (e) {
+        console.warn('[Home] featured jobs failed to load:', e);
+        if (!cancelled) setJobsError('Unable to load featured jobs');
+      } finally {
+        if (!cancelled) setJobsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Featured Business Spotlight ───────────────────────────────────────────
   // Adverts created by premium business-plan (Featured Business) subscribers
@@ -296,44 +316,72 @@ export default function Home() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Featured Jobs</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Handpicked matches based on market demand</p>
+            <p className="text-sm text-gray-500 mt-0.5">Latest opportunities from top employers</p>
           </div>
           <Link to="/jobs" className="text-sm font-medium text-blue-700 hover:text-blue-800 flex items-center gap-1">
             View all <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
-        <div className="grid sm:grid-cols-2 gap-4 stagger-children stagger-visible">
-          {featuredJobs.map((job) => (
-            <Card3D key={job.title} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm group" strength={5}>
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
-                  {job.company[0]}
-                </div>
-                {job.badge && (
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    job.badge === 'Hot' ? 'bg-red-50 text-red-600' :
-                    job.badge === 'New' ? 'bg-emerald-50 text-emerald-600' :
-                    'bg-blue-50 text-blue-600'
-                  }`}>{job.badge}</span>
-                )}
-              </div>
-              <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">{job.title}</h3>
-              <p className="text-sm text-gray-500 mt-0.5">{job.company} · {job.location}</p>
-              <div className="flex items-center justify-between mt-4">
-                <span className="text-sm font-medium text-gray-700">{job.salary}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">{job.match} match</span>
-                  <button
-                    onClick={() => navigate('/jobs')}
-                    className="text-xs bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-blue-800 transition-colors"
-                  >
-                    View job
-                  </button>
-                </div>
-              </div>
-            </Card3D>
-          ))}
-        </div>
+
+        {/* Loading state */}
+        {jobsLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
+              <p className="text-gray-600">Loading featured jobs...</p>
+            </div>
+          </div>
+        ) : jobsError || homeJobs.length === 0 ? (
+          <div className="text-center py-16 bg-gray-50 rounded-2xl border border-gray-200">
+            <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 font-medium">{jobsError || 'No jobs available at the moment'}</p>
+            <p className="text-sm text-gray-500 mt-2">Check back soon for new opportunities</p>
+            <Link
+              to="/jobs"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 transition-colors mt-6"
+            >
+              Browse all jobs <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-4 stagger-children stagger-visible">
+            {homeJobs.map((job) => {
+              // Format salary if it exists
+              const salary = job.salary_range || 'Competitive';
+              // Get company initials for avatar
+              const initials = job.company.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+              // Determine badge based on job status
+              const badge = job.post_plan === 'job_premium' ? 'Hot' : job.post_plan === 'job_standard' ? 'Featured' : '';
+              
+              return (
+                <Card3D key={job.id} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm group" strength={5}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                      {initials}
+                    </div>
+                    {badge && (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        badge === 'Hot' ? 'bg-red-50 text-red-600' :
+                        'bg-emerald-50 text-emerald-600'
+                      }`}>{badge}</span>
+                    )}
+                  </div>
+                  <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors line-clamp-2">{job.title}</h3>
+                  <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">{job.company} · {job.location}</p>
+                  <div className="flex items-center justify-between mt-4">
+                    <span className="text-sm font-medium text-gray-700 line-clamp-1">₦{salary}</span>
+                    <button
+                      onClick={() => navigate('/jobs')}
+                      className="text-xs bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-blue-800 transition-colors shrink-0"
+                    >
+                      View job
+                    </button>
+                  </div>
+                </Card3D>
+              );
+            })}
+          </div>
+        )}
       </AnimatedSection>
 
       {/* Profile Cards Section */}
