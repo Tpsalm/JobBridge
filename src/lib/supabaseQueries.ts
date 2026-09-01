@@ -13,7 +13,8 @@ export async function fetchJobs() {
     .select("*")
     .eq("is_active", true)
     .or(`post_paid.eq.true,post_plan.is.null`)
-    .or(`post_expires_at.is.null,post_expires_at.gt.${now},grace_ends_at.gt.${now}`)
+    .or(`post_expires_at.is.null,post_expires_at.gt.${now}`)
+    .or(`grace_ends_at.is.null,grace_ends_at.gt.${now}`)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data || [];
