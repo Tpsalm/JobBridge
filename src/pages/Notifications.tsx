@@ -396,15 +396,18 @@ export default function Notifications() {
 
         <div className="mb-10">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-              <Bell className="w-5 h-5 text-blue-600" />
-              Job Alerts
-            </h2>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Bell className="w-5 h-5 text-blue-600" />
+                Job Alerts & Preferences
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">Manage which job opportunities you want to be notified about</p>
+            </div>
             <Link
               to="/profile"
               className="text-xs text-blue-600 hover:underline flex items-center gap-1"
             >
-              <Settings className="w-3.5 h-3.5" /> Edit profile preferences
+              <Settings className="w-3.5 h-3.5" /> Notification Settings
             </Link>
           </div>
 
@@ -461,13 +464,13 @@ export default function Notifications() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-900">
-                        <span className="font-semibold">{alert.count}</span> new
-                        job{alert.count === 1 ? "" : "s"} for "{alert.query}"
-                        {alert.location ? ` near ${alert.location}` : ""}
+                        <span className="font-semibold text-blue-700">{alert.count}</span> new exciting job{alert.count === 1 ? "" : "s"} matching "{alert.query}"
+                        {alert.location ? ` in ${alert.location}` : " nationwide"}
                       </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        You'll receive email updates when new jobs become
-                        available.
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {alert.enabled 
+                          ? "You'll get email and in-app notifications when similar jobs are posted"
+                          : "Alert is disabled. Click the toggle to re-enable"}
                       </p>
                     </div>
                   </div>
@@ -619,8 +622,20 @@ export default function Notifications() {
                                   notification is just a pointer — it never shows a
                                   preview of the message itself. */}
                               {notif.type === "message"
-                                ? "You have a new message. Open Messages to read and reply."
-                                : notif.content || "No additional details"}
+                                ? "You have a new message. Click to open Messages and reply."
+                                : notif.type === "job_application"
+                                ? "Your application has been reviewed. Check the status in your Applications dashboard."
+                                : notif.type === "interview"
+                                ? "An interview has been scheduled. Check your calendar for details."
+                                : notif.type === "review"
+                                ? "Your profile has received a new review. Visit your profile to see feedback."
+                                : notif.type === "payment"
+                                ? "A payment transaction has been processed. Check your billing section for details."
+                                : notif.type === "system"
+                                ? notif.content || "Important update from JobBridge"
+                                : notif.type === "advert"
+                                ? notif.content || "A new opportunity or promotion for you"
+                                : notif.content || "You have a new notification"}
                             </p>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">

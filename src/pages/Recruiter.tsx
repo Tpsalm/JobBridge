@@ -625,16 +625,6 @@ export default function Recruiter() {
             <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 mb-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900">Applications ({filteredApps.length})</h2>
-                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                  {['all', 'pending', 'shortlisted', 'reviewed', 'rejected'].map(s => (
-                    <button key={s} onClick={() => setStatusFilter(s)}
-                      className={`text-xs px-3 py-1.5 rounded-lg font-medium capitalize whitespace-nowrap transition-colors ${
-                        statusFilter === s ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {appsLoading ? (

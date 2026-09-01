@@ -104,8 +104,8 @@ export default function MyJobs() {
     <AppLayout>
       <PageHero
         compact
-        title="My Jobs"
-        subtitle="Track your saved, applied, and interview jobs"
+        title="My Jobs & Applications"
+        subtitle="Track your saved jobs, manage your applications, and monitor your interview progress"
         images={HERO_CAROUSELS.myJobs}
         imageAlt="Person organizing job applications"
       />
@@ -228,6 +228,11 @@ export default function MyJobs() {
                             <span className="text-xs px-2 py-0.5 text-gray-400">+{benefits.length - 4} more</span>
                           )}
                         </div>
+                      )}
+
+                      {/* Application date for applied tab */}
+                      {activeTab === 'applied' && (job as any).applied_at && (
+                        <p className="text-xs text-gray-400 mt-2">Applied on {new Date((job as any).applied_at).toLocaleDateString()}</p>
                       )}
                     </div>
 
