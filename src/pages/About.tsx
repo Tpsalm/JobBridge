@@ -42,18 +42,11 @@ export default function About() {
 
   const teamMembers = [
     {
-      name: 'Victor Eniola',
-      role: 'CEO & Founder',
+      name: 'Owoyemi Samuel Tobi',
+      role: 'Chief Technology Officer',
       badge: 'Leadership',
-      description: 'Victor leads JobBridge’s mission to connect talent with opportunity through better access, transparency, and AI-powered matching.',
-      image: `${import.meta.env.BASE_URL}MrVictor1.jpeg.png`,
-    },
-    {
-      name: 'Alex Rodriguez',
-      role: 'CTO',
-      badge: 'Technology',
-      description: 'Alex drives the platform engineering strategy, product reliability, and the technical systems powering JobBridge’s growth.',
-      image: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=800',
+      description: 'Owoyemi leads JobBridge’s technology vision, product engineering, and platform innovation with a focus on scalable systems, reliability, and meaningful user impact.',
+      image: `${import.meta.env.BASE_URL}images/owoyemi-samuel-tobi.jpeg`,
     },
   ];
 
@@ -187,9 +180,9 @@ export default function About() {
             <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-10 text-center">
               Meet Our Team
             </h2>
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="flex justify-center">
               {teamMembers.map((member, idx) => (
-                <div key={idx} className="bg-white rounded-3xl p-8 border border-gray-200 shadow-sm hover:shadow-lg transition">
+                <div key={idx} className="w-full max-w-xl bg-white rounded-3xl p-8 border border-gray-200 shadow-sm hover:shadow-lg transition">
                   <div className="flex flex-col items-center text-center gap-4">
                     <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-100 shadow-md">
                       <img
