@@ -346,8 +346,12 @@ export default function Home() {
         ) : (
           <div className="grid sm:grid-cols-2 gap-4 stagger-children stagger-visible">
             {homeJobs.map((job) => {
-              // Format salary if it exists
-              const salary = job.salary_range || 'Competitive';
+              // Keep salary labels readable; show "Competitive" without a currency prefix when no explicit value is set.
+              const salaryDisplay = job.salary_range && job.salary_range !== 'Competitive'
+                ? job.salary_range.startsWith('₦') || job.salary_range.startsWith('N')
+                  ? job.salary_range
+                  : `₦${job.salary_range}`
+                : 'Competitive';
               // Get company initials for avatar
               const initials = job.company.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
               // Determine badge based on job status
@@ -369,7 +373,7 @@ export default function Home() {
                   <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors line-clamp-2">{job.title}</h3>
                   <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">{job.company} · {job.location}</p>
                   <div className="flex items-center justify-between mt-4">
-                    <span className="text-sm font-medium text-gray-700 line-clamp-1">₦{salary}</span>
+                    <span className="text-sm font-medium text-gray-700 line-clamp-1">{salaryDisplay}</span>
                     <button
                       onClick={() => navigate('/jobs')}
                       className="text-xs bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-blue-800 transition-colors shrink-0"
