@@ -40,7 +40,22 @@ export default function About() {
     },
   ];
 
-  const teamMembers = [];
+  const teamMembers = [
+    {
+      name: 'Victor Eniola',
+      role: 'CEO & Founder',
+      badge: 'Leadership',
+      description: 'Victor leads JobBridge’s mission to connect talent with opportunity through better access, transparency, and AI-powered matching.',
+      image: `${import.meta.env.BASE_URL}MrVictor1.jpeg.png`,
+    },
+    {
+      name: 'Alex Rodriguez',
+      role: 'CTO',
+      badge: 'Technology',
+      description: 'Alex drives the platform engineering strategy, product reliability, and the technical systems powering JobBridge’s growth.',
+      image: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=800',
+    },
+  ];
 
   const services = [
     {
