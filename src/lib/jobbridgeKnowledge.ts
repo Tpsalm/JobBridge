@@ -18,7 +18,7 @@ const KB: KnowledgeSection[] = [
     pages: ['/', '/about'],
     keywords: ['what is jobbridge', 'about jobbridge', 'platform overview', 'what does jobbridge do', 'jobbridge features', 'introduction', 'jobbridge platform', 'professional network', 'what is this', 'jobbridge explained', 'tell me about jobbridge', 'job bridge', 'job bridge platform', 'overview', 'features of jobbridge', 'what can i do on jobbridge', 'platform capabilities', 'what jobbridge offers', 'key features'],
     content: `### What is JobBridge?
-JobBridge is Nigeria's number one professional network connecting job seekers, recruiters, and service providers on one unified platform. Founded in 2021 by Victor Eniola (CEO & Founder), JobBridge today serves over 2 million users across 50+ countries, with ₦12 million in funding.
+JobBridge is Nigeria's number one professional network connecting job seekers, recruiters, and service providers on one unified platform. Founded in 2021, JobBridge today serves over 2 million users across 50+ countries, with ₦12 million in funding. Owoyemi Samuel Tobi is JobBridge's Chief Technology Officer.
 
 ### Who can use JobBridge?
 - **Job Seekers** — Browse and apply to jobs, use AI resume tools, track applications, save jobs
@@ -45,9 +45,9 @@ For more details, visit the home page at / or the About page at /about.`,
     title: 'Company Mission & History',
     tags: ['general', 'company', 'about'],
     pages: ['/', '/about', '/ceo'],
-    keywords: ['mission', 'vision', 'company history', 'founder', 'victor eniola', 'ceo', 'founded', 'history', 'funding', 'company story', 'founding story', 'who founded', 'who created', 'when was', 'founded in', 'company values', 'core values', '2 million users', 'million users', '50 countries', 'series a'],
+    keywords: ['mission', 'vision', 'company history', 'founder', 'cto', 'chief technology officer', 'owoyemi samuel tobi', 'founded', 'history', 'funding', 'company story', 'founding story', 'who founded', 'who created', 'when was', 'founded in', 'company values', 'core values', '2 million users', 'million users', '50 countries', 'series a'],
     content: `### Founding & History
-JobBridge was founded in 2021 by **Victor Eniola**, who serves as CEO and Founder. The company was created to address the challenges of finding quality career opportunities in Nigeria and across Africa.
+JobBridge was founded in 2021 to address the challenges of finding quality career opportunities in Nigeria and across Africa. **Owoyemi Samuel Tobi** serves as Chief Technology Officer and leads the platform's technology vision.
 
 ### Growth & Milestones (About page)
 - 2021 — Founded
@@ -76,8 +76,8 @@ JobBridge was founded in 2021 by **Victor Eniola**, who serves as CEO and Founde
 ### Core Values
 Innovation, inclusion, transparency, and impact guide every feature and decision.
 
-### CEO Vision Page
-Visit /ceo to read a personal letter from Victor Eniola, view his photo and the company milestones, and leave an encouraging message directly for the CEO.`,
+### CTO Vision Page
+Visit /ceo to read a note from **Owoyemi Samuel Tobi**, view the CTO portrait and company milestones, and leave an encouraging message directly for the CTO.`,
   },
   {
     id: 'tech-stack',
@@ -1127,7 +1127,7 @@ For immediate answers to common questions, use the **AI Assistant chat widget** 
     keywords: ['about', 'about us', 'about jobbridge', 'company info', '/about', 'team', 'our story', 'company story', 'who we are', 'what we do', 'about the platform', 'about jobbridge page'],
     content: `### Company Story
 The About page at **/about** covers:
-- **Origin**: Founded in 2021 by Victor Eniola to address career opportunity challenges in Nigeria
+- **Origin**: Founded in 2021 to address career opportunity challenges in Nigeria
 - **Mission**: Building bridges between talent and opportunity using AI, data, and human insights
 - **Stats**: 2M+ users worldwide, 50+ countries, ₦12M funding
 - **Milestones**: 2021 Founded · 2022 Series A · 2023 100k Users · 2024 AI Launch · 2025 2M Users · 2026 Global Expansion
@@ -1144,25 +1144,25 @@ Innovation, inclusion, transparency, and impact.
 The founding team is committed to using artificial intelligence to transform hiring in Nigeria and beyond. The page emphasizes the mission to build **Africa's most trusted professional network**.`,
   },
   {
-    id: 'ceo-vision-page',
-    title: 'CEO Vision Page',
+    id: 'cto-vision-page',
+    title: 'CTO Vision Page',
     tags: ['general', 'company', 'ceo'],
     pages: ['/ceo'],
-    keywords: ['ceo vision', 'ceo message', 'founder message', 'victor eniola vision', 'leadership', 'jobbridge mission', '/ceo', 'ceo page', 'founder', 'ceo video', 'ceo message', 'founder story', 'ceo vision message', 'victor eniola'],
+    keywords: ['cto vision', 'cto message', 'technology leadership', 'owoyemi samuel tobi', 'chief technology officer', 'leadership', 'jobbridge mission', '/ceo', 'cto page', 'technology vision', 'platform engineering'],
     content: `### Who Is the CEO?
-**Mr. Victor Eniola** is the CEO & Founder of JobBridge (see the CEO page at **/ceo**). With extensive experience in HR technology and marketplace growth, he started JobBridge to make career opportunities more accessible and transparent.
+**Owoyemi Samuel Tobi** is the Chief Technology Officer of JobBridge (see the CTO page at **/ceo**). He leads the company's technology vision, product engineering, and platform innovation.
 
 ### What You Will Find
 The CEO Vision page at **/ceo** features:
 - A welcome message from the CEO: "We're building the infrastructure for the future of work"
-- A **profile card** for Mr. Victor Eniola with his **LinkedIn** (linkedin.com/in/victor-eniola-b77407259) and **Twitter** (x.com/phenol_jnr)
-- A personal **"Letter from Victor"** explaining why he founded JobBridge
+- A **profile card** for Owoyemi Samuel Tobi with his CTO role and portrait
+- A personal **note from Owoyemi** about the platform's technology vision
 - A **timeline** of company milestones: 2021 Founded · 2022 Market Research · 2023 Vision & Roadmap · 2024 Platform Design · 2025 Development · 2026 AI Launch
 - **Vision pillars**: Democratizing Opportunity, AI-First Approach, Global Impact
-- **Photo gallery** documenting the founder's journey
+- **Photo gallery** documenting the platform's journey
 
 ### Interactive Feature
-An interactive section allows users to **leave encouraging messages** directly for the CEO, which are displayed on the page.`,
+An interactive section allows users to **leave encouraging messages** directly for the CTO, which are displayed on the page.`,
   },
   {
     id: 'messages-page',

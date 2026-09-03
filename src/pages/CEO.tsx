@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Linkedin, Twitter } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 
@@ -44,12 +44,12 @@ const CEO: React.FC = () => {
     }
   ];
 
-  const imgSrc = `${import.meta.env.BASE_URL}MrVictor1.jpeg.png`;
+  const imgSrc = `${import.meta.env.BASE_URL}images/owoyemi-samuel-tobi.jpeg`;
 
   const ImageOrPlaceholder: React.FC = () => (
     <img
       src={imgSrc}
-      alt="Mr. Victor Eniola, CEO of JobBridge"
+      alt="Owoyemi Samuel Tobi, Chief Technology Officer of JobBridge"
       className="w-full h-full object-contain"
       onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
     />
@@ -63,7 +63,7 @@ const CEO: React.FC = () => {
         {/* Hero Section */}
         <section className="relative py-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-            {/* Photo: try loading public/MrVictor.jpeg, fallback to placeholder */}
+            {/* CTO portrait */}
             <div className="h-96 rounded-lg shadow-lg overflow-hidden bg-gray-100">
               <ImageOrPlaceholder />
             </div>
@@ -71,7 +71,7 @@ const CEO: React.FC = () => {
             {/* Content */}
             <div>
               <p className="text-blue-700 font-semibold mb-4 uppercase tracking-wider">
-                Welcome from our CEO
+                Welcome from our CTO
               </p>
               <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
                 We're building the infrastructure for the future of work
@@ -83,43 +83,23 @@ const CEO: React.FC = () => {
           </div>
         </section>
 
-        {/* CEO Profile Card */}
+        {/* CTO Profile Card */}
         <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-8 border border-blue-200">
             <div className="flex flex-col sm:flex-row gap-8 items-start">
               <img
                 src={imgSrc}
-                alt="Mr. Victor Eniola"
+                alt="Owoyemi Samuel Tobi"
                 className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md flex-shrink-0"
                 style={{ objectPosition: 'center 20%' }}
                 onError={e => { (e.target as HTMLImageElement).src = ''; }}
               />
               <div className="flex-1">
-                <h2 className="text-2xl font-bold text-gray-900 mb-1">Mr. Victor Eniola</h2>
-                <p className="text-lg text-blue-700 font-semibold mb-4">CEO & Founder</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-1">Owoyemi Samuel Tobi</h2>
+                <p className="text-lg text-blue-700 font-semibold mb-4">Chief Technology Officer</p>
                 <p className="text-gray-700 mb-6">
-                  Mr. Victor Eniola is the CEO and founder of JobBridge. With extensive experience in HR technology and marketplace growth, Victor started JobBridge to make career opportunities more accessible and transparent. He leads the company's vision to connect talent and employers through better matching, fairness, and technology-driven insights.
+                  Owoyemi Samuel Tobi leads JobBridge's technology vision, product engineering, and platform innovation. He focuses on scalable systems, reliability, and meaningful user impact as JobBridge connects talent with opportunity.
                 </p>
-                <div className="flex gap-4">
-                  <a
-                    href="https://www.linkedin.com/in/victor-eniola-b77407259?utm_source=share_via&utm_content=profile&utm_medium=member_ios"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-700 hover:text-blue-800 font-semibold flex items-center gap-2"
-                  >
-                    <Linkedin size={20} />
-                    LinkedIn
-                  </a>
-                  <a
-                    href="https://x.com/phenol_jnr?s=11"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-700 hover:text-blue-800 font-semibold flex items-center gap-2"
-                  >
-                    <Twitter size={20} />
-                    Twitter
-                  </a>
-                </div>
               </div>
             </div>
           </div>
@@ -150,10 +130,10 @@ const CEO: React.FC = () => {
           </div>
         </section>
 
-        {/* Letter from CEO */}
+        {/* Letter from the CTO */}
         <section className="bg-gray-50 py-16 px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-gray-900 mb-8">Letter from Victor</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-8">A note from Owoyemi</h2>
             <div className="prose prose-lg max-w-none text-gray-700 space-y-6">
               <p>
                 When I founded JobBridge, it started with a simple belief: talent is everywhere, but opportunity is not.

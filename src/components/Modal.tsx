@@ -915,7 +915,7 @@ function AIResumeModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="border border-outline-variant rounded-xl p-4 space-y-2">
-          <div className="flex items-center gap-2"><span className="material-symbols-outlined text-primary text-lg">description</span><span className="font-semibold">Victor_Eniola_AI_Resume.pdf</span></div>
+          <div className="flex items-center gap-2"><span className="material-symbols-outlined text-primary text-lg">description</span><span className="font-semibold">Owoyemi_Samuel_Tobi_AI_Resume.pdf</span></div>
           <p className="text-xs text-on-surface-variant">Optimized with 94% keyword match rate for target roles</p>
         </div>
         <div className="flex gap-3">

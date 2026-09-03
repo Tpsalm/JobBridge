@@ -244,13 +244,13 @@ const INTENT_SIGNATURES: Record<Exclude<IntentType, null>, {
   },
   ceo: {
     patterns: [
-      /(ceo|founder|victor.*eniola|ceo.*vision|founder.*message|leadership|ceo.*page|vision.*page|ceo.*message|founder.*story)/i,
+      /(cto|chief technology officer|owoyemi.*samuel.*tobi|technology.*vision|leadership|ceo|founder|vision.*page|platform.*engineering)/i,
     ],
     primaryRoute: "/ceo",
-    title: "CEO Vision Page",
-    description: "Victor Eniola's vision, founder journey, company milestones",
-    synonyms: ["ceo", "founder", "victor eniola", "leadership"],
-    contexts: ["ceo vision", "founder message", "leadership"],
+    title: "CTO Vision Page",
+    description: "Owoyemi Samuel Tobi's technology vision and company milestones",
+    synonyms: ["cto", "chief technology officer", "owoyemi samuel tobi", "leadership"],
+    contexts: ["cto vision", "technology vision", "leadership"],
   },
   support: {
     patterns: [
@@ -906,7 +906,7 @@ Core rules:
 8. Multi-intent queries — if the user asks about multiple things (e.g., "pricing and how to apply"), address both separately with clear sections.
 9. Actions — when you use navigate_to_page or autofill_form, mention what action was completed.
 10. Page details — when the active page is known, prioritize it and do not answer as if the user were on a generic help page.
-11. Complete knowledge — you have full knowledge of all JobBridge pages including: Home, Jobs, My Jobs, Recruiter Dashboard, Profile, AI Resume Studio, Profile Visibility, Job Preferences, Notifications, Messages, Business Advertisements, Service Providers, Blog, About, CEO Vision, Support, Contact, Games, Privacy, Career, Sign Up, Login, Analytics, Following, Reviews, Talent Search, Services, Revenue, and Pricing.
+11. Complete knowledge — you have full knowledge of all JobBridge pages including: Home, Jobs, My Jobs, Recruiter Dashboard, Profile, AI Resume Studio, Profile Visibility, Job Preferences, Notifications, Messages, Business Advertisements, Service Providers, Blog, About, CTO Vision, Support, Contact, Games, Privacy, Career, Sign Up, Login, Analytics, Following, Reviews, Talent Search, Services, Revenue, and Pricing.
 `;
 
 const FINAL_SYSTEM_PROMPT = `Write the final response for the user now.
