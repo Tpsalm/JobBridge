@@ -271,7 +271,7 @@ export default function Header() {
             {/* Messages */}
             <Link
               to="/messages"
-              className={`hidden sm:inline-flex p-2 rounded-lg transition-colors ${
+              className={`inline-flex p-2 rounded-lg transition-colors ${
                 isActive("/messages")
                   ? "text-blue-700 bg-blue-50"
                   : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
@@ -285,7 +285,7 @@ export default function Header() {
             {/* Notifications */}
             <Link
               to="/notifications"
-              className={`relative hidden sm:inline-flex p-2 rounded-lg transition-colors ${
+              className={`relative inline-flex p-2 rounded-lg transition-colors ${
                 isActive("/notifications")
                   ? "text-blue-700 bg-blue-50"
                   : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
