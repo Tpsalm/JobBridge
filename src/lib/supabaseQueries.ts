@@ -1039,6 +1039,15 @@ export async function seedDefaultJobAlerts(
   return fetchJobAlerts(userId);
 }
 
+// Previously the app auto-seeded THREE default job alerts. When an existing
+// user already has those three rows we collapse them to a single alert so the
+// notification bell shows one job alert instead of three.
+const LEGACY_DEFAULT_ALERT_KEYS = new Set([
+  "frontend developer::lagos",
+  "product manager::remote",
+  "software engineer::abuja",
+]);
+
 export async function fetchJobAlertsWithCounts(
   userId: string,
   defaults: JobAlertSeed[] = [],
@@ -1047,6 +1056,21 @@ export async function fetchJobAlertsWithCounts(
 
   if (alerts.length === 0 && defaults.length > 0) {
     alerts = await seedDefaultJobAlerts(userId, defaults);
+  }
+
+  // Collapse legacy default alerts (older accounts) down to a single one.
+  const legacyAlerts = alerts.filter((alert) =>
+    LEGACY_DEFAULT_ALERT_KEYS.has(
+      `${normalizeMatchValue(alert.query)}::${normalizeMatchValue(alert.location)}`,
+    ),
+  );
+  if (legacyAlerts.length > 1) {
+    const extras = legacyAlerts.slice(1);
+    await Promise.all(
+      extras.map((alert) => deleteJobAlert(alert.id).catch(() => {})),
+    );
+    const extraIds = new Set(extras.map((alert) => alert.id));
+    alerts = alerts.filter((alert) => !extraIds.has(alert.id));
   }
 
   if (alerts.length === 0) {

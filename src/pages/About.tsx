@@ -196,6 +196,7 @@ export default function About() {
                         src={member.image}
                         alt={member.name}
                         className="w-full h-full object-cover"
+                        style={{ objectPosition: 'center 20%' }}
                         onError={e => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}images/team-profile.jpeg`; }}
                       />
                     </div>

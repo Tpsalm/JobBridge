@@ -50,7 +50,7 @@ const CEO: React.FC = () => {
     <img
       src={imgSrc}
       alt="Mr. Victor Eniola, CEO of JobBridge"
-      className="w-full h-full object-cover"
+      className="w-full h-full object-contain"
       onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
     />
   );
@@ -91,6 +91,7 @@ const CEO: React.FC = () => {
                 src={imgSrc}
                 alt="Mr. Victor Eniola"
                 className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md flex-shrink-0"
+                style={{ objectPosition: 'center 20%' }}
                 onError={e => { (e.target as HTMLImageElement).src = ''; }}
               />
               <div className="flex-1">
