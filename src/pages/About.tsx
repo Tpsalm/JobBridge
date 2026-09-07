@@ -42,6 +42,13 @@ export default function About() {
 
   const teamMembers = [
     {
+      name: 'Mr. Victor Eniola',
+      role: 'Chief Executive Officer',
+      badge: 'Leadership',
+      description: 'Victor is the CEO and founder of JobBridge. With extensive experience in HR technology and marketplace growth, he leads the company’s vision to connect talent and employers through better matching, fairness, and technology-driven insights.',
+      image: `${import.meta.env.BASE_URL}MrVictor1.jpeg.png`,
+    },
+    {
       name: 'Owoyemi Samuel Tobi',
       role: 'Chief Technology Officer',
       badge: 'Leadership',
@@ -180,9 +187,9 @@ export default function About() {
             <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-10 text-center">
               Meet Our Team
             </h2>
-            <div className="flex justify-center">
+            <div className="grid gap-6 md:grid-cols-2">
               {teamMembers.map((member, idx) => (
-                <div key={idx} className="w-full max-w-xl bg-white rounded-3xl p-8 border border-gray-200 shadow-sm hover:shadow-lg transition">
+                <div key={idx} className="w-full bg-white rounded-3xl p-8 border border-gray-200 shadow-sm hover:shadow-lg transition">
                   <div className="flex flex-col items-center text-center gap-4">
                     <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-100 shadow-md">
                       <img

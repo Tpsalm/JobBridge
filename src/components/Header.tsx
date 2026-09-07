@@ -43,7 +43,7 @@ const moreLinks = [
   { label: "About", path: "/about" },
   { label: "Career", path: "/career" },
   { label: "Games", path: "/games" },
-  { label: "CTO Vision", path: "/ceo" },
+  { label: "CEO Vision", path: "/ceo" },
 ];
 
 export default function Header() {

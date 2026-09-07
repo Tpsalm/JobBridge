@@ -43,20 +43,12 @@ import {
 
 type NotifType = Notification["type"];
 
+// Only seed ONE default alert — previously three were seeded, which made the
+// notification bell show three job alerts on first sign-in.
 const DEFAULT_JOB_ALERTS: JobAlertSeed[] = [
   {
     query: "Frontend Developer",
     location: "Lagos",
-    enabled: true,
-  },
-  {
-    query: "Product Manager",
-    location: "Remote",
-    enabled: false,
-  },
-  {
-    query: "Software Engineer",
-    location: "Abuja",
     enabled: true,
   },
 ];
