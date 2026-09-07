@@ -366,6 +366,57 @@ export async function upsertProfile(profile: {
   return data;
 }
 
+// ─── Trial Management ─────────────────────────────────────────────────────
+
+export async function activateServiceProviderTrial(
+  userId: string,
+  planType: 'verified' | 'featured' | 'monthly',
+) {
+  const now = new Date();
+  const trialEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({
+      trial_start_date: now.toISOString(),
+      trial_end_date: trialEndDate.toISOString(),
+      trial_plan: planType,
+      subscription_tier: planType,
+      subscription_expires_at: trialEndDate.toISOString(),
+      updated_at: now.toISOString(),
+    })
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getTrialStatus(userId: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('trial_start_date, trial_end_date, trial_plan, subscription_tier, subscription_expires_at')
+    .eq('id', userId)
+    .single();
+
+  if (error) throw error;
+
+  if (!data) return null;
+
+  const now = new Date();
+  const trialEndDate = data.trial_end_date ? new Date(data.trial_end_date) : null;
+  const isTrialActive = trialEndDate && trialEndDate > now;
+
+  return {
+    isOnTrial: isTrialActive,
+    trialStartDate: data.trial_start_date ? new Date(data.trial_start_date) : null,
+    trialEndDate,
+    trialPlan: data.trial_plan,
+    subscriptionTier: data.subscription_tier,
+  };
+}
+
 // ─── Blog Subscriptions ────────────────────────────────────────────────────
 
 export async function subscribeToBlog(email: string) {

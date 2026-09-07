@@ -78,18 +78,20 @@ export default function Pricing() {
               <h2 className="text-xl font-bold text-gray-900 mb-4">Job Posting Plans</h2>
               <div className="grid md:grid-cols-3 gap-4">
                 {[
-                  { name: 'Basic', duration: '7 days', price: 2000, features: ['Job listing', 'Basic visibility', 'Up to 5 applicants', 'Email notifications'] },
-                  { name: 'Standard', duration: '14 days', price: 3500, popular: true, features: ['Job listing', 'Medium visibility', 'Up to 15 applicants', 'Email + SMS alerts', 'Priority support'] },
-                  { name: 'Premium', duration: '30 days', price: 5000, features: ['Job listing', 'High visibility', 'Unlimited applicants', 'Priority support', 'Featured placement option', 'Social media promotion'] },
+                  { name: 'Basic', duration: '7 days', price: 2000, badge: 'Good Start', features: ['Job listing', 'Basic visibility', 'Up to 5 applicants', 'Email notifications'] },
+                  { name: 'Standard', duration: '14 days', price: 3500, popular: true, badge: 'Most Popular', features: ['Job listing', 'Medium visibility', 'Up to 15 applicants', 'Email + SMS alerts', 'Priority support'] },
+                  { name: 'Premium', duration: '30 days', price: 5000, badge: 'Best Value', features: ['Job listing', 'High visibility', 'Unlimited applicants', 'Priority support', 'Featured placement option', 'Social media promotion'] },
                 ].map((plan) => (
                   <Card3D
                     key={plan.name}
                     className={`bg-white rounded-xl p-5 border-2 ${plan.popular ? 'border-blue-500 relative' : 'border-gray-100'}`}
                     strength={6}
                   >
-                    {plan.popular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-700 text-white text-xs font-semibold px-3 py-1 rounded-full">
-                        Most Popular
+                    {(plan as any).badge && (
+                      <div className={`inline-flex mb-3 text-white text-xs font-semibold px-3 py-1 rounded-full ${
+                        plan.popular ? 'bg-blue-700' : 'bg-amber-500'
+                      }`}>
+                        {(plan as any).badge}
                       </div>
                     )}
                     <h3 className="font-bold text-gray-900 text-lg">{plan.name} Job Post</h3>
@@ -177,6 +179,7 @@ export default function Pricing() {
                   price: 'FREE',
                   note: 'at launch',
                   priceNum: 0,
+                  badge: 'Get Started',
                   features: ['Profile on JobBridge', 'Name and contact info', 'Description of services', 'Location', 'Receive inquiries'],
                   tier: 'basic',
                 },
@@ -186,6 +189,7 @@ export default function Pricing() {
                   note: '/month',
                   priceNum: 3000,
                   popular: true,
+                  badge: 'Best Value',
                   features: ['Everything in Monthly Listing', 'Verified badge ✓', 'ID verification', 'Phone verification', 'Increased trust with customers'],
                   tier: 'verified',
                 },
@@ -194,6 +198,7 @@ export default function Pricing() {
                   price: '₦5,000',
                   note: '/month',
                   priceNum: 5000,
+                  badge: 'Most Popular',
                   features: ['Everything in Verified', 'Featured badge ⭐', 'Top of search results', 'Priority placement', 'Featured on homepage', 'Promotion on WhatsApp & social media'],
                   tier: 'featured',
                 },
@@ -203,9 +208,11 @@ export default function Pricing() {
                   className={`bg-white rounded-xl p-5 border-2 ${plan.popular ? 'border-blue-500 relative' : 'border-gray-100'}`}
                   strength={6}
                 >
-                  {plan.popular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-700 text-white text-xs font-semibold px-3 py-1 rounded-full">
-                      Best Value
+                  {(plan as any).badge && (
+                    <div className={`inline-flex mb-3 text-white text-xs font-semibold px-3 py-1 rounded-full ${
+                      plan.popular ? 'bg-blue-700' : 'bg-amber-500'
+                    }`}>
+                      {(plan as any).badge}
                     </div>
                   )}
                   <h3 className="font-bold text-gray-900 text-lg">{plan.name}</h3>
@@ -276,18 +283,20 @@ export default function Pricing() {
             <p className="text-sm text-gray-600 mb-4">Promote your restaurant, hotel, fashion brand, phone repair shop, school, hospital, and more.</p>
             <div className="grid md:grid-cols-3 gap-4">
               {[
-                { name: 'Weekly Ad', duration: '7 days', price: 2000, features: ['Display on platform', 'Category placement', 'Contact info visible', 'View analytics'] },
-                { name: 'Monthly Ad', duration: '30 days', price: 7500, popular: true, features: ['Everything in Weekly', 'Extended visibility', 'Priority listing', 'Performance reports', 'Editable content'] },
-                { name: 'Featured Business', duration: '30 days', price: 15000, features: ['Everything in Monthly', 'Homepage spotlight', 'Category prominence', 'Social media boost', 'WhatsApp status promo', 'Dedicated banner'] },
+                { name: 'Weekly Ad', duration: '7 days', price: 2000, badge: 'Quick Start', features: ['Display on platform', 'Category placement', 'Contact info visible', 'View analytics'] },
+                { name: 'Monthly Ad', duration: '30 days', price: 7500, popular: true, badge: 'Most Popular', features: ['Everything in Weekly', 'Extended visibility', 'Priority listing', 'Performance reports', 'Editable content'] },
+                { name: 'Featured Business', duration: '30 days', price: 15000, badge: 'Best Value', features: ['Everything in Monthly', 'Homepage spotlight', 'Category prominence', 'Social media boost', 'WhatsApp status promo', 'Dedicated banner'] },
               ].map((plan) => (
                 <Card3D
                   key={plan.name}
                   className={`bg-white rounded-xl p-5 border-2 ${plan.popular ? 'border-blue-500 relative' : 'border-gray-100'}`}
                   strength={6}
                 >
-                  {plan.popular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-700 text-white text-xs font-semibold px-3 py-1 rounded-full">
-                      Most Popular
+                  {(plan as any).badge && (
+                    <div className={`inline-flex mb-3 text-white text-xs font-semibold px-3 py-1 rounded-full ${
+                      plan.popular ? 'bg-blue-700' : 'bg-amber-500'
+                    }`}>
+                      {(plan as any).badge}
                     </div>
                   )}
                   <h3 className="font-bold text-gray-900 text-lg">{plan.name}</h3>
@@ -328,10 +337,15 @@ export default function Pricing() {
 
             <div className="grid md:grid-cols-2 gap-4">
               {[
-                { name: 'Monthly Subscription', price: 1500, period: '/month', features: ['AI CV Builder', 'AI Professional CV Upgrade', 'AI Cover Letter Generator', 'AI Interview Preparation', 'Multiple CV Templates', 'Job Application Tracker', 'AI Career Assistant'] },
-                { name: 'Annual Subscription', price: 15000, period: '/year', savetag: 'Save 15%+', features: ['Everything in Monthly', 'Priority support', 'Early access to new features', 'Unlimited CV revisions', 'Export to PDF/Word', 'Custom templates', 'All future updates'] },
+                { name: 'Monthly Subscription', price: 1500, period: '/month', badge: 'Most Popular', features: ['AI CV Builder', 'AI Professional CV Upgrade', 'AI Cover Letter Generator', 'AI Interview Preparation', 'Multiple CV Templates', 'Job Application Tracker', 'AI Career Assistant'] },
+                { name: 'Annual Subscription', price: 15000, period: '/year', badge: 'Best Value', savetag: 'Save 15%+', features: ['Everything in Monthly', 'Priority support', 'Early access to new features', 'Unlimited CV revisions', 'Export to PDF/Word', 'Custom templates', 'All future updates'] },
               ].map((plan) => (
                 <Card3D key={plan.name} className="bg-white rounded-xl p-5 border border-gray-100" strength={6}>
+                  {(plan as any).badge && (
+                    <div className={`inline-flex mb-3 text-white text-xs font-semibold px-3 py-1 rounded-full ${plan.name === 'Monthly Subscription' ? 'bg-blue-700' : 'bg-amber-500'}`}>
+                      {(plan as any).badge}
+                    </div>
+                  )}
                   <h3 className="font-bold text-gray-900 text-lg">{plan.name}</h3>
                   {plan.savetag && (
                     <span className="inline-block text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full mb-2">{plan.savetag}</span>

@@ -193,15 +193,31 @@ export default function Signup() {
 
         if (newSession) {
           setLoading(false);
-          navigate("/profile");
-          window.dispatchEvent(
-            new CustomEvent("jobbridge:toast", {
-              detail: {
-                message: "Account created! Complete your profile to get started.",
-                type: "success",
-              },
-            }),
-          );
+          if (selectedRole === "provider") {
+            // Service providers start a 30-day free trial: the card entered on
+            // the payment page is tokenized (₦0 today) and auto-debited after
+            // the trial ends.
+            navigate("/payment?plan=service_monthly&trial=1");
+            window.dispatchEvent(
+              new CustomEvent("jobbridge:toast", {
+                detail: {
+                  message:
+                    "Account created! Add your card to start your 30-day free trial — no charge today.",
+                  type: "success",
+                },
+              }),
+            );
+          } else {
+            navigate("/profile");
+            window.dispatchEvent(
+              new CustomEvent("jobbridge:toast", {
+                detail: {
+                  message: "Account created! Complete your profile to get started.",
+                  type: "success",
+                },
+              }),
+            );
+          }
         } else {
           setEmailSent(true);
           setLoading(false);
@@ -352,7 +368,7 @@ export default function Signup() {
                   </div>
                   <div className="mt-4 pt-4 border-t border-emerald-200">
                     <ul className="space-y-2">
-                      {["Create service profile", "Receive inquiries", "Chat with clients", "Get featured visibility"].map((feature) => (
+                      {["30-day free trial — no charge today", "Create service profile", "Receive inquiries", "Auto-bills after trial ends"].map((feature) => (
                         <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
                           <Check className="w-4 h-4 text-emerald-600" />
                           {feature}

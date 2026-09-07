@@ -146,6 +146,7 @@ export async function persistKoraCardToken(
   userId: string,
   paymentPlan: string,
   token: string,
+  trial = false,
 ): Promise<{ id?: string; created?: boolean; skipped?: boolean; error?: string } | null> {
   if (!token || !userId) return null;
   const mapped = planKeyFor(paymentPlan);
@@ -188,19 +189,22 @@ export async function persistKoraCardToken(
   }
 
   const { plan_key } = mapped;
+  // Free-trial signups enter `trialing`; the billing worker charges them only
+  // after `current_period_end` (30 days later) and flips the row to `active`.
+  const initialStatus = trial ? "trialing" : "active";
   const { data: inserted, error } = await supabase
     .from("subscriptions")
     .insert({
       user_id: userId,
       plan_key,
       product_line: productLine,
-      status: "active",
+      status: initialStatus,
       current_period_start: now.toISOString(),
       current_period_end: periodEnd,
       kora_card_token_key: token,
       auto_renew: true,
       launch_free_period: false,
-      metadata: { source: "kora_checkout" },
+      metadata: { source: trial ? "kora_trial" : "kora_checkout" },
     })
     .select("id")
     .maybeSingle();

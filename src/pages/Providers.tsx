@@ -33,6 +33,7 @@ interface ProviderDisplay {
   featured: boolean;
   tier: string;
   location: string;
+  bio?: string;
 }
 
 const categoryList: string[] = [...PROVIDER_CATEGORIES];
@@ -94,6 +95,7 @@ export default function Providers() {
           featured: p.is_featured || false,
           tier: (p.subscription_tier as string) || p.subscription?.tier || 'basic',
           location: p.location || '',
+          bio: p.bio || '',
         };
       });
       setProviders(mapped);
@@ -277,6 +279,13 @@ export default function Providers() {
           </div>
         )}
 
+        {/* Bio/Description */}
+        {p.bio && (
+          <p className="text-sm text-slate-600 mb-4 line-clamp-2">
+            {p.bio}
+          </p>
+        )}
+
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-2">
           <button
@@ -292,7 +301,7 @@ export default function Providers() {
               specialty: p.specialty,
               match: `${p.rating}★`,
               skills: p.specializations,
-              bio: '',
+              bio: p.bio || '',
               location: p.location,
               avatarUrl: p.img,
               hourlyRate: p.hourlyRate,

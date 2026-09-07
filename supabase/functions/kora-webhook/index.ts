@@ -1125,21 +1125,33 @@ serve(async (req: Request) => {
       Date.now() + durationDays * 24 * 60 * 60 * 1000,
     ).toISOString();
 
+    const isBusinessPlan =
+      payment.plan === "business_weekly" ||
+      payment.plan === "business_monthly" ||
+      payment.plan === "business_featured";
+
     const { data: profileData, error: profileFetchError } = await supabase
       .from("profiles")
-      .select("credits")
+      .select("credits, advert_credits")
       .eq("id", payment.user_id)
       .maybeSingle();
 
     if (!profileFetchError && profileData) {
-      const creditCount = Number(profileData.credits || 0) + creditsToAdd;
       const profileUpdates: Record<string, unknown> = {
         is_premium: true,
         subscription_tier: tier,
         subscription_expires_at: expiresAt,
-        credits: creditCount,
         updated_at: new Date().toISOString(),
       };
+      if (isBusinessPlan) {
+        // Advert plans must grant ADVERT credits (profiles.advert_credits),
+        // not job-post credits — Business.tsx gates advert creation on
+        // `advert_credits`.
+        profileUpdates.advert_credits =
+          Number(profileData.advert_credits || 0) + creditsToAdd;
+      } else {
+        profileUpdates.credits = Number(profileData.credits || 0) + creditsToAdd;
+      }
 
       if (payment.plan === "service_monthly") {
         profileUpdates.is_verified = false;

@@ -34,6 +34,12 @@ import {
 import { useNavigate } from "react-router-dom";
 import PageHero from "../components/PageHero";
 import { HERO_CAROUSELS } from "../lib/media";
+import { useToasts } from "../contexts/ToastContext";
+import {
+  subscribeToPush,
+  unsubscribeFromPush,
+  registerServiceWorker,
+} from "../lib/push";
 
 type NotifType = Notification["type"];
 
@@ -110,6 +116,64 @@ export default function Notifications() {
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [pageError, setPageError] = useState("");
   const [alertsError, setAlertsError] = useState("");
+
+  // ── Push notifications (single, consolidated notification settings) ─────
+  const { push } = useToasts();
+  const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setPushSupported(
+      "serviceWorker" in navigator && "PushManager" in window && !!VAPID_PUBLIC,
+    );
+    (async () => {
+      try {
+        const reg = await registerServiceWorker();
+        if (!reg) return;
+        const sub = await reg.pushManager.getSubscription();
+        setPushSubscribed(!!sub);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [VAPID_PUBLIC]);
+
+  const handleSubscribePush = async () => {
+    try {
+      if (!VAPID_PUBLIC) {
+        push({ message: "Push is not configured on this site.", type: "error" });
+        return;
+      }
+      await subscribeToPush(VAPID_PUBLIC);
+      setPushSubscribed(true);
+      push({ message: "Subscribed to browser notifications.", type: "success" });
+    } catch (e) {
+      push({
+        message:
+          "Could not subscribe: " + (e instanceof Error ? e.message : String(e)),
+        type: "error",
+      });
+    }
+  };
+
+  const handleUnsubscribePush = async () => {
+    try {
+      await unsubscribeFromPush();
+      setPushSubscribed(false);
+      push({
+        message: "Unsubscribed from browser notifications.",
+        type: "success",
+      });
+    } catch (e) {
+      push({
+        message:
+          "Could not unsubscribe: " + (e instanceof Error ? e.message : String(e)),
+        type: "error",
+      });
+    }
+  };
 
   useEffect(() => {
     if (!user?.id) {
@@ -394,21 +458,55 @@ export default function Notifications() {
           </div>
         )}
 
+        {/* Notification Settings — single, consolidated settings surface */}
         <div className="mb-10">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                <Bell className="w-5 h-5 text-blue-600" />
-                Job Alerts & Preferences
-              </h2>
-              <p className="text-xs text-gray-500 mt-1">Manage which job opportunities you want to be notified about</p>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Settings className="w-5 h-5 text-blue-600" />
+              Notification Settings
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Control browser push notifications and job alerts in one place
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  Browser push notifications
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Receive job alerts and message notifications directly in your browser.
+                </p>
+              </div>
+              {!pushSupported ? (
+                <span className="text-xs text-gray-400 shrink-0">Not supported</span>
+              ) : pushSubscribed ? (
+                <button
+                  onClick={handleUnsubscribePush}
+                  className="shrink-0 rounded-full bg-red-50 text-red-700 px-4 py-2 text-sm font-semibold border border-red-100"
+                >
+                  Disable
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubscribePush}
+                  className="shrink-0 rounded-full bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700"
+                >
+                  Enable
+                </button>
+              )}
             </div>
-            <Link
-              to="/profile"
-              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-            >
-              <Settings className="w-3.5 h-3.5" /> Notification Settings
-            </Link>
+          </div>
+        </div>
+
+        <div className="mb-10">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-blue-600" />
+              Job Alerts
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">Manage which job opportunities you want to be notified about</p>
           </div>
 
           {!isAuthenticated ? (

@@ -14,7 +14,6 @@ import {
 } from "../lib/profileValidation";
 import { PROVIDER_CATEGORIES } from "../lib/providerCategories";
 import FloatingDecorations from '../components/FloatingDecorations';
-import { subscribeToPush, unsubscribeFromPush, registerServiceWorker } from '../lib/push';
 import {
   Camera,
   Check,
@@ -434,51 +433,6 @@ export default function Profile() {
   const handleExploreProviders = () => {
     navigate('/providers');
     push({ message: 'Opening trusted service providers and specialists.', type: 'info' });
-  };
-
-  const [pushSupported, setPushSupported] = useState(false);
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-  const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    setPushSupported('serviceWorker' in navigator && 'PushManager' in window && !!VAPID_PUBLIC);
-
-    // Check existing subscription
-    (async () => {
-      try {
-        const reg = await registerServiceWorker();
-        if (!reg) return;
-        const sub = await reg.pushManager.getSubscription();
-        setPushSubscribed(!!sub);
-      } catch (e) {
-        // ignore
-      }
-    })();
-  }, []);
-
-  const handleSubscribeClick = async () => {
-    try {
-      if (!VAPID_PUBLIC) {
-        push({ message: 'Push is not configured on this site.', type: 'error' });
-        return;
-      }
-      await subscribeToPush(VAPID_PUBLIC);
-      setPushSubscribed(true);
-      push({ message: 'Subscribed to browser notifications.', type: 'success' });
-    } catch (e) {
-      push({ message: 'Could not subscribe: ' + (e instanceof Error ? e.message : String(e)), type: 'error' });
-    }
-  };
-
-  const handleUnsubscribeClick = async () => {
-    try {
-      await unsubscribeFromPush();
-      setPushSubscribed(false);
-      push({ message: 'Unsubscribed from browser notifications.', type: 'success' });
-    } catch (e) {
-      push({ message: 'Could not unsubscribe: ' + (e instanceof Error ? e.message : String(e)), type: 'error' });
-    }
   };
 
   const scrollToSection = (target: "editor" | "security" | "activity") => {
@@ -924,15 +878,16 @@ export default function Profile() {
 
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-sm font-semibold text-slate-900">Notifications</p>
-              <p className="mt-2 text-sm text-slate-600">Enable browser push notifications to receive job alerts and messages directly.</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Manage browser push notifications and job alerts from one place.
+              </p>
               <div className="mt-4 flex items-center gap-3">
-                {!pushSupported ? (
-                  <div className="text-sm text-slate-500">Push not supported or not configured.</div>
-                ) : pushSubscribed ? (
-                  <button onClick={handleUnsubscribeClick} className="rounded-full bg-red-50 text-red-700 px-4 py-2 text-sm font-semibold border border-red-100">Disable Notifications</button>
-                ) : (
-                  <button onClick={handleSubscribeClick} className="rounded-full bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700">Enable Notifications</button>
-                )}
+                <button
+                  onClick={() => navigate("/notifications")}
+                  className="rounded-full bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700"
+                >
+                  Manage notification settings
+                </button>
               </div>
             </div>
           </aside>

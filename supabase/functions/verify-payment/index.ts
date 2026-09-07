@@ -83,8 +83,16 @@ serve(async (req: Request) => {
         updated_at: now,
       };
 
-      // Read current credits and add new ones
-      if (isRecruiterPlan || isServicePlan || isBusinessPlan) {
+      // Read current credits and add new ones.
+      // Business advert plans grant ADVERT credits (profiles.advert_credits),
+      // never job-post credits. Business.tsx gates advert creation on
+      // `advert_credits`, so granting `credits` instead would leave paying
+      // subscribers permanently stuck at the "No advert credits" gate.
+      if (isBusinessPlan) {
+        const { data: profileData } = await supabase.from("profiles").select("advert_credits").eq("id", userId).maybeSingle();
+        const currentAdvertCredits = Number(profileData?.advert_credits || 0);
+        profileUpdates.advert_credits = currentAdvertCredits + creditsToAdd;
+      } else if (isRecruiterPlan || isServicePlan) {
         const { data: profileData } = await supabase.from("profiles").select("credits").eq("id", userId).maybeSingle();
         const currentCredits = Number(profileData?.credits || 0);
         profileUpdates.credits = isServicePlan ? currentCredits : currentCredits + creditsToAdd;
@@ -171,9 +179,12 @@ serve(async (req: Request) => {
       }
 
       // 3) Save the KoraPay card token (if present) so monthly renewals auto-debit.
+      //    `trial` signups enter `trialing` (no charge for 30 days) and are
+      //    auto-debited by billing-daily once the trial period ends.
       const cardToken = String(requestBody.card_token || "");
+      const isTrialActivation = requestBody.trial === true;
       const tokenResult = cardToken
-        ? await persistKoraCardToken(supabase, userId, planKey, cardToken)
+        ? await persistKoraCardToken(supabase, userId, planKey, cardToken, isTrialActivation)
         : null;
       if (cardToken && tokenResult && !tokenResult.skipped && !tokenResult.error) {
         console.log(`[verify-payment] Card token saved for user ${userId}, plan ${planKey}`);
@@ -181,9 +192,10 @@ serve(async (req: Request) => {
         console.error("[verify-payment] Failed to persist card token:", tokenResult.error);
       }
 
-      const result: Record<string, unknown> = { 
+      const result: Record<string, unknown> = {
         verified: true,
         activated: tier,
+        trial: isTrialActivation,
         profile_updated: !profileErr,
       };
       if (isBusinessPlan) {
@@ -348,16 +360,23 @@ serve(async (req: Request) => {
     const creditsToAdd = paymentRow.plan === "basic" || paymentRow.plan === "standard" ? 1 : paymentRow.plan === "premium" ? 2 : BUSINESS_PLANS.has(paymentRow.plan) ? 1 : 0;
     const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: profileData } = await supabase.from("profiles").select("credits").eq("id", paymentRow.user_id).maybeSingle();
+    const isBusinessPayment = BUSINESS_PLANS.has(paymentRow.plan);
+    const { data: profileData } = await supabase.from("profiles").select("credits, advert_credits").eq("id", paymentRow.user_id).maybeSingle();
     if (profileData) {
-      const creditCount = Number(profileData.credits || 0) + creditsToAdd;
       const profileUpdates: Record<string, unknown> = {
         is_premium: true,
         subscription_tier: tier,
         subscription_expires_at: expiresAt,
-        credits: creditCount,
         updated_at: new Date().toISOString(),
       };
+      if (isBusinessPayment) {
+        // Advert plans must grant ADVERT credits (profiles.advert_credits),
+        // not job-post credits — Business.tsx gates advert creation on
+        // `advert_credits`.
+        profileUpdates.advert_credits = Number(profileData.advert_credits || 0) + creditsToAdd;
+      } else {
+        profileUpdates.credits = Number(profileData.credits || 0) + creditsToAdd;
+      }
       if (paymentRow.plan === "service_monthly") {
         profileUpdates.is_verified = false;
         profileUpdates.is_featured = false;
