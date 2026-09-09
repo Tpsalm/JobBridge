@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import JobBridgeLogo from "../components/JobBridgeLogo";
 import { CheckCircle, XCircle } from "lucide-react";
+import {
+  activateServiceTrialForUser,
+  takePendingTrial,
+} from "../lib/trial";
 
 const MAX_WAIT_MS = 8000; // 8 seconds max before fallback to /login
 
@@ -100,6 +104,20 @@ export default function AuthCallback() {
           if (progressTimer.current) clearInterval(progressTimer.current);
           setProgress(100);
           setStatus("success");
+
+          // If this provider created an account during signup with a saved
+          // card token (email-confirmation flow), activate the 30-day trial
+          // now that they've confirmed their email.
+          const email =
+            typeof session.user.email === "string" ? session.user.email : "";
+          const pendingToken = takePendingTrial(email);
+          if (pendingToken) {
+            void activateServiceTrialForUser(
+              session.user.id,
+              "service_monthly",
+              pendingToken,
+            );
+          }
 
           setTimeout(() => {
             if (!cancelled) {

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth, UserRole } from "../contexts/AuthContext";
 import {
@@ -19,6 +19,13 @@ import {
 import JobBridgeLogo from "../components/JobBridgeLogo";
 import { checkRateLimit } from "../lib/security";
 import { PROVIDER_CATEGORIES } from "../lib/providerCategories";
+import {
+  activateServiceTrialForUser,
+  getKoraPublicKey,
+  koraTrialReference,
+  loadKoraScript,
+  savePendingTrial,
+} from "../lib/trial";
 
 // ── Password strength helpers ──────────────────────────────────────────
 function getPasswordStrength(pw: string): { score: number; label: string; color: string; bg: string } {
@@ -60,6 +67,11 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailStatusMessage, setEmailStatusMessage] = useState<string | null>(null);
+  const isProvider = selectedRole === "provider";
+
+  // Service Provider card-capture state (KoraPay tokenization during signup)
+  const savedCardTokenRef = useRef("");
+  const koraStepSettledRef = useRef(false);
 
   // Resend state
   const [resending, setResending] = useState(false);
@@ -156,6 +168,14 @@ export default function Signup() {
       return;
     }
 
+    // Service Providers must enter their debit card BEFORE the account is
+    // created. The card is tokenized (₦0 today) and the 30-day free trial
+    // starts once the account is created with that saved card.
+    if (selectedRole === "provider") {
+      void startProviderCardSignup();
+      return;
+    }
+
     (async () => {
       setLoading(true);
       try {
@@ -165,7 +185,7 @@ export default function Signup() {
           formData.name,
           selectedRole,
           formData.company,
-          selectedRole === "provider" ? formData.serviceCategory : undefined,
+          undefined,
         );
 
         if (signupErr) {
@@ -193,31 +213,15 @@ export default function Signup() {
 
         if (newSession) {
           setLoading(false);
-          if (selectedRole === "provider") {
-            // Service providers start a 30-day free trial: the card entered on
-            // the payment page is tokenized (₦0 today) and auto-debited after
-            // the trial ends.
-            navigate("/payment?plan=service_monthly&trial=1");
-            window.dispatchEvent(
-              new CustomEvent("jobbridge:toast", {
-                detail: {
-                  message:
-                    "Account created! Add your card to start your 30-day free trial — no charge today.",
-                  type: "success",
-                },
-              }),
-            );
-          } else {
-            navigate("/profile");
-            window.dispatchEvent(
-              new CustomEvent("jobbridge:toast", {
-                detail: {
-                  message: "Account created! Complete your profile to get started.",
-                  type: "success",
-                },
-              }),
-            );
-          }
+          navigate("/profile");
+          window.dispatchEvent(
+            new CustomEvent("jobbridge:toast", {
+              detail: {
+                message: "Account created! Complete your profile to get started.",
+                type: "success",
+              },
+            }),
+          );
         } else {
           setEmailSent(true);
           setLoading(false);
@@ -250,6 +254,156 @@ export default function Signup() {
     setNameError("");
     setEmailError("");
     setEmailStatusMessage(null);
+  };
+
+  // ── Service Provider free-trial card capture ─────────────────────────────
+  // KoraPay tokenizes the debit card (charge: ₦0 today). The trial is applied
+  // server-side only after the account is created with that saved card.
+
+  const createAccountAndActivateTrial = async (cardToken: string) => {
+    const { error: signupErr, session: newSession, emailWarning } = await signUp(
+      formData.email,
+      formData.password,
+      formData.name,
+      "provider",
+      formData.company,
+      formData.serviceCategory,
+    );
+
+    if (signupErr) {
+      let msg = "Failed to create account. Please try again.";
+      const errObj: unknown = signupErr;
+      if (
+        typeof errObj === "object" &&
+        errObj !== null &&
+        "message" in errObj &&
+        typeof (errObj as { message?: unknown }).message === "string" &&
+        (errObj as { message: string }).message.trim()
+      ) {
+        msg = (errObj as { message: string }).message.trim();
+      }
+      console.error("[Signup Error]", signupErr);
+      setError(msg);
+      window.dispatchEvent(
+        new CustomEvent("jobbridge:toast", {
+          detail: { message: msg, type: "error" },
+        }),
+      );
+      setLoading(false);
+      return;
+    }
+
+    if (emailWarning) {
+      setEmailStatusMessage(emailWarning);
+    } else {
+      setEmailStatusMessage(null);
+    }
+
+    if (newSession) {
+      setLoading(false);
+      const activated = await activateServiceTrialForUser(
+        newSession.user.id,
+        "service_monthly",
+        cardToken,
+      );
+      navigate("/profile?trial=" + (activated ? "started" : "card_only"));
+      window.dispatchEvent(
+        new CustomEvent("jobbridge:toast", {
+          detail: {
+            message: activated
+              ? "Account created! Your 30-day free trial is active."
+              : "Account created! We will attach your card to the trial shortly.",
+            type: "success",
+          },
+        }),
+      );
+    } else {
+      // Email confirmation required. Trial activation happens in AuthCallback
+      // after the user confirms, using the stashed card token.
+      savePendingTrial(cardToken, formData.email);
+      setEmailSent(true);
+      setLoading(false);
+      startCooldown();
+      window.dispatchEvent(
+        new CustomEvent("jobbridge:toast", {
+          detail: {
+            message: "Account created! Check your email for the confirmation link.",
+            type: "success",
+          },
+        }),
+      );
+    }
+  };
+
+  const startProviderCardSignup = async () => {
+    setError(null);
+    setLoading(true);
+    const koraReady = await loadKoraScript();
+    if (!koraReady) {
+      setError(
+        "Could not load our secure card form. Please check your connection and try again.",
+      );
+      window.dispatchEvent(
+        new CustomEvent("jobbridge:toast", {
+          detail: {
+            message: "Card form failed to load. Please try again.",
+            type: "error",
+          },
+        }),
+      );
+      setLoading(false);
+      return;
+    }
+
+    const pubKey = getKoraPublicKey();
+    const reference = koraTrialReference();
+    koraStepSettledRef.current = false;
+
+    try {
+      window.Korapay.initialize({
+        key: pubKey,
+        reference,
+        amount: 0,
+        currency: "NGN",
+        merchant_bears_cost: true,
+        default_channel: "card",
+        narration: "Service Provider free-trial card tokenization",
+        customer: {
+          name: formData.name,
+          email: formData.email,
+        },
+        onTokenized: (data) => {
+          koraStepSettledRef.current = true;
+          const token =
+            data?.token || data?.card_token || data?.card?.token || "";
+          if (token) {
+            savedCardTokenRef.current = token;
+            void createAccountAndActivateTrial(token);
+          } else {
+            setError("We could not securely save your card. Please try again.");
+            setLoading(false);
+          }
+        },
+        onFailed: (data) => {
+          if (koraStepSettledRef.current) return;
+          koraStepSettledRef.current = true;
+          console.warn("[KoraPay] tokenization failed", data?.status);
+          setError(
+            "We could not verify your card. Please check the card details and try again.",
+          );
+          setLoading(false);
+        },
+        onClose: () => {
+          if (koraStepSettledRef.current) return;
+          setError("A valid debit card is required to start your free trial.");
+          setLoading(false);
+        },
+      });
+    } catch (e) {
+      console.error("[KoraPay] initialize error:", e);
+      setError("We could not open the secure card form. Please try again.");
+      setLoading(false);
+    }
   };
 
   // ── Shared background ──
@@ -741,11 +895,15 @@ export default function Signup() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Creating Account...
+                    {selectedRole === "provider"
+                      ? "Securing Your Card..."
+                      : "Creating Account..."}
                   </>
                 ) : (
                   <>
-                    Create Account
+                    {selectedRole === "provider"
+                      ? "Start Your 30-Day Free Trial"
+                      : "Create Account"}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -753,7 +911,11 @@ export default function Signup() {
 
               <div className="flex items-center gap-3 text-sm text-gray-500">
                 <Shield className="w-5 h-5 text-gray-400 shrink-0" />
-                <span>Your information is secure and encrypted</span>
+                <span>
+                  {isProvider
+                    ? "Your card details are encrypted by PCI-DSS compliant KoraPay. No charge today."
+                    : "Your information is secure and encrypted"}
+                </span>
               </div>
             </form>
 
