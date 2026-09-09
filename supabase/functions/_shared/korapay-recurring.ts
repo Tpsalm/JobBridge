@@ -152,29 +152,30 @@ export async function persistKoraCardToken(
   const mapped = planKeyFor(paymentPlan);
   if (!mapped) return { skipped: true };
 
-  // Resolve duration/line from the plans catalogue (single source of truth).
-  const { data: planRow } = await supabase
-    .from("plans")
-    .select("duration_days, product_line")
-    .eq("key", mapped.plan_key)
-    .maybeSingle();
+  const now = new Date();
+
+  const [{ data: planRow }, { data: existing }] = await Promise.all([
+    supabase
+      .from("plans")
+      .select("duration_days, product_line")
+      .eq("key", mapped.plan_key)
+      .maybeSingle(),
+    supabase
+      .from("subscriptions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("plan_key", mapped.plan_key)
+      .maybeSingle(),
+  ]);
+
   const durationDays = planRow?.duration_days || 30;
   const productLine = planRow?.product_line || mapped.product_line;
-
-  const now = new Date();
   const periodEnd = new Date(now.getTime() + durationDays * 86400000).toISOString();
   const base = {
     kora_card_token_key: token,
     auto_renew: true,
     updated_at: now.toISOString(),
   };
-
-  const { data: existing } = await supabase
-    .from("subscriptions")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("plan_key", mapped.plan_key)
-    .maybeSingle();
 
   if (existing) {
     const { error } = await supabase
@@ -189,8 +190,6 @@ export async function persistKoraCardToken(
   }
 
   const { plan_key } = mapped;
-  // Free-trial signups enter `trialing`; the billing worker charges them only
-  // after `current_period_end` (30 days later) and flips the row to `active`.
   const initialStatus = trial ? "trialing" : "active";
   const { data: inserted, error } = await supabase
     .from("subscriptions")
@@ -214,11 +213,9 @@ export async function persistKoraCardToken(
     return { error: error.message };
   }
 
-  // New service subscription → open the marketplace visibility window so the
-  // provider is listed immediately (public feed gates on visibility_until).
   if (productLine === "service" && inserted?.id) {
-    try {
-      await supabase
+    await Promise.all([
+      supabase
         .from("profiles")
         .update({
           visibility_until: periodEnd,
@@ -226,11 +223,14 @@ export async function persistKoraCardToken(
           service_subscription_id: inserted.id,
           updated_at: now.toISOString(),
         })
-        .eq("id", userId);
-      await supabase.from("service_providers").update({ is_active: true, updated_at: now.toISOString() }).eq("profile_id", userId);
-    } catch (e) {
+        .eq("id", userId),
+      supabase
+        .from("service_providers")
+        .update({ is_active: true, updated_at: now.toISOString() })
+        .eq("profile_id", userId),
+    ]).catch((e) => {
       console.warn("[korapay-recurring] could not open provider visibility:", e);
-    }
+    });
   }
 
   return { id: inserted?.id, created: true };

@@ -638,9 +638,9 @@ export default function Payment() {
         }
       }
 
-      // Wait for DB write propagation before redirecting (increased from 1.5 s
-      // to 2.5 s to give Supabase edge function writes more time to settle).
-      await new Promise((resolve) => window.setTimeout(resolve, 2500));
+      // Wait for DB write propagation before redirecting (reduced to 500ms
+      // since the server-side activation already confirmed the write).
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
 
       // Refresh subscription state so the landing page sees the latest credits.
       if (plan.ai) {
@@ -657,16 +657,15 @@ export default function Payment() {
           name: customerName,
           plan: plan.name,
           amount: String(plan.price),
-        });
+        }).catch(() => {});
       }
 
       if ((plan as any).business) {
-        try {
-          const raw = sessionStorage.getItem('jb_pending_advert');
-          if (raw) {
-            const pending = JSON.parse(raw);
-            const normalizedPackage = planKey.replace(/^business_/, "");
-            const existingAds = await fetchAdvertisementsByOwner(user.id);
+        const raw = sessionStorage.getItem('jb_pending_advert');
+        if (raw) {
+          const pending = JSON.parse(raw);
+          const normalizedPackage = planKey.replace(/^business_/, "");
+          fetchAdvertisementsByOwner(user.id).then((existingAds) => {
             const hasDuplicate = existingAds.some(
               (ad) =>
                 ad.title === pending.title &&
@@ -678,7 +677,7 @@ export default function Payment() {
               const durationDays = plan.duration && plan.duration.includes('30') ? 30 : 7;
               const starts_at = new Date().toISOString();
               const expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-              const advert = await createAdvertisement({
+              createAdvertisement({
                 owner_id: user.id,
                 business_name: pending.businessName || user.user_metadata?.full_name || user.email,
                 title: pending.title,
@@ -689,20 +688,16 @@ export default function Payment() {
                 starts_at,
                 expires_at,
                 amount_paid: plan.price,
-              });
-
-              if (user?.email) {
-                try {
+              }).then((advert) => {
+                if (user?.email) {
                   sendEmail({
                     type: 'advert_created',
                     email: user.email,
                     name: customerName,
                     advertId: advert?.id ?? null,
-                  } as any);
-                } catch (e) {
-                  console.warn('Failed to send advert created email:', e);
+                  } as any).catch(() => {});
                 }
-              }
+              }).catch(() => {});
             }
 
             try {
@@ -710,9 +705,7 @@ export default function Payment() {
             } catch {
               // ignore storage failures
             }
-          }
-        } catch (e) {
-          console.warn('Failed to create advertisement after payment:', e);
+          }).catch(() => {});
         }
       }
     } catch (backgroundErr) {
@@ -738,6 +731,8 @@ export default function Payment() {
     if (!functionsBase || !user?.id) return false;
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       const resp = await fetch(`${functionsBase}/verify-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -752,7 +747,9 @@ export default function Payment() {
           reference: "",
           card_token: cardToken || "",
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const body = await resp.json().catch(() => ({}));
       return resp.ok && body?.verified === true;
     } catch (e) {
@@ -887,7 +884,7 @@ export default function Payment() {
     };
 
     script.onload = () => {
-      window.setTimeout(finalizeLoad, 600);
+      window.setTimeout(finalizeLoad, 100);
     };
     script.onerror = () => {
       koraRetryCountRef.current += 1;
@@ -1069,11 +1066,8 @@ export default function Payment() {
           setPaid(true);
           setStep("success");
           push({ message: "🎉 30-day free trial activated!", type: "success" });
-          await fetchSubscription().catch(() => {});
-          window.setTimeout(
-            () => window.location.replace("/profile?trial=started"),
-            1600,
-          );
+          fetchSubscription().catch(() => {});
+          window.location.replace("/profile?trial=started");
         } else {
           cleanupKora();
           setPaying(false);
@@ -1451,11 +1445,8 @@ export default function Payment() {
                 setPaid(true);
                 setStep("success");
                 push({ message: "🎉 30-day free trial activated!", type: "success" });
-                await fetchSubscription().catch(() => {});
-                window.setTimeout(
-                  () => window.location.replace("/profile?trial=started"),
-                  1600,
-                );
+                fetchSubscription().catch(() => {});
+                window.location.replace("/profile?trial=started");
               } else {
                 setPaying(false);
                 setError("We couldn't start your trial. Please try again.");
