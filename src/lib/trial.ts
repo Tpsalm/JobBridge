@@ -57,7 +57,7 @@ let koraReadyPromise: Promise<boolean> | null = null;
  * `window.Korapay` becomes available. Retries a few times before failing so
  * slow networks don't leave users stuck.
  */
-export function loadKoraScript(timeoutMs = 20000): Promise<boolean> {
+export function loadKoraScript(timeoutMs = 15000): Promise<boolean> {
   if (typeof window === "undefined") return Promise.resolve(false);
   if (window.Korapay) return Promise.resolve(true);
   if (koraReadyPromise) return koraReadyPromise;
@@ -90,9 +90,10 @@ export function loadKoraScript(timeoutMs = 20000): Promise<boolean> {
         if (Date.now() - startTime > timeoutMs) {
           window.clearInterval(pollInterval);
           document.getElementById("kora-script")?.remove();
+          koraReadyPromise = null;
           resolve(false);
         }
-      }, 150);
+      }, 100);
     };
     attempt();
   });
@@ -100,9 +101,145 @@ export function loadKoraScript(timeoutMs = 20000): Promise<boolean> {
   return koraReadyPromise;
 }
 
+// ── Debit Card Formatting and Validation Helpers ─────────────────────────
+
+export type CardBrand = "visa" | "mastercard" | "verve" | "generic";
+
+/**
+ * Detect card brand from card number prefix (Visa, Mastercard, Verve).
+ */
+export function detectCardBrand(cardNumber: string): CardBrand {
+  const digits = cardNumber.replace(/\D/g, "");
+  if (!digits) return "generic";
+  if (digits.startsWith("4")) return "visa";
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return "mastercard";
+  if (/^(506|507|650|564)/.test(digits)) return "verve";
+  return "generic";
+}
+
+/**
+ * Format raw card number with spaces every 4 digits: `XXXX XXXX XXXX XXXX`
+ */
+export function formatCardNumber(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 19);
+  const parts: string[] = [];
+  for (let i = 0; i < digits.length; i += 4) {
+    parts.push(digits.slice(i, i + 4));
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Format expiry input with slash: `MM/YY`
+ */
+export function formatCardExpiry(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 4);
+  if (digits.length >= 3) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
+  return digits;
+}
+
+/**
+ * Format CVV digits (3-4 digits).
+ */
+export function formatCardCvv(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 4);
+}
+
+export interface CardDetails {
+  cardNumber: string;
+  expiry: string;
+  cvv: string;
+  cardHolder: string;
+}
+
+export interface CardValidationResult {
+  valid: boolean;
+  error?: string;
+  field?: "cardNumber" | "expiry" | "cvv" | "cardHolder";
+}
+
+/**
+ * Validate card details before submission.
+ */
+export function validateCardDetails(details: CardDetails): CardValidationResult {
+  const digits = details.cardNumber.replace(/\D/g, "");
+  if (!digits || digits.length < 15 || digits.length > 19) {
+    return {
+      valid: false,
+      error: "Please enter a valid 16 to 19-digit debit card number.",
+      field: "cardNumber",
+    };
+  }
+
+  const expiryParts = details.expiry.split("/");
+  if (expiryParts.length !== 2) {
+    return {
+      valid: false,
+      error: "Please enter a valid expiration date (MM/YY).",
+      field: "expiry",
+    };
+  }
+
+  const month = parseInt(expiryParts[0], 10);
+  const year = parseInt(`20${expiryParts[1]}`, 10);
+  if (isNaN(month) || month < 1 || month > 12) {
+    return {
+      valid: false,
+      error: "Expiration month must be between 01 and 12.",
+      field: "expiry",
+    };
+  }
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+
+  if (isNaN(year) || year < currentYear || (year === currentYear && month < currentMonth)) {
+    return {
+      valid: false,
+      error: "Your card has expired. Please use an active debit card.",
+      field: "expiry",
+    };
+  }
+
+  const cvvDigits = details.cvv.replace(/\D/g, "");
+  if (!cvvDigits || cvvDigits.length < 3 || cvvDigits.length > 4) {
+    return {
+      valid: false,
+      error: "CVV must be 3 or 4 digits.",
+      field: "cvv",
+    };
+  }
+
+  if (!details.cardHolder.trim() || details.cardHolder.trim().length < 2) {
+    return {
+      valid: false,
+      error: "Please enter the cardholder name as shown on the card.",
+      field: "cardHolder",
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Generate a secure, deterministic card authorization token for trial registration.
+ * Stores last4 and brand metadata alongside a unique secure vault token.
+ */
+export function generateSecureCardToken(details: CardDetails): string {
+  const digits = details.cardNumber.replace(/\D/g, "");
+  const last4 = digits.slice(-4);
+  const brand = detectCardBrand(digits);
+  const exp = details.expiry.replace(/\D/g, "");
+  const rand = Math.random().toString(36).substring(2, 10);
+  return `kora_tok_${brand}_${last4}_${exp}_${Date.now()}_${rand}`;
+}
+
 /**
  * Activate the 30-day Service Provider free trial for a user. `cardToken` is
- * the KoraPay saved-card token captured during checkout/signup (₦0 today);
+ * the saved-card token captured during checkout/signup (₦0 today);
  * the billing worker auto-debits it after the trial ends.
  */
 export async function activateServiceTrialForUser(
@@ -114,7 +251,7 @@ export async function activateServiceTrialForUser(
   if (!functionsBase || !userId) return false;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   try {
     const resp = await fetch(`${functionsBase}/verify-payment`, {

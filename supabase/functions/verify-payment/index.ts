@@ -117,6 +117,11 @@ serve(async (req: Request) => {
       if (isServicePlan) {
         profileUpdates.visibility_until = expiresAt;
         profileUpdates.is_active = true;
+        if (requestBody.trial === true) {
+          profileUpdates.trial_start_date = now;
+          profileUpdates.trial_end_date = expiresAt;
+          profileUpdates.trial_plan = planKey;
+        }
       }
 
       const { error: profileErr } = await supabase

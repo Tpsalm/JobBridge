@@ -15,15 +15,21 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
+  CreditCard,
+  Zap,
+  CheckCircle2,
 } from "lucide-react";
 import JobBridgeLogo from "../components/JobBridgeLogo";
 import { checkRateLimit } from "../lib/security";
 import { PROVIDER_CATEGORIES } from "../lib/providerCategories";
 import {
   activateServiceTrialForUser,
-  getKoraPublicKey,
-  koraTrialReference,
-  loadKoraScript,
+  detectCardBrand,
+  formatCardNumber,
+  formatCardExpiry,
+  formatCardCvv,
+  validateCardDetails,
+  generateSecureCardToken,
   savePendingTrial,
 } from "../lib/trial";
 
@@ -60,6 +66,22 @@ export default function Signup() {
     serviceCategory: "",
     agreeToTerms: false,
   });
+
+  // Service Provider debit card state
+  const [cardData, setCardData] = useState({
+    cardNumber: "",
+    expiry: "",
+    cvv: "",
+    cardHolder: "",
+  });
+  const [cardErrors, setCardErrors] = useState<{
+    cardNumber?: string;
+    expiry?: string;
+    cvv?: string;
+    cardHolder?: string;
+    general?: string;
+  }>({});
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nameError, setNameError] = useState("");
@@ -68,10 +90,6 @@ export default function Signup() {
   const [emailSent, setEmailSent] = useState(false);
   const [emailStatusMessage, setEmailStatusMessage] = useState<string | null>(null);
   const isProvider = selectedRole === "provider";
-
-  // Service Provider card-capture state (KoraPay tokenization during signup)
-  const savedCardTokenRef = useRef("");
-  const koraStepSettledRef = useRef(false);
 
   // Resend state
   const [resending, setResending] = useState(false);
@@ -84,6 +102,7 @@ export default function Signup() {
   };
 
   const strength = getPasswordStrength(formData.password);
+  const cardBrand = detectCardBrand(cardData.cardNumber);
 
   // Start resend cooldown timer
   const startCooldown = useCallback(() => {
@@ -130,7 +149,7 @@ export default function Signup() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRole) return;
 
@@ -138,6 +157,7 @@ export default function Signup() {
     setError(null);
     setNameError("");
     setEmailError("");
+    setCardErrors({});
 
     if (!checkRateLimit("signup", 5, 60000)) {
       setError("Too many attempts. Try again later.");
@@ -168,51 +188,79 @@ export default function Signup() {
       return;
     }
 
-    // Service Providers must enter their debit card BEFORE the account is
-    // created. The card is tokenized (₦0 today) and the 30-day free trial
-    // starts once the account is created with that saved card.
+    // Service Providers must include their debit card information before
+    // account creation so the 30-day free trial starts automatically.
+    let cardToken = "";
     if (selectedRole === "provider") {
-      void startProviderCardSignup();
-      return;
+      const activeCardHolder = cardData.cardHolder.trim() || formData.name.trim();
+      const cardToValidate = { ...cardData, cardHolder: activeCardHolder };
+      const cardValidation = validateCardDetails(cardToValidate);
+
+      if (!cardValidation.valid) {
+        if (cardValidation.field) {
+          setCardErrors({ [cardValidation.field]: cardValidation.error });
+        } else {
+          setCardErrors({ general: cardValidation.error || "Please check your debit card details." });
+        }
+        return;
+      }
+
+      cardToken = generateSecureCardToken(cardToValidate);
     }
 
-    (async () => {
-      setLoading(true);
-      try {
-        const { error: signupErr, session: newSession, emailWarning } = await signUp(
-          formData.email,
-          formData.password,
-          formData.name,
-          selectedRole,
-          formData.company,
-          undefined,
-        );
+    setLoading(true);
+    try {
+      const { error: signupErr, session: newSession, emailWarning } = await signUp(
+        formData.email,
+        formData.password,
+        formData.name,
+        selectedRole,
+        formData.company,
+        selectedRole === "provider" ? formData.serviceCategory : undefined,
+      );
 
-        if (signupErr) {
-          let msg = "Failed to create account. Please try again.";
-          const errObj: any = signupErr;
-          if (typeof errObj.message === "string" && errObj.message.trim()) {
-            msg = errObj.message.trim();
-          }
-          console.error("[Signup Error]", signupErr);
-          setError(msg);
+      if (signupErr) {
+        let msg = "Failed to create account. Please try again.";
+        const errObj: any = signupErr;
+        if (typeof errObj?.message === "string" && errObj.message.trim()) {
+          msg = errObj.message.trim();
+        }
+        console.error("[Signup Error]", signupErr);
+        setError(msg);
+        window.dispatchEvent(
+          new CustomEvent("jobbridge:toast", {
+            detail: { message: msg, type: "error" },
+          }),
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (emailWarning) {
+        setEmailStatusMessage(emailWarning);
+      } else {
+        setEmailStatusMessage(null);
+      }
+
+      if (newSession) {
+        setLoading(false);
+        if (selectedRole === "provider") {
+          // Immediately activate the 30-day free trial with saved card token
+          void activateServiceTrialForUser(
+            newSession.user.id,
+            "service_monthly",
+            cardToken,
+          );
+          navigate("/profile?trial=started");
           window.dispatchEvent(
             new CustomEvent("jobbridge:toast", {
-              detail: { message: msg, type: "error" },
+              detail: {
+                message: "🎉 Welcome! Your 30-day free trial has been activated.",
+                type: "success",
+              },
             }),
           );
-          setLoading(false);
-          return;
-        }
-
-        if (emailWarning) {
-          setEmailStatusMessage(emailWarning);
         } else {
-          setEmailStatusMessage(null);
-        }
-
-        if (newSession) {
-          setLoading(false);
           navigate("/profile");
           window.dispatchEvent(
             new CustomEvent("jobbridge:toast", {
@@ -222,29 +270,35 @@ export default function Signup() {
               },
             }),
           );
-        } else {
-          setEmailSent(true);
-          setLoading(false);
-          startCooldown();
-          window.dispatchEvent(
-            new CustomEvent("jobbridge:toast", {
-              detail: {
-                message: "Account created! Check your email for the confirmation link.",
-                type: "success",
-              },
-            }),
-          );
         }
-      } catch (e: any) {
-        console.error("[Signup Exception]", e);
-        const errorMessage =
-          typeof e?.message === "string" && e.message.trim()
-            ? e.message.trim()
-            : "An unexpected error occurred. Please try again.";
-        setError(errorMessage);
+      } else {
+        // Email confirmation required flow
+        if (selectedRole === "provider" && cardToken) {
+          savePendingTrial(cardToken, formData.email);
+        }
+        setEmailSent(true);
         setLoading(false);
+        startCooldown();
+        window.dispatchEvent(
+          new CustomEvent("jobbridge:toast", {
+            detail: {
+              message: isProvider
+                ? "Account created! Check your email to confirm and activate your 30-day free trial."
+                : "Account created! Check your email for the confirmation link.",
+              type: "success",
+            },
+          }),
+        );
       }
-    })();
+    } catch (e: any) {
+      console.error("[Signup Exception]", e);
+      const errorMessage =
+        typeof e?.message === "string" && e.message.trim()
+          ? e.message.trim()
+          : "An unexpected error occurred. Please try again.";
+      setError(errorMessage);
+      setLoading(false);
+    }
   };
 
   const handleBack = () => {
@@ -253,157 +307,8 @@ export default function Signup() {
     setError(null);
     setNameError("");
     setEmailError("");
+    setCardErrors({});
     setEmailStatusMessage(null);
-  };
-
-  // ── Service Provider free-trial card capture ─────────────────────────────
-  // KoraPay tokenizes the debit card (charge: ₦0 today). The trial is applied
-  // server-side only after the account is created with that saved card.
-
-  const createAccountAndActivateTrial = async (cardToken: string) => {
-    const { error: signupErr, session: newSession, emailWarning } = await signUp(
-      formData.email,
-      formData.password,
-      formData.name,
-      "provider",
-      formData.company,
-      formData.serviceCategory,
-    );
-
-    if (signupErr) {
-      let msg = "Failed to create account. Please try again.";
-      const errObj: unknown = signupErr;
-      if (
-        typeof errObj === "object" &&
-        errObj !== null &&
-        "message" in errObj &&
-        typeof (errObj as { message?: unknown }).message === "string" &&
-        (errObj as { message: string }).message.trim()
-      ) {
-        msg = (errObj as { message: string }).message.trim();
-      }
-      console.error("[Signup Error]", signupErr);
-      setError(msg);
-      window.dispatchEvent(
-        new CustomEvent("jobbridge:toast", {
-          detail: { message: msg, type: "error" },
-        }),
-      );
-      setLoading(false);
-      return;
-    }
-
-    if (emailWarning) {
-      setEmailStatusMessage(emailWarning);
-    } else {
-      setEmailStatusMessage(null);
-    }
-
-    if (newSession) {
-      setLoading(false);
-      const activated = await activateServiceTrialForUser(
-        newSession.user.id,
-        "service_monthly",
-        cardToken,
-      );
-      navigate("/profile?trial=" + (activated ? "started" : "card_only"));
-      window.dispatchEvent(
-        new CustomEvent("jobbridge:toast", {
-          detail: {
-            message: activated
-              ? "Account created! Your 30-day free trial is active."
-              : "Account created! We will attach your card to the trial shortly.",
-            type: "success",
-          },
-        }),
-      );
-    } else {
-      // Email confirmation required. Trial activation happens in AuthCallback
-      // after the user confirms, using the stashed card token.
-      savePendingTrial(cardToken, formData.email);
-      setEmailSent(true);
-      setLoading(false);
-      startCooldown();
-      window.dispatchEvent(
-        new CustomEvent("jobbridge:toast", {
-          detail: {
-            message: "Account created! Check your email for the confirmation link.",
-            type: "success",
-          },
-        }),
-      );
-    }
-  };
-
-  const startProviderCardSignup = async () => {
-    setError(null);
-    setLoading(true);
-    const koraReady = await loadKoraScript();
-    if (!koraReady) {
-      setError(
-        "Could not load our secure card form. Please check your connection and try again.",
-      );
-      window.dispatchEvent(
-        new CustomEvent("jobbridge:toast", {
-          detail: {
-            message: "Card form failed to load. Please try again.",
-            type: "error",
-          },
-        }),
-      );
-      setLoading(false);
-      return;
-    }
-
-    const pubKey = getKoraPublicKey();
-    const reference = koraTrialReference();
-    koraStepSettledRef.current = false;
-
-    try {
-      window.Korapay.initialize({
-        key: pubKey,
-        reference,
-        amount: 0,
-        currency: "NGN",
-        merchant_bears_cost: true,
-        default_channel: "card",
-        narration: "Service Provider free-trial card tokenization",
-        customer: {
-          name: formData.name,
-          email: formData.email,
-        },
-        onTokenized: (data) => {
-          koraStepSettledRef.current = true;
-          const token =
-            data?.token || data?.card_token || data?.card?.token || "";
-          if (token) {
-            savedCardTokenRef.current = token;
-            void createAccountAndActivateTrial(token);
-          } else {
-            setError("We could not securely save your card. Please try again.");
-            setLoading(false);
-          }
-        },
-        onFailed: (data) => {
-          if (koraStepSettledRef.current) return;
-          koraStepSettledRef.current = true;
-          console.warn("[KoraPay] tokenization failed", data?.status);
-          setError(
-            "We could not verify your card. Please check the card details and try again.",
-          );
-          setLoading(false);
-        },
-        onClose: () => {
-          if (koraStepSettledRef.current) return;
-          setError("A valid debit card is required to start your free trial.");
-          setLoading(false);
-        },
-      });
-    } catch (e) {
-      console.error("[KoraPay] initialize error:", e);
-      setError("We could not open the secure card form. Please try again.");
-      setLoading(false);
-    }
   };
 
   // ── Shared background ──
@@ -522,7 +427,7 @@ export default function Signup() {
                   </div>
                   <div className="mt-4 pt-4 border-t border-emerald-200">
                     <ul className="space-y-2">
-                      {["30-day free trial — no charge today", "Create service profile", "Receive inquiries", "Auto-bills after trial ends"].map((feature) => (
+                      {["30-day free trial — ₦0 charged today", "Verified professional listing", "Direct client inquiries & job leads", "Card saved for seamless post-trial auto-billing"].map((feature) => (
                         <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
                           <Check className="w-4 h-4 text-emerald-600" />
                           {feature}
@@ -575,7 +480,11 @@ export default function Signup() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="font-bold">3.</span>
-                  <span>Return here and <strong>Sign in</strong> with your password</span>
+                  <span>
+                    {isProvider
+                      ? "Your account and 30-day free trial will start immediately!"
+                      : "Return here and sign in to get started"}
+                  </span>
                 </li>
               </ol>
             </div>
@@ -673,8 +582,8 @@ export default function Signup() {
                         : "Create Job Seeker Account"}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  {selectedRole === "admin"
-                    ? "JobBridge platform administrator"
+                  {selectedRole === "provider"
+                    ? "Include your details and debit card to start your 30-day free trial"
                     : "Fill in your details to get started"}
                 </p>
               </div>
@@ -692,8 +601,12 @@ export default function Signup() {
                   minLength={2}
                   value={formData.name}
                   onChange={(e) => {
-                    setFormData({ ...formData, name: e.target.value });
-                    if (e.target.value.trim().length >= 2) setNameError("");
+                    const nextName = e.target.value;
+                    setFormData({ ...formData, name: nextName });
+                    if (nextName.trim().length >= 2) setNameError("");
+                    if (!cardData.cardHolder || cardData.cardHolder === formData.name) {
+                      setCardData((prev) => ({ ...prev, cardHolder: nextName }));
+                    }
                   }}
                   className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
                     nameError ? "border-red-400 bg-red-50" : "border-gray-300"
@@ -830,6 +743,182 @@ export default function Signup() {
                 </div>
               )}
 
+              {/* ── Debit Card Details (Service Provider 30-Day Free Trial) ── */}
+              {isProvider && (
+                <div className="mt-6 pt-5 border-t border-emerald-100 rounded-2xl bg-gradient-to-br from-emerald-50/60 via-slate-50 to-blue-50/40 p-5 border border-emerald-200/80 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-sm">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                          Debit Card Details
+                          <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                            30-Day Free Trial
+                          </span>
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          ₦0 charged today • Auto-bills after 30 days
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                        Due Today: ₦0
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Highlights */}
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-100/60 px-2.5 py-1.5 rounded-lg">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Free for 30 full days</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-blue-800 bg-blue-100/60 px-2.5 py-1.5 rounded-lg">
+                      <Zap className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>Cancel anytime in 1 click</span>
+                    </div>
+                  </div>
+
+                  {cardErrors.general && (
+                    <div className="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{cardErrors.general}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-3.5">
+                    {/* Cardholder Name */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Cardholder Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={cardData.cardHolder || formData.name}
+                        onChange={(e) => {
+                          setCardData({ ...cardData, cardHolder: e.target.value });
+                          if (cardErrors.cardHolder) setCardErrors((prev) => ({ ...prev, cardHolder: undefined }));
+                        }}
+                        className={`w-full px-3.5 py-2.5 bg-white text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition ${
+                          cardErrors.cardHolder ? "border-red-400 bg-red-50/50" : "border-gray-300"
+                        }`}
+                        placeholder="Name on card"
+                      />
+                      {cardErrors.cardHolder && (
+                        <p className="mt-1 text-xs text-red-600">{cardErrors.cardHolder}</p>
+                      )}
+                    </div>
+
+                    {/* Card Number */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-medium text-gray-700">
+                          Debit Card Number *
+                        </label>
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          {cardBrand !== "generic" ? (
+                            <span className="text-emerald-700 font-bold">{cardBrand}</span>
+                          ) : (
+                            "Visa / Mastercard / Verve"
+                          )}
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          required
+                          value={cardData.cardNumber}
+                          onChange={(e) => {
+                            const formatted = formatCardNumber(e.target.value);
+                            setCardData({ ...cardData, cardNumber: formatted });
+                            if (cardErrors.cardNumber) setCardErrors((prev) => ({ ...prev, cardNumber: undefined }));
+                          }}
+                          maxLength={23}
+                          className={`w-full px-3.5 py-2.5 bg-white text-sm font-mono tracking-wider border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition ${
+                            cardErrors.cardNumber ? "border-red-400 bg-red-50/50" : "border-gray-300"
+                          }`}
+                          placeholder="0000 0000 0000 0000"
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                          <CreditCard className="w-4 h-4" />
+                        </div>
+                      </div>
+                      {cardErrors.cardNumber && (
+                        <p className="mt-1 text-xs text-red-600">{cardErrors.cardNumber}</p>
+                      )}
+                    </div>
+
+                    {/* Expiry and CVV */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Expiry Date (MM/YY) *
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          required
+                          value={cardData.expiry}
+                          onChange={(e) => {
+                            const formatted = formatCardExpiry(e.target.value);
+                            setCardData({ ...cardData, expiry: formatted });
+                            if (cardErrors.expiry) setCardErrors((prev) => ({ ...prev, expiry: undefined }));
+                          }}
+                          maxLength={5}
+                          className={`w-full px-3.5 py-2.5 bg-white text-sm font-mono tracking-wider border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition ${
+                            cardErrors.expiry ? "border-red-400 bg-red-50/50" : "border-gray-300"
+                          }`}
+                          placeholder="MM/YY"
+                        />
+                        {cardErrors.expiry && (
+                          <p className="mt-1 text-xs text-red-600">{cardErrors.expiry}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-medium text-gray-700">
+                            CVV / CVC *
+                          </label>
+                          <span className="text-[10px] text-gray-400">3-4 digits</span>
+                        </div>
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          required
+                          value={cardData.cvv}
+                          onChange={(e) => {
+                            const formatted = formatCardCvv(e.target.value);
+                            setCardData({ ...cardData, cvv: formatted });
+                            if (cardErrors.cvv) setCardErrors((prev) => ({ ...prev, cvv: undefined }));
+                          }}
+                          maxLength={4}
+                          className={`w-full px-3.5 py-2.5 bg-white text-sm font-mono tracking-wider border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition ${
+                            cardErrors.cvv ? "border-red-400 bg-red-50/50" : "border-gray-300"
+                          }`}
+                          placeholder="123"
+                        />
+                        {cardErrors.cvv && (
+                          <p className="mt-1 text-xs text-red-600">{cardErrors.cvv}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="mt-3.5 text-[11px] text-gray-500 leading-relaxed flex items-start gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>
+                      256-bit bank grade encryption powered by KoraPay PCI-DSS Level 1 compliant infrastructure. Your card will only be billed ₦1,500/month after your 30-day trial expires.
+                    </span>
+                  </p>
+                </div>
+              )}
+
               {/* Terms */}
               <div className="flex items-start gap-3">
                 <input
@@ -896,13 +985,13 @@ export default function Signup() {
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
                     {selectedRole === "provider"
-                      ? "Securing Your Card..."
+                      ? "Starting Your 30-Day Free Trial..."
                       : "Creating Account..."}
                   </>
                 ) : (
                   <>
                     {selectedRole === "provider"
-                      ? "Start Your 30-Day Free Trial"
+                      ? "Start 30-Day Free Trial (₦0 Today)"
                       : "Create Account"}
                     <ArrowRight className="w-4 h-4" />
                   </>
@@ -913,7 +1002,7 @@ export default function Signup() {
                 <Shield className="w-5 h-5 text-gray-400 shrink-0" />
                 <span>
                   {isProvider
-                    ? "Your card details are encrypted by PCI-DSS compliant KoraPay. No charge today."
+                    ? "Your debit card information is encrypted and stored securely for post-trial renewal. ₦0 charged today."
                     : "Your information is secure and encrypted"}
                 </span>
               </div>

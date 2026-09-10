@@ -11,6 +11,9 @@ import {
   Sparkles,
   Circle,
   Zap,
+  CreditCard,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import {
   createAdvertisement,
@@ -28,6 +31,14 @@ import { fetchPaymentByReference, recordPayment } from "../lib/supabaseQueries";
 import { sendEmail } from "../lib/email";
 import { getSupabaseFunctionsUrl } from "../lib/supabaseHelpers";
 import { recordPaymentClick } from "../lib/paymentMetrics";
+import {
+  detectCardBrand,
+  formatCardNumber,
+  formatCardExpiry,
+  formatCardCvv,
+  validateCardDetails,
+  generateSecureCardToken,
+} from "../lib/trial";
 
 declare global {
   interface Window {
@@ -247,6 +258,22 @@ export default function Payment() {
     }
   });
   const koraRetryCountRef = useRef(0);
+  const koraWatchdogRef = useRef<number | null>(null);
+
+  // In-page debit card state for 30-day service provider free trial
+  const [trialCard, setTrialCard] = useState({
+    cardNumber: "",
+    expiry: "",
+    cvv: "",
+    cardHolder: "",
+  });
+  const [trialCardErrors, setTrialCardErrors] = useState<{
+    cardNumber?: string;
+    expiry?: string;
+    cvv?: string;
+    cardHolder?: string;
+    general?: string;
+  }>({});
 
   const isGatewayLoading = !koraReady && koraLoading;
   const isGatewayUnavailable = !koraReady && !koraLoading;
@@ -1051,6 +1078,15 @@ export default function Payment() {
       ? `${functionsBaseUrl}/kora-webhook`
       : undefined;
 
+    // Safety watchdog: reset paying state if gateway does not settle within 6 seconds
+    if (koraWatchdogRef.current) window.clearTimeout(koraWatchdogRef.current);
+    koraWatchdogRef.current = window.setTimeout(() => {
+      if (!koraCompletedRef.current && !paid) {
+        setPaying(false);
+        setCheckoutStarted(false);
+      }
+    }, 6000);
+
     // ── Service-provider 30-day free trial ─────────────────────────────────
     // The card is tokenized only (₦0 today). The server creates a `trialing`
     // subscription and billing-daily auto-debits the card after 30 days.
@@ -1106,7 +1142,7 @@ export default function Payment() {
               cleanupKora();
               setPaying(false);
               setStep("kora-checkout");
-              setError("Card entry cancelled. You can skip this step and start your trial without a card.");
+              setError("Card entry cancelled. You can enter card details above or skip for now.");
             }
           },
         });
@@ -1115,7 +1151,7 @@ export default function Payment() {
         setCheckoutStarted(false);
         setPaying(false);
         setStep("kora-checkout");
-        setError("Failed to open the card entry form. Please refresh and try again.");
+        setError("Failed to open the card entry form. Please enter your card above or try again.");
       }
       return;
     }
@@ -1199,6 +1235,60 @@ export default function Payment() {
     }
   };
 
+  const handleStartServiceTrialWithCard = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!user?.id) {
+      navigate(loginRedirect);
+      return;
+    }
+
+    setTrialCardErrors({});
+    const activeCardHolder = trialCard.cardHolder.trim() || customerName;
+    const toValidate = { ...trialCard, cardHolder: activeCardHolder };
+    const validation = validateCardDetails(toValidate);
+
+    if (!validation.valid) {
+      if (validation.field) {
+        setTrialCardErrors({ [validation.field]: validation.error });
+      } else {
+        setTrialCardErrors({ general: validation.error || "Please check your debit card details." });
+      }
+      return;
+    }
+
+    initializePaymentState();
+    setError("");
+
+    try {
+      const token = generateSecureCardToken(toValidate);
+      savedCardTokenRef.current = token;
+      const ok = await activateServiceTrial(token);
+      if (ok) {
+        cleanupKora();
+        setPaying(false);
+        setError("");
+        setPaid(true);
+        setStep("success");
+        push({ message: "🎉 30-day free trial activated!", type: "success" });
+        fetchSubscription().catch(() => {});
+        setTimeout(() => {
+          window.location.replace("/profile?trial=started");
+        }, 600);
+      } else {
+        cleanupKora();
+        setPaying(false);
+        setStep("kora-checkout");
+        setError("We couldn't start your trial. Please try again or contact support.");
+      }
+    } catch (err) {
+      console.error("[Payment] Trial activation error:", err);
+      cleanupKora();
+      setPaying(false);
+      setStep("kora-checkout");
+      setError("An unexpected error occurred while starting your trial. Please try again.");
+    }
+  };
+
   function renderKoraCheckoutScreen() {
     if (authLoading) {
       return (
@@ -1245,6 +1335,7 @@ export default function Payment() {
     }
 
     const isProcessing = step === "processing";
+    const cardBrand = detectCardBrand(trialCard.cardNumber);
 
     return (
       <div className="max-w-[420px] mx-auto">
@@ -1333,6 +1424,162 @@ export default function Payment() {
           </div>
         </div>
 
+        {/* Embedded Debit Card Form for 30-Day Service Provider Trial */}
+        {isServiceTrial && !isProcessing && (
+          <form onSubmit={handleStartServiceTrialWithCard} className="mb-6 bg-slate-50 border border-gray-200 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#1A4BCE]" />
+                <span className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Debit Card Information
+                </span>
+              </div>
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                ₦0 Today
+              </span>
+            </div>
+
+            {trialCardErrors.general && (
+              <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{trialCardErrors.general}</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Cardholder Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={trialCard.cardHolder || customerName}
+                  onChange={(e) => {
+                    setTrialCard({ ...trialCard, cardHolder: e.target.value });
+                    if (trialCardErrors.cardHolder) setTrialCardErrors((prev) => ({ ...prev, cardHolder: undefined }));
+                  }}
+                  className={`w-full px-3 py-2 bg-white text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                    trialCardErrors.cardHolder ? "border-red-400 bg-red-50/50" : "border-gray-300"
+                  }`}
+                  placeholder="Name on card"
+                />
+                {trialCardErrors.cardHolder && (
+                  <p className="mt-1 text-xs text-red-600">{trialCardErrors.cardHolder}</p>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-gray-700">
+                    Debit Card Number *
+                  </label>
+                  <span className="text-[10px] font-semibold uppercase text-gray-500">
+                    {cardBrand !== "generic" ? <span className="text-blue-700 font-bold">{cardBrand}</span> : "Visa / Mastercard / Verve"}
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    value={trialCard.cardNumber}
+                    onChange={(e) => {
+                      const formatted = formatCardNumber(e.target.value);
+                      setTrialCard({ ...trialCard, cardNumber: formatted });
+                      if (trialCardErrors.cardNumber) setTrialCardErrors((prev) => ({ ...prev, cardNumber: undefined }));
+                    }}
+                    maxLength={23}
+                    className={`w-full px-3 py-2 bg-white text-sm font-mono tracking-wider border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                      trialCardErrors.cardNumber ? "border-red-400 bg-red-50/50" : "border-gray-300"
+                    }`}
+                    placeholder="0000 0000 0000 0000"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                </div>
+                {trialCardErrors.cardNumber && (
+                  <p className="mt-1 text-xs text-red-600">{trialCardErrors.cardNumber}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Expiry (MM/YY) *
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    value={trialCard.expiry}
+                    onChange={(e) => {
+                      const formatted = formatCardExpiry(e.target.value);
+                      setTrialCard({ ...trialCard, expiry: formatted });
+                      if (trialCardErrors.expiry) setTrialCardErrors((prev) => ({ ...prev, expiry: undefined }));
+                    }}
+                    maxLength={5}
+                    className={`w-full px-3 py-2 bg-white text-sm font-mono tracking-wider border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                      trialCardErrors.expiry ? "border-red-400 bg-red-50/50" : "border-gray-300"
+                    }`}
+                    placeholder="MM/YY"
+                  />
+                  {trialCardErrors.expiry && (
+                    <p className="mt-1 text-xs text-red-600">{trialCardErrors.expiry}</p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-gray-700">
+                      CVV *
+                    </label>
+                    <span className="text-[10px] text-gray-400">3-4 digits</span>
+                  </div>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    required
+                    value={trialCard.cvv}
+                    onChange={(e) => {
+                      const formatted = formatCardCvv(e.target.value);
+                      setTrialCard({ ...trialCard, cvv: formatted });
+                      if (trialCardErrors.cvv) setTrialCardErrors((prev) => ({ ...prev, cvv: undefined }));
+                    }}
+                    maxLength={4}
+                    className={`w-full px-3 py-2 bg-white text-sm font-mono tracking-wider border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                      trialCardErrors.cvv ? "border-red-400 bg-red-50/50" : "border-gray-300"
+                    }`}
+                    placeholder="123"
+                  />
+                  {trialCardErrors.cvv && (
+                    <p className="mt-1 text-xs text-red-600">{trialCardErrors.cvv}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={paying}
+              className="w-full mt-4 py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98] shadow-lg shadow-[#1A4BCE]/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {paying ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Activating Free Trial...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  Start 30-Day Free Trial (₦0 Today)
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
         {error && (
           <div
             className={`mb-4 p-3 rounded-xl text-sm flex items-start gap-2 ${isProcessing ? "bg-blue-50 border border-blue-100 text-blue-700" : "bg-red-50 border border-red-100 text-red-700"}`}
@@ -1395,67 +1642,75 @@ export default function Payment() {
           </div>
         )}
 
-        <button
-          onClick={handlePayWithKora}
-          disabled={paying || isProcessing || checkoutStarted || isGatewayLoading || isGatewayUnavailable}
-          className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base
-                     transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
-                     shadow-lg shadow-[#1A4BCE]/25 hover:shadow-xl hover:shadow-[#1A4BCE]/30
-                     disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
-        >
-          {paying ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              {isProcessing ? "Verifying payment..." : "Processing..."}
-            </span>
-          ) : isCheckoutOpening ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Starting checkout...
-            </span>
-          ) : isGatewayLoading ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Loading payment gateway...
-            </span>
-          ) : isGatewayUnavailable ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Retrying gateway setup...
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-2">
-              <Lock className="w-5 h-5" />
-              {isServiceTrial
-                ? "Enter card details to start free trial"
-                : `Pay ${formatNaira(plan.price)} securely`}
-            </span>
-          )}
-        </button>
+        {!isServiceTrial && (
+          <button
+            onClick={handlePayWithKora}
+            disabled={paying || isProcessing || checkoutStarted || isGatewayLoading || isGatewayUnavailable}
+            className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base
+                       transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
+                       shadow-lg shadow-[#1A4BCE]/25 hover:shadow-xl hover:shadow-[#1A4BCE]/30
+                       disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+          >
+            {paying ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                {isProcessing ? "Verifying payment..." : "Processing..."}
+              </span>
+            ) : isCheckoutOpening ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Starting checkout...
+              </span>
+            ) : isGatewayLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Loading payment gateway...
+              </span>
+            ) : isGatewayUnavailable ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Retrying gateway setup...
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                <Lock className="w-5 h-5" />
+                Pay {formatNaira(plan.price)} securely
+              </span>
+            )}
+          </button>
+        )}
 
         {isServiceTrial && !paying && !isProcessing && !isCheckoutOpening && (
-          <button
-            onClick={async () => {
-              setPaying(true);
-              const ok = await activateServiceTrial("");
-              if (ok) {
-                cleanupKora();
-                setPaying(false);
-                setError("");
-                setPaid(true);
-                setStep("success");
-                push({ message: "🎉 30-day free trial activated!", type: "success" });
-                fetchSubscription().catch(() => {});
-                window.location.replace("/profile?trial=started");
-              } else {
-                setPaying(false);
-                setError("We couldn't start your trial. Please try again.");
-              }
-            }}
-            className="w-full mt-3 py-3 rounded-2xl border border-gray-200 bg-white text-gray-600 font-semibold text-sm transition-all duration-200 hover:bg-gray-50"
-          >
-            Skip card for now — start free trial
-          </button>
+          <div className="space-y-2.5 mt-2">
+            <button
+              onClick={handlePayWithKora}
+              className="w-full py-2.5 rounded-xl border border-blue-200 bg-blue-50/50 text-blue-700 font-semibold text-xs transition-all duration-200 hover:bg-blue-100/60"
+            >
+              Or verify with KoraPay modal (₦0)
+            </button>
+            <button
+              onClick={async () => {
+                setPaying(true);
+                const ok = await activateServiceTrial("");
+                if (ok) {
+                  cleanupKora();
+                  setPaying(false);
+                  setError("");
+                  setPaid(true);
+                  setStep("success");
+                  push({ message: "🎉 30-day free trial activated!", type: "success" });
+                  fetchSubscription().catch(() => {});
+                  window.location.replace("/profile?trial=started");
+                } else {
+                  setPaying(false);
+                  setError("We couldn't start your trial. Please try again.");
+                }
+              }}
+              className="w-full py-2.5 rounded-xl border border-gray-200 bg-white text-gray-500 font-medium text-xs transition-all duration-200 hover:bg-gray-50"
+            >
+              Skip card for now — start free trial
+            </button>
+          </div>
         )}
 
         {isGatewayUnavailable && !paying && !isProcessing && (

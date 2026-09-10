@@ -596,57 +596,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
         }
 
-        let emailWarning: string | null = null;
-
-        const welcomeSent = await sendEmail({ type: "welcome", email, name: fullName });
-        if (!welcomeSent) {
-          emailWarning =
-            "Account created, but we could not send the welcome email. Please check your inbox or contact support.";
-          console.warn("[AuthContext signUp] welcome email send failed");
-        }
-
-        const profileReminderSent = await sendEmail({
-          type: "profile_reminder",
-          email,
-          name: fullName,
-        });
-        if (!profileReminderSent) {
-          emailWarning = emailWarning
-            ? "Account created, but some onboarding emails could not be delivered. Please check your inbox or contact support."
-            : "Account created, but we could not send the profile reminder email. Please check your inbox or contact support.";
-          console.warn("[AuthContext signUp] profile reminder email send failed");
-        }
+        // Send onboarding emails in background without blocking account creation response
+        void Promise.allSettled([
+          sendEmail({ type: "welcome", email, name: fullName }),
+          sendEmail({ type: "profile_reminder", email, name: fullName }),
+          role === "recruiter"
+            ? sendEmail({ type: "new_recruiter", email: ADMIN_EMAIL, name: fullName })
+            : Promise.resolve(true),
+        ]).catch((e) => console.warn("[AuthContext signUp] background email delivery note:", e));
 
         try {
-          await updateProfile(authUser.id, {
+          updateProfile(authUser.id, {
             profile_reminder_sent_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          });
-        } catch (updateError) {
-          if (isMissingSchemaColumnError(updateError, "profile_reminder_sent_at")) {
-            console.warn(
-              "[AuthContext signUp] profile_reminder_sent_at not available yet; skipping timestamp write",
-            );
-            await updateProfile(authUser.id, {
+          }).catch(() => {
+            updateProfile(authUser.id, {
               updated_at: new Date().toISOString(),
-            });
-          } else {
-            console.error("[AuthContext signUp] failed to update reminder timestamp:", updateError);
-          }
-        }
-
-        if (role === "recruiter") {
-          const recruiterNoticeSent = await sendEmail({
-            type: "new_recruiter",
-            email: ADMIN_EMAIL,
-            name: fullName,
+            }).catch(() => {});
           });
-          if (!recruiterNoticeSent) {
-            console.warn("[AuthContext signUp] recruiter notification email send failed");
-          }
+        } catch {
+          // ignore
         }
 
-        return { error: null, session: newSession, emailWarning };
+        return { error: null, session: newSession, emailWarning: null };
       }
 
       // If no session returned (email confirmation required), return success with null session
