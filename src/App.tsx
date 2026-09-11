@@ -4,6 +4,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ModalProvider } from "./contexts/ModalContext";
 import { ModalRenderer } from "./components/Modal";
 import SwipeNavigator from "./components/SwipeNavigator";
+import BroadcastBanner from "./components/BroadcastBanner";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 // Eagerly loaded core entry pages for instant landing speed
@@ -58,6 +59,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ModalProvider>
+          <BroadcastBanner />
           <SwipeNavigator />
           <Suspense fallback={<PageLoadingFallback />}>
             <Routes>
