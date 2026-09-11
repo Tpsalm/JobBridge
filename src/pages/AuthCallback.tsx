@@ -110,12 +110,16 @@ export default function AuthCallback() {
           // now that they've confirmed their email.
           const email =
             typeof session.user.email === "string" ? session.user.email : "";
-          const pendingToken = takePendingTrial(email);
-          if (pendingToken) {
+          const pendingData = takePendingTrial(email);
+          const metaPlan = session.user?.user_metadata?.trial_plan;
+          const effectivePlan = pendingData?.planKey || metaPlan || "service_verified";
+          const cardToken = pendingData?.token || session.user?.user_metadata?.card_token || "";
+
+          if (session.user?.user_metadata?.role === "provider" || pendingData) {
             void activateServiceTrialForUser(
               session.user.id,
-              "service_monthly",
-              pendingToken,
+              effectivePlan,
+              cardToken,
             );
           }
 

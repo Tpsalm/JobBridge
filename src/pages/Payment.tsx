@@ -749,40 +749,12 @@ export default function Payment() {
   };
 
   // ── 30-day free trial activation (service provider plans) ───────────────
-  // No money moves today. The card (if provided) is tokenized and stored; the
-  // server creates a `trialing` subscription and billing-daily charges it
-  // after 30 days. When no card is provided the trial still starts, and the
-  // provider is prompted to add a card before the trial ends.
+  // No money moves today. The card is tokenized and stored; the
+  // server creates a trialing subscription and billing-daily charges it
+  // after 30 days.
   const activateServiceTrial = async (cardToken: string): Promise<boolean> => {
-    const functionsBase = getSupabaseFunctionsUrl();
-    if (!functionsBase || !user?.id) return false;
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-      const resp = await fetch(`${functionsBase}/verify-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          activate_plan: true,
-          trial: true,
-          plan_key: planKey,
-          user_id: user.id,
-          duration_days: 30,
-          credits: 0,
-          amount: 0,
-          reference: "",
-          card_token: cardToken || "",
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      const body = await resp.json().catch(() => ({}));
-      return resp.ok && body?.verified === true;
-    } catch (e) {
-      console.warn("[Payment] Service trial activation failed:", e);
-      return false;
-    }
+    if (!user?.id) return false;
+    return await activateServiceTrialForUser(user.id, planKey, cardToken);
   };
 
   const onKoraSuccess = async (data: {
@@ -1142,7 +1114,7 @@ export default function Payment() {
               cleanupKora();
               setPaying(false);
               setStep("kora-checkout");
-              setError("Card entry cancelled. You can enter card details above or skip for now.");
+              setError("Card entry cancelled. Please enter your card details to start your 30-day free trial.");
             }
           },
         });
@@ -1687,28 +1659,6 @@ export default function Payment() {
               className="w-full py-2.5 rounded-xl border border-blue-200 bg-blue-50/50 text-blue-700 font-semibold text-xs transition-all duration-200 hover:bg-blue-100/60"
             >
               Or verify with KoraPay modal (₦0)
-            </button>
-            <button
-              onClick={async () => {
-                setPaying(true);
-                const ok = await activateServiceTrial("");
-                if (ok) {
-                  cleanupKora();
-                  setPaying(false);
-                  setError("");
-                  setPaid(true);
-                  setStep("success");
-                  push({ message: "🎉 30-day free trial activated!", type: "success" });
-                  fetchSubscription().catch(() => {});
-                  window.location.replace("/profile?trial=started");
-                } else {
-                  setPaying(false);
-                  setError("We couldn't start your trial. Please try again.");
-                }
-              }}
-              className="w-full py-2.5 rounded-xl border border-gray-200 bg-white text-gray-500 font-medium text-xs transition-all duration-200 hover:bg-gray-50"
-            >
-              Skip card for now — start free trial
             </button>
           </div>
         )}

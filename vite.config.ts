@@ -7,16 +7,32 @@ export default defineConfig({
   base: process.env.GITHUB_ACTIONS === 'true' ? '/JobBridge/' : '/',
   plugins: [react()],
   optimizeDeps: {
-    include: ['lucide-react'],
+    include: ['lucide-react', 'react', 'react-dom', 'react-router-dom', '@supabase/supabase-js'],
   },
   build: {
-    // Subresource Integrity for production builds
     manifest: true,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('@supabase')) {
+              return 'vendor-supabase';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('pdf')) {
+              return 'vendor-pdf';
+            }
+          }
+        },
       },
     },
   },
@@ -24,8 +40,6 @@ export default defineConfig({
     port: 5174,
     host: 'localhost',
     proxy: {
-      // Forward API requests to the Express backend server.
-      // Note: /payment and /recruiter are frontend routes and should not be proxied here.
       '/signup': { target: 'http://localhost:5050', changeOrigin: true },
       '/login': { target: 'http://localhost:5050', changeOrigin: true },
       '/auth': { target: 'http://localhost:5050', changeOrigin: true },
@@ -36,15 +50,12 @@ export default defineConfig({
       '/jobs': { target: 'http://localhost:5050', changeOrigin: true },
       '^/ai$': { target: 'http://localhost:5050', changeOrigin: true },
       '^/ai/': { target: 'http://localhost:5050', changeOrigin: true },
-
       '/pay': { target: 'http://localhost:5050', changeOrigin: true },
       '/user': { target: 'http://localhost:5050', changeOrigin: true },
       '/my-applications': { target: 'http://localhost:5050', changeOrigin: true },
       '/applications': { target: 'http://localhost:5050', changeOrigin: true },
       '/uploads': { target: 'http://localhost:5050', changeOrigin: true },
-      // Forward AI queries to the AI server
       '/api/query': { target: 'http://localhost:5178', changeOrigin: true },
-      // Forward other api requests to the Express backend server
       '/api': { target: 'http://localhost:5050', changeOrigin: true },
     },
   },

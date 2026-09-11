@@ -9,31 +9,53 @@ import {
   savePendingTrial,
   takePendingTrial,
   koraTrialReference,
+  getTrialBillingStartDate,
+  SERVICE_PROVIDER_PLANS,
 } from "../trial";
 
-// Simple in-memory sessionStorage mock for node test environment
-const mockStorage: Record<string, string> = {};
-const storageMock = {
-  getItem: (key: string) => mockStorage[key] ?? null,
+// Simple in-memory storage mock for node test environment
+const mockSessionStorage: Record<string, string> = {};
+const sessionStorageMock = {
+  getItem: (key: string) => mockSessionStorage[key] ?? null,
   setItem: (key: string, value: string) => {
-    mockStorage[key] = String(value);
+    mockSessionStorage[key] = String(value);
   },
   removeItem: (key: string) => {
-    delete mockStorage[key];
+    delete mockSessionStorage[key];
   },
   clear: () => {
-    Object.keys(mockStorage).forEach((k) => delete mockStorage[k]);
+    Object.keys(mockSessionStorage).forEach((k) => delete mockSessionStorage[k]);
+  },
+};
+
+const mockLocalStorage: Record<string, string> = {};
+const localStorageMock = {
+  getItem: (key: string) => mockLocalStorage[key] ?? null,
+  setItem: (key: string, value: string) => {
+    mockLocalStorage[key] = String(value);
+  },
+  removeItem: (key: string) => {
+    delete mockLocalStorage[key];
+  },
+  clear: () => {
+    Object.keys(mockLocalStorage).forEach((k) => delete mockLocalStorage[k]);
   },
 };
 
 Object.defineProperty(globalThis, "sessionStorage", {
-  value: storageMock,
+  value: sessionStorageMock,
+  writable: true,
+});
+
+Object.defineProperty(globalThis, "localStorage", {
+  value: localStorageMock,
   writable: true,
 });
 
 describe("trial utilities and card processing", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
   });
 
   describe("detectCardBrand", () => {
@@ -175,10 +197,15 @@ describe("trial utilities and card processing", () => {
   });
 
   describe("pending trial storage", () => {
-    it("saves and retrieves pending trial token matching email", () => {
-      savePendingTrial("tok_sample_123", "User@Example.com");
+    it("saves and retrieves pending trial token matching email with planKey", () => {
+      savePendingTrial("tok_sample_123", "User@Example.com", "service_verified", {
+        specialty: "Photographer",
+      });
       const retrieved = takePendingTrial("user@example.com");
-      expect(retrieved).toBe("tok_sample_123");
+      expect(retrieved).not.toBeNull();
+      expect(retrieved?.token).toBe("tok_sample_123");
+      expect(retrieved?.planKey).toBe("service_verified");
+      expect(retrieved?.specialty).toBe("Photographer");
 
       // Should be cleared after taking
       const secondTake = takePendingTrial("user@example.com");
@@ -199,6 +226,20 @@ describe("trial utilities and card processing", () => {
       expect(ref1).toMatch(/^JB-SVC-\d+-[a-z0-9]+$/);
       expect(ref2).toMatch(/^JB-SVC-\d+-[a-z0-9]+$/);
       expect(ref1).not.toBe(ref2);
+    });
+  });
+
+  describe("service provider plans configuration", () => {
+    it("defines 3 tiers with 1500, 3000, and 5000 NGN pricing", () => {
+      expect(SERVICE_PROVIDER_PLANS.service_monthly.price).toBe(1500);
+      expect(SERVICE_PROVIDER_PLANS.service_verified.price).toBe(3000);
+      expect(SERVICE_PROVIDER_PLANS.service_featured.price).toBe(5000);
+    });
+
+    it("formats 30-day future date for Spotify checkout display", () => {
+      const { formatted } = getTrialBillingStartDate(30);
+      expect(formatted).toBeTruthy();
+      expect(typeof formatted).toBe("string");
     });
   });
 });

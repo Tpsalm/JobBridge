@@ -50,6 +50,13 @@ interface AuthContextType {
     role: UserRole,
     company?: string,
     serviceCategory?: string,
+    extra?: {
+      specialty?: string;
+      phone?: string;
+      location?: string;
+      trialPlan?: string;
+      cardToken?: string;
+    },
   ) => Promise<{ error: Error | null; session: any | null; emailWarning?: string | null }>;
   signIn: (
     email: string,
@@ -283,22 +290,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role?: string,
       company?: string,
       serviceCategory?: string,
+      extra?: {
+        specialty?: string;
+        phone?: string;
+        location?: string;
+        trialPlan?: string;
+      },
     ) => {
       const meta = authUser?.user_metadata || {};
+      const actualRole = role || meta.role || "job_seeker";
       const payload: Record<string, any> = {
         id: authUser.id,
         email: authUser.email || null,
         full_name: fullName || meta.full_name || "",
-        role: role || meta.role || "job_seeker",
+        role: actualRole,
         company: company ?? meta.company ?? null,
         created_at: authUser.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
-      // Store service_category if provided
+      // Store service_category & specialty for service providers
       const svcCat = serviceCategory || meta.service_category;
       if (svcCat) {
         payload.service_category = svcCat;
+      }
+      const specialty = extra?.specialty || meta.specialty;
+      if (specialty) {
+        payload.specialty = specialty;
+        payload.skills = [specialty];
+      }
+      const phone = extra?.phone || meta.phone;
+      if (phone) {
+        payload.phone = phone;
+      }
+      const location = extra?.location || meta.location;
+      if (location) {
+        payload.location = location;
+      }
+
+      if (actualRole === "provider") {
+        const plan = extra?.trialPlan || meta.trial_plan || "service_verified";
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        payload.is_premium = true;
+        payload.subscription_tier = plan;
+        payload.trial_plan = plan;
+        payload.trial_start_date = now.toISOString();
+        payload.trial_end_date = expiresAt;
+        payload.subscription_expires_at = expiresAt;
+        payload.visibility_until = expiresAt;
+        payload.is_active = true;
+        payload.is_verified = plan === "service_verified" || plan === "service_featured";
+        payload.is_featured = plan === "service_featured";
       }
 
       try {
@@ -312,6 +355,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             error,
           );
           return { error };
+        }
+
+        if (actualRole === "provider") {
+          await supabase
+            .from("service_providers")
+            .upsert(
+              {
+                profile_id: authUser.id,
+                specialty: specialty || svcCat || "Service Professional",
+                is_verified: payload.is_verified || false,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "profile_id" },
+            )
+            .catch(() => {});
         }
 
         return { error: null };
@@ -546,6 +604,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: UserRole,
     company?: string,
     serviceCategory?: string,
+    extra?: {
+      specialty?: string;
+      phone?: string;
+      location?: string;
+      trialPlan?: string;
+      cardToken?: string;
+    },
   ) => {
     try {
       if (role === "admin") {
@@ -557,17 +622,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
       const redirectTo = `${window.location.origin}/auth/callback`;
+      const metadata: Record<string, any> = {
+        full_name: fullName,
+        role: role || "job_seeker",
+        company: company || null,
+        service_category: serviceCategory || null,
+      };
+      if (extra?.specialty) metadata.specialty = extra.specialty;
+      if (extra?.phone) metadata.phone = extra.phone;
+      if (extra?.location) metadata.location = extra.location;
+      if (extra?.trialPlan) metadata.trial_plan = extra.trialPlan;
+      if (extra?.cardToken) metadata.card_token = extra.cardToken;
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: redirectTo,
-          data: {
-            full_name: fullName,
-            role: role || "job_seeker",
-            company: company || null,
-            service_category: serviceCategory || null,
-          },
+          data: metadata,
         },
       });
 
@@ -587,6 +659,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role || "job_seeker",
           company,
           serviceCategory,
+          extra,
         );
 
         if (profileWriteError) {
