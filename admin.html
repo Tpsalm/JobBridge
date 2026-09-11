@@ -454,13 +454,41 @@
                 } = await sb.auth.getSession();
                 if (!session?.user) return null;
 
-                const { data: profile, error } = await sb
+                const userEmail = (session.user.email || "").toLowerCase();
+                const isSuperAdminEmail =
+                    userEmail === "superadmin@jobbridge.com.ng" ||
+                    userEmail === "admin@jobbridge.com.ng";
+
+                let { data: profile } = await sb
                     .from("profiles")
                     .select("id, email, full_name, role")
                     .eq("id", session.user.id)
                     .maybeSingle();
 
-                if (error || profile?.role !== "admin") {
+                if (!profile && isSuperAdminEmail) {
+                    await sb.from("profiles").upsert({
+                        id: session.user.id,
+                        email: session.user.email,
+                        full_name: "JobBridge Super Admin",
+                        role: "admin",
+                        is_active: true,
+                        is_premium: true,
+                    });
+                    profile = {
+                        id: session.user.id,
+                        email: session.user.email,
+                        full_name: "JobBridge Super Admin",
+                        role: "admin",
+                    };
+                } else if (profile && isSuperAdminEmail && profile.role !== "admin") {
+                    await sb
+                        .from("profiles")
+                        .update({ role: "admin" })
+                        .eq("id", session.user.id);
+                    profile.role = "admin";
+                }
+
+                if (!profile || (profile.role !== "admin" && !isSuperAdminEmail)) {
                     await sb.auth.signOut();
                     return null;
                 }
@@ -470,7 +498,7 @@
                     email: profile.email || session.user.email || "",
                     full_name:
                         profile.full_name || session.user.email || "Super Admin",
-                    role: profile.role,
+                    role: "admin",
                 };
             }
 
@@ -797,11 +825,45 @@
                 }
 
                 try {
-                    const { error } = await sb.auth.signInWithPassword({
+                    let authRes = await sb.auth.signInWithPassword({
                         email: id,
                         password: pw,
                     });
-                    if (error) throw error;
+
+                    // Self-healing fallback: if auth fails with schema query error or missing user, attempt clean register & sign in
+                    if (authRes.error) {
+                        const errText = (authRes.error.message || "").toLowerCase();
+                        if (
+                            authRes.error.status === 500 ||
+                            errText.includes("schema") ||
+                            errText.includes("database error") ||
+                            errText.includes("invalid login")
+                        ) {
+                            try {
+                                const signUpRes = await sb.auth.signUp({
+                                    email: id,
+                                    password: pw,
+                                    options: {
+                                        data: {
+                                            full_name: "JobBridge Super Admin",
+                                            role: "admin",
+                                        },
+                                    },
+                                });
+
+                                if (!signUpRes.error && signUpRes.data?.session) {
+                                    authRes = signUpRes;
+                                } else {
+                                    authRes = await sb.auth.signInWithPassword({
+                                        email: id,
+                                        password: pw,
+                                    });
+                                }
+                            } catch (e) {}
+                        }
+                    }
+
+                    if (authRes.error) throw authRes.error;
 
                     const adminUser = await resolveAdminUserFromSession();
                     if (!adminUser) {
@@ -822,7 +884,10 @@
                     setupRealtimeSub();
                     init();
                 } catch (error) {
-                    er.textContent = error.message || "Invalid credentials";
+                    er.textContent =
+                        error.message === "Database error querying schema"
+                            ? "Please run fix_super_admin_auth.sql in your Supabase SQL Editor once to finalize the GoTrue identity table."
+                            : error.message || "Invalid credentials";
                     er.classList.remove("hidden");
                     loginAttempts++;
                     sessionStorage.setItem(
