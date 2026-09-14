@@ -28,6 +28,10 @@ const Blog = lazy(() => import("./pages/Blog"));
 const BlogDetail = lazy(() => import("./pages/BlogDetail"));
 const CEO = lazy(() => import("./pages/CEO"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+const Terms = lazy(() => import("./pages/Terms"));
+const DataSafety = lazy(() => import("./pages/DataSafety"));
+const DeleteAccount = lazy(() => import("./pages/DeleteAccount"));
+const ReportContent = lazy(() => import("./pages/ReportContent"));
 const Business = lazy(() => import("./pages/Business"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const Payment = lazy(() => import("./pages/Payment"));
@@ -80,6 +84,10 @@ export default function App() {
               <Route path="/games" element={<Games />} />
               <Route path="/career" element={<Career />} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/data-safety" element={<DataSafety />} />
+              <Route path="/delete-account" element={<DeleteAccount />} />
+              <Route path="/report-content" element={<ReportContent />} />
               <Route path="/providers" element={<Providers />} />
               <Route path="/blog" element={<Blog />} />
               <Route path="/blog/:id" element={<BlogDetail />} />

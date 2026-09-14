@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import JobBridgeLogo from '../components/JobBridgeLogo';
-import { useModal } from '../contexts/ModalContext';
 import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight, Building, ExternalLink, MapPin, Loader2 } from 'lucide-react';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
@@ -56,7 +55,6 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
 }
 
 export default function Home() {
-  const { openModal } = useModal();
   const navigate = useNavigate();
 
   // ── Featured Jobs (from database) ────────────────────────────────────────
@@ -486,7 +484,9 @@ export default function Home() {
               <Link to="/blog" className="hover:text-gray-900 transition-colors">Blog</Link>
               <Link to="/contact" className="hover:text-gray-900 transition-colors">Contact</Link>
               <Link to="/support" className="hover:text-gray-900 transition-colors">Support</Link>
-              <button onClick={() => openModal('info', { title: 'Privacy Policy', content: 'JobBridge respects your privacy. We collect only necessary data, never sell your information, and allow full data deletion on request.' })} className="hover:text-gray-900 transition-colors">Privacy</button>
+              <Link to="/privacy" className="hover:text-gray-900 transition-colors">Privacy</Link>
+              <Link to="/terms" className="hover:text-gray-900 transition-colors">Terms</Link>
+              <Link to="/data-safety" className="hover:text-gray-900 transition-colors">Data Safety</Link>
             </div>
             <p className="text-xs text-gray-400">© 2026 JobBridge. All rights reserved.</p>
           </div>

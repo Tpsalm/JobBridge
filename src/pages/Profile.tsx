@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
@@ -1103,6 +1104,16 @@ export default function Profile() {
                     )}
                   </button>
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-red-200 bg-red-50/70 p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-red-950">Delete account</h3>
+                  <p className="mt-1 text-sm text-red-800">Request permanent deletion of your account and personal data.</p>
+                </div>
+                <Link to="/delete-account" className="inline-flex items-center justify-center rounded-2xl bg-red-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-800">Delete Account</Link>
               </div>
             </div>
 

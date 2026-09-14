@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Clock, Bookmark, Share2, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send, FileText, Edit3, Loader2 } from 'lucide-react';
+import { Search, MapPin, Clock, Bookmark, Share2, Flag, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send, FileText, Edit3, Loader2 } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
@@ -422,6 +422,14 @@ const Jobs = () => {
                       } catch(e) {}
                     }} className="p-3 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 transition">
                       <Share2 className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => window.location.assign(`/report-content?jobId=${encodeURIComponent(selectedJob.id)}&title=${encodeURIComponent(selectedJob.title)}`)}
+                      className="p-3 rounded-lg border border-gray-300 text-gray-500 hover:bg-amber-50 hover:text-amber-700 transition"
+                      title="Report this job"
+                      aria-label="Report this job"
+                    >
+                      <Flag className="w-5 h-5" />
                     </button>
                   </div>
                 </div>

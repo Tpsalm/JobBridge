@@ -14,6 +14,10 @@ const SECTIONS = [
     content: 'Your information is used to: create and maintain your account, match you with relevant job opportunities, enable recruiters to find your profile, process your applications, provide AI-powered features (resume builder, cover letter generator, interview prep), process payments and activate subscriptions, send important account notifications, improve and personalize your experience on the platform.',
   },
   {
+    title: 'Lawful Basis for Processing (NDPA)',
+    content: 'Under the Nigeria Data Protection Act (NDPA), we process your personal data on the basis of your consent when you create a profile, upload a resume, choose privacy settings, or ask us to contact you. We also process data when it is contractually necessary to create your account, connect job seekers with employers, provide applications and messaging, and deliver services you request. Where required, we may rely on a legal obligation or a legitimate interest that does not override your privacy rights. You may withdraw consent at any time, although this does not affect processing already carried out lawfully.',
+  },
+  {
     title: 'Information Sharing',
     content: 'We do not sell your personal data to third parties. Your profile information is visible to recruiters and employers on the platform as part of the job matching process. We share data with trusted service providers strictly for platform operations: KoraPay (payment processing), OpenAI (AI features — anonymized queries), Supabase (database hosting), and Resend (transactional emails). These providers are contractually bound to protect your data.',
   },
@@ -23,7 +27,11 @@ const SECTIONS = [
   },
   {
     title: 'Your Rights & Choices',
-    content: 'You have full control over your data: Access — view all your profile information anytime from the Profile page at /profile; Edit — update your personal and professional information at any time; Delete — permanently delete your account and all associated data from the Danger Zone at /profile (contact jobbridgesupport@gmail.com for assistance); Privacy Settings — control profile visibility, talent search visibility, and recruiter contact preferences from the Settings page at /settings; Withdraw Consent — you may stop using the platform at any time and request data deletion.',
+    content: 'Under the NDPA, Nigerian data subjects have the right to: (1) access and receive a copy of their personal data; (2) rectify inaccurate or incomplete data; (3) erase their data (the right to be forgotten); (4) restrict processing in appropriate circumstances; (5) object to processing, including processing based on legitimate interests; (6) data portability, meaning receive data in a structured, commonly used format and ask us to transmit it where technically feasible; and (7) withdraw consent. You can edit profile data at /profile, adjust privacy settings, or request account deletion at /delete-account. Contact jobbridgesupport@gmail.com for rights requests; we may verify your identity before responding.',
+  },
+  {
+    title: 'Complaints and NDPC Redress',
+    content: 'Please contact us first at jobbridgesupport@gmail.com so we can investigate and resolve your privacy concern. If you believe your data privacy rights have been violated, you have the right to lodge a complaint with the Nigeria Data Protection Commission (NDPC). More information is available at https://ndpc.gov.ng/.',
   },
   {
     title: 'Cookies & Tracking',
@@ -31,7 +39,11 @@ const SECTIONS = [
   },
   {
     title: 'Data Retention',
-    content: 'We retain your account information for as long as your account remains active. If you delete your account, your profile information, applications, and associated data are permanently removed from our systems. Usage analytics data may be retained in anonymized form for platform improvement. Payment records are retained as required by financial regulations.',
+    content: 'We retain your profile, resumes, applications, and messages while your account is active. If you do not sign in or use the service for 24 consecutive months, we may notify you and delete or anonymize inactive account data after 30 days unless you reactivate it. After a verified account deletion request, we remove personal data and resume files within 30 days, subject to backups being overwritten within 90 days and limited records we must retain for up to 7 years for tax, payment, fraud-prevention, or legal obligations. Usage analytics may be retained only in anonymized form. Android users can start deletion inside the app from Profile > Delete Account or submit a request at /delete-account; uninstalling the app is not required.',
+  },
+  {
+    title: 'International Data Transfers',
+    content: 'JobBridge uses service providers, including Supabase, OpenAI, Resend, and KoraPay, that may process or store data outside Nigeria. Where personal data is transferred outside Nigeria, we apply adequate protection safeguards in line with Section 41 of the Nigeria Data Protection Act, including contractual data-protection obligations, access controls, encryption, and transfer mechanisms recognized by applicable law. You can contact us for more information about relevant safeguards.',
   },
   {
     title: 'Third-Party Links',
