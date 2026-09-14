@@ -149,13 +149,13 @@ export default function Privacy() {
                 Our support team is ready to help with any questions about your data and privacy.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <a
-                  href="mailto:jobbridgesupport@gmail.com"
+                <Link
+                  to="/contact"
                   className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-semibold px-5 py-2.5 rounded-lg hover:bg-blue-50 transition-colors text-sm"
                 >
                   <Mail className="w-4 h-4" />
-                  Email Privacy Team
-                </a>
+                  Contact Privacy Team
+                </Link>
                 <Link
                   to="/support"
                   className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-blue-500 transition-colors border border-blue-500 text-sm"
