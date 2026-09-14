@@ -863,10 +863,11 @@
             //  DATA LOADER & REALTIME SYNC
             // ═══════════════════════════════════════════════════════════════
             async function loadData() {
+                const modalIsOpen = Boolean(modal);
                 S.loading = true;
                 if (!refreshOn) {
                     S.loading = false;
-                    render();
+                    if (!modalIsOpen) render();
                     return;
                 }
                 try {
@@ -1021,7 +1022,9 @@
                     notify("Load error: " + (e.message || e), "error");
                 }
                 S.loading = false;
-                render();
+                // Background polling and realtime events must never replace an
+                // open form while an admin is entering job or broadcast data.
+                if (!modalIsOpen) render();
             }
 
             function setupRealtimeSub() {
