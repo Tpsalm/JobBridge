@@ -74,33 +74,25 @@ export default function BroadcastBanner() {
     async function loadActiveBroadcast() {
       try {
         const { data, error } = await supabase
-          .from("notifications")
-          .select("id, title, content, data, created_at")
+          .from("broadcasts")
+          .select("id, title, content, audience, broadcast_type, display_format, action_url, action_label, created_at")
           .order("created_at", { ascending: false })
           .limit(20);
 
         if (error || !data) return;
 
         // Find the most recent global broadcast
-        const latestGlobal = data.find((n) => {
-          const d = n.data as Record<string, unknown> | null;
-          return (
-            d?.is_global_broadcast === true ||
-            d?.audience === "broadcast" ||
-            d?.source === "admin_console"
-          );
-        });
+        const latestGlobal = data.find((n) => n.audience === "broadcast");
 
         if (latestGlobal && isMounted) {
-          const d = (latestGlobal.data || {}) as Record<string, unknown>;
           const broadcastItem: BroadcastData = {
             id: latestGlobal.id,
             title: latestGlobal.title || "Announcement",
             content: latestGlobal.content || "",
-            broadcast_type: (d.broadcast_type as BroadcastData["broadcast_type"]) || "announcement",
-            action_url: typeof d.action_url === "string" ? d.action_url : undefined,
-            action_label: typeof d.action_label === "string" ? d.action_label : undefined,
-            display_format: (d.display_format as "banner" | "modal") || "banner",
+            broadcast_type: latestGlobal.broadcast_type || "announcement",
+            action_url: latestGlobal.action_url || undefined,
+            action_label: latestGlobal.action_label || undefined,
+            display_format: latestGlobal.display_format || "banner",
             created_at: latestGlobal.created_at,
           };
 
@@ -126,29 +118,29 @@ export default function BroadcastBanner() {
         {
           event: "INSERT",
           schema: "public",
-          table: "notifications",
+          table: "broadcasts",
         },
         (payload) => {
           const row = payload.new as {
             id: string;
             title: string;
             content: string;
-            data: Record<string, unknown>;
+            audience: string;
+            broadcast_type: BroadcastData["broadcast_type"];
+            display_format: "banner" | "modal";
+            action_url: string | null;
+            action_label: string | null;
             created_at: string;
           };
-          if (
-            row?.data?.is_global_broadcast === true ||
-            row?.data?.audience === "broadcast" ||
-            row?.data?.source === "admin_console"
-          ) {
+          if (row?.audience === "broadcast") {
             handleNewBroadcast({
               id: row.id,
               title: row.title,
               content: row.content,
-              broadcast_type: (row.data.broadcast_type as BroadcastData["broadcast_type"]) || "announcement",
-              action_url: row.data.action_url as string,
-              action_label: row.data.action_label as string,
-              display_format: (row.data.display_format as "banner" | "modal") || "banner",
+              broadcast_type: row.broadcast_type || "announcement",
+              action_url: row.action_url || undefined,
+              action_label: row.action_label || undefined,
+              display_format: row.display_format || "banner",
               created_at: row.created_at,
             });
           }
