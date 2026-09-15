@@ -297,7 +297,7 @@ function ProfileModal({ data, onClose }: { data: { name?: string; role?: string;
       <div className="p-5 space-y-5">
         <div className="flex items-start gap-4">
           {data.avatarUrl ? (
-            <img src={data.avatarUrl} alt={data.name || 'Provider'} className="w-16 h-16 rounded-xl object-cover border border-gray-200 flex-shrink-0" />
+            <img src={data.avatarUrl} alt={data.name || 'Provider'} loading="lazy" decoding="async" className="w-16 h-16 rounded-xl object-cover border border-gray-200 flex-shrink-0" />
           ) : (
             <div className="w-16 h-16 rounded-xl bg-secondary-container flex items-center justify-center font-bold text-on-secondary-container text-xl flex-shrink-0">
               {(data.name || 'P').split(' ').map(n => n[0]).join('').slice(0, 2)}

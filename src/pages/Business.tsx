@@ -655,6 +655,8 @@ export default function Business() {
       <img
         src={advert.imageUrl || advertImage(advert.category)}
         alt={advert.title}
+        loading="lazy"
+        decoding="async"
         className="w-full h-36 object-cover"
       />
       <div className="p-5">
@@ -1018,6 +1020,8 @@ export default function Business() {
                       <img
                         src={imageFile ? URL.createObjectURL(imageFile) : formData.imageUrl}
                         alt="Business preview"
+                        loading="lazy"
+                        decoding="async"
                         className="w-20 h-20 rounded-lg object-cover border border-gray-200"
                       />
                     )}
@@ -1211,6 +1215,8 @@ export default function Business() {
                   <img
                     src={advert.imageUrl || advertImage(advert.category)}
                     alt={advert.title}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-36 object-cover"
                   />
                   <div className="p-5">
@@ -1315,7 +1321,7 @@ export default function Business() {
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-gray-50 rounded-lg overflow-hidden">
-              <img src="https://images.pexels.com/photos/5668855/pexels-photo-5668855.jpeg?auto=compress&cs=tinysrgb&w=400&h=200&dpr=2" alt="Effective adverts" className="w-full h-36 object-cover" />
+              <img src="https://images.pexels.com/photos/5668855/pexels-photo-5668855.jpeg?auto=compress&cs=tinysrgb&w=400&h=200&dpr=2" alt="Effective adverts" loading="lazy" decoding="async" className="w-full h-36 object-cover" />
               <div className="p-4">
                 <h3 className="font-medium text-gray-900 mb-2">How to Write Effective Adverts</h3>
                 <p className="text-sm text-gray-600 mb-2">Learn the secrets to creating ads that convert viewers into customers.</p>
@@ -1323,7 +1329,7 @@ export default function Business() {
               </div>
             </div>
             <div className="bg-gray-50 rounded-lg overflow-hidden">
-              <img src="https://images.pexels.com/photos/3760067/pexels-photo-3760067.jpeg?auto=compress&cs=tinysrgb&w=400&h=200&dpr=2" alt="Ad ROI" className="w-full h-36 object-cover" />
+              <img src="https://images.pexels.com/photos/3760067/pexels-photo-3760067.jpeg?auto=compress&cs=tinysrgb&w=400&h=200&dpr=2" alt="Ad ROI" loading="lazy" decoding="async" className="w-full h-36 object-cover" />
               <div className="p-4">
                 <h3 className="font-medium text-gray-900 mb-2">Maximizing Your Ad ROI</h3>
                 <p className="text-sm text-gray-600 mb-2">Get the most out of your advertising budget with these proven strategies.</p>
@@ -1342,6 +1348,8 @@ export default function Business() {
               <img
                 src={viewAdvert.imageUrl || advertImage(viewAdvert.category)}
                 alt={viewAdvert.title}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-48 object-cover"
               />
               <button
@@ -1475,6 +1483,8 @@ export default function Business() {
                     <img
                       src={editImageFile ? URL.createObjectURL(editImageFile) : editForm.imageUrl}
                       alt="Business preview"
+                      loading="lazy"
+                      decoding="async"
                       className="w-20 h-20 rounded-lg object-cover border border-gray-200"
                     />
                   )}

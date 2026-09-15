@@ -1024,7 +1024,7 @@
                 S.loading = false;
                 // Background polling and realtime events must never replace an
                 // open form while an admin is entering job or broadcast data.
-                if (!modalIsOpen) render();
+                if (!modalIsOpen && !modal) render();
             }
 
             function setupRealtimeSub() {

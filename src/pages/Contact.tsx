@@ -164,6 +164,8 @@ export default function Contact() {
               <img
                 src="https://images.pexels.com/photos/927022/pexels-photo-927022.jpeg?auto=compress&cs=tinysrgb&w=600&h=300&dpr=2"
                 alt="Contact us"
+                loading="lazy"
+                decoding="async"
                 className="w-full h-48 object-cover"
               />
             </div>

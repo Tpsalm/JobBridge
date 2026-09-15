@@ -373,7 +373,7 @@ const Jobs = () => {
                   <div className="flex items-start gap-4">
                     <CompanyLogo company={selectedJob.company} className="w-14 h-14 rounded-xl" fallbackClassName={`${getCompanyColor(selectedJob.company)} shadow-sm`} />
                     <div className="flex-1 min-w-0">
-                      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight break-words">{selectedJob.title}</h1>
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight break-words">{selectedJob.title}</h2>
                       <p className="text-sm text-gray-600 mt-1 flex flex-wrap items-center gap-1.5 break-words">
                         <Building className="w-4 h-4 text-gray-400" />
                         {selectedJob.company}

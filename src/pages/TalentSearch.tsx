@@ -362,7 +362,7 @@ const TalentSearch: React.FC = () => {
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-start gap-4">
                         {candidate.img ? (
-                          <img src={candidate.img} alt={candidate.name} className="w-12 h-12 rounded-full object-cover border-2 border-blue-100 shrink-0" />
+                          <img src={candidate.img} alt={candidate.name} loading="lazy" decoding="async" className="w-12 h-12 rounded-full object-cover border-2 border-blue-100 shrink-0" />
                         ) : (
                           <div className={`${getAvatarColor(candidate.id)} text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm`}>
                             {getInitials(candidate.name)}

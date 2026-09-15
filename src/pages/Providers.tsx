@@ -219,6 +219,8 @@ export default function Providers() {
             <img
               src={p.img}
               alt={p.name}
+              loading="lazy"
+              decoding="async"
               className="w-14 h-14 rounded-xl object-cover border-2 border-slate-100 shrink-0"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = 'none';
@@ -528,7 +530,7 @@ export default function Providers() {
           <div className="w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
             <div className="flex items-center gap-3 p-4 border-b shrink-0">
               {chatProvider.img ? (
-                <img src={chatProvider.img} alt={chatProvider.name} className="w-10 h-10 rounded-xl object-cover border-2 border-slate-100" />
+                <img src={chatProvider.img} alt={chatProvider.name} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover border-2 border-slate-100" />
               ) : (
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
                   {getInitials(chatProvider.name)}

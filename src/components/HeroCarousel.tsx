@@ -35,6 +35,8 @@ export default function HeroCarousel({ images, alt = '', interval = 5000, classN
             key={i}
             src={src}
             alt={i === 0 ? alt : ''}
+            loading={i === 0 ? 'eager' : 'lazy'}
+            decoding="async"
             className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ease-out ${
               variant === 'slide3d'
                 ? isActive

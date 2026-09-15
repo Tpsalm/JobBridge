@@ -172,7 +172,7 @@ const Services = () => {
                 <div className="p-6">
                   {/* Avatar */}
                   <div className="flex items-start justify-between mb-4">
-                    <img src={provider.img} alt={provider.name} className="w-14 h-14 rounded-full object-cover border-2 border-blue-100" />
+                    <img src={provider.img} alt={provider.name} loading="lazy" decoding="async" className="w-14 h-14 rounded-full object-cover border-2 border-blue-100" />
                     <div className="flex items-center gap-1">
                       <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                       <span className="font-semibold text-gray-900">{provider.rating}</span>

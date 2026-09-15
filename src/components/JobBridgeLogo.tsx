@@ -20,6 +20,8 @@ const LogoMark: React.FC<{ size: number }> = ({ size }) => (
     alt="JobBridge logo"
     width={size}
     height={size}
+    loading="eager"
+    decoding="async"
     className="object-contain"
     style={{ borderRadius: size * 0.18 }}
   />

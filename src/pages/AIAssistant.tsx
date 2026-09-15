@@ -134,7 +134,7 @@ export default function AIAssistant() {
         {/* Sidebar - Quick Actions */}
         <div className="w-full lg:w-72 space-y-3">
           <div className="rounded-xl overflow-hidden mb-4 hidden lg:block">
-            <img src={IMG.hero.ai} alt="AI career assistant" className="w-full h-36 object-cover" />
+            <img src={IMG.hero.ai} alt="AI career assistant" loading="lazy" decoding="async" className="w-full h-36 object-cover" />
           </div>
 
           <div className="hidden lg:block mb-4">

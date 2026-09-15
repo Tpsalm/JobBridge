@@ -38,6 +38,7 @@ import {
   formatCardCvv,
   validateCardDetails,
   generateSecureCardToken,
+  activateServiceTrialForUser,
 } from "../lib/trial";
 
 declare global {

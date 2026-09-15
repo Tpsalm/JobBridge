@@ -27,6 +27,8 @@ export default function CompanyLogo({ company, className = 'w-11 h-11 rounded-lg
     <img
       src={logoUrl}
       alt={`${company} logo`}
+      loading="lazy"
+      decoding="async"
       className={`${className} object-contain bg-white border border-gray-100 shrink-0`}
       onError={() => setFailed(true)}
     />

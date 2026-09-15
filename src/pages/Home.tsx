@@ -45,6 +45,8 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
           key={i}
           src={src}
           alt=""
+          loading={i === 0 ? 'eager' : 'lazy'}
+          decoding="async"
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
             i === idx ? 'opacity-100' : 'opacity-0'
           }`}
@@ -148,6 +150,8 @@ export default function Home() {
             <img
               src="https://images.pexels.com/photos/3194519/pexels-photo-3194519.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&dpr=2"
               alt="Professional workspace"
+              loading="eager"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover opacity-30"
             />
           </video>
@@ -226,6 +230,7 @@ export default function Home() {
                     <img
                       src={ad.image_url || advertImage(ad.category)}
                       alt={ad.title}
+                      decoding="async"
                       className="w-full h-36 object-cover group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
                     />
@@ -397,7 +402,7 @@ export default function Home() {
             {profileCards.map(({ name, role, img, color }) => (
               <Card3D key={name} className="bg-white rounded-2xl shadow-lg overflow-hidden w-64" strength={8}>
                 {img ? (
-                  <img src={img} alt={name} className="w-full h-64 object-cover" />
+                  <img src={img} alt={name} loading="lazy" decoding="async" className="w-full h-64 object-cover" />
                 ) : (
                   <div className={`w-full h-64 ${color} flex items-center justify-center`}>
                     <span className="text-5xl font-bold text-white">{name.split(' ').map(n => n[0]).slice(0, 2).join('')}</span>
@@ -435,7 +440,7 @@ export default function Home() {
                 </div>
                 <p className="text-sm text-gray-700 leading-relaxed mb-4">"{quote}"</p>
                 <div className="flex items-center gap-3">
-                  <img src={avatar} alt={name} className="w-10 h-10 rounded-full object-cover border-2 border-blue-100" />
+                  <img src={avatar} alt={name} loading="lazy" decoding="async" className="w-10 h-10 rounded-full object-cover border-2 border-blue-100" />
                   <div>
                     <div className="text-sm font-semibold text-gray-900">{name}</div>
                     <div className="text-xs text-gray-500">{role} at {company}</div>

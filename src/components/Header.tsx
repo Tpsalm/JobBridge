@@ -323,6 +323,8 @@ export default function Header() {
                     <img
                       src={profile.avatar_url}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="w-7 h-7 rounded-full object-cover"
                     />
                   ) : (
@@ -476,6 +478,8 @@ export default function Header() {
                       <img
                         src={profile.avatar_url}
                         alt=""
+                        loading="lazy"
+                        decoding="async"
                         className="w-7 h-7 rounded-full object-cover"
                       />
                     ) : (

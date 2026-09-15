@@ -163,7 +163,7 @@ export default function MyJobs() {
         ) : filteredItems.length === 0 ? (
           /* Empty State */
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <img src={IMG.empty.noSaved} alt="" className="w-full max-w-xs rounded-xl mb-5 object-cover" />
+            <img src={IMG.empty.noSaved} alt="" loading="lazy" decoding="async" className="w-full max-w-xs rounded-xl mb-5 object-cover" />
             <h3 className="text-xl font-semibold text-gray-800 mb-2">
               {emptyMessages[activeTab].title}
             </h3>

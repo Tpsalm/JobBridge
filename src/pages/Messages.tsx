@@ -518,6 +518,8 @@ export default function Messages() {
                 <img
                   src={IMG.empty.noMessages}
                   alt=""
+                  loading="lazy"
+                  decoding="async"
                   className="w-full max-w-[200px] mx-auto rounded-lg mb-4 opacity-80"
                 />
                 <p className="text-sm text-gray-500 mb-3">Sign in to see your messages</p>
@@ -538,6 +540,8 @@ export default function Messages() {
                 <img
                   src={IMG.empty.noMessages}
                   alt=""
+                  loading="lazy"
+                  decoding="async"
                   className="w-full max-w-[200px] mx-auto rounded-lg mb-3 opacity-80"
                 />
                 <p className="text-sm text-gray-400">No conversations yet</p>

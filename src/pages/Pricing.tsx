@@ -39,6 +39,8 @@ export default function Pricing() {
           <img
             src="https://images.pexels.com/photos/3756679/pexels-photo-3756679.jpeg?auto=compress&cs=tinysrgb&w=800&h=300&dpr=2"
             alt=""
+            loading="lazy"
+            decoding="async"
             className="absolute inset-0 w-full h-full object-cover opacity-10"
           />
           <div className="relative">

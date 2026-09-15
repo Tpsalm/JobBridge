@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /auth/
+Disallow: /profile
+Disallow: /settings
+Disallow: /payment
+Disallow: /my-jobs
+Disallow: /messages
+Disallow: /notifications
+Disallow: /following
+Disallow: /reviews
+Disallow: /job-preferences
+Disallow: /profile-visibility
+
+Sitemap: https://www.jobbridge.com.ng/sitemap.xml

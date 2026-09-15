@@ -44,12 +44,14 @@ const CEO: React.FC = () => {
     }
   ];
 
-  const imgSrc = `${import.meta.env.BASE_URL}MrVictor1.jpeg.png`;
+  const imgSrc = `${import.meta.env.BASE_URL}mr-victor-eniola.jpg`;
 
   const ImageOrPlaceholder: React.FC = () => (
     <img
       src={imgSrc}
       alt="Mr. Victor Eniola, CEO of JobBridge"
+      loading="eager"
+      decoding="async"
       className="w-full h-full object-contain"
       onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
     />
@@ -90,6 +92,8 @@ const CEO: React.FC = () => {
               <img
                 src={imgSrc}
                 alt="Mr. Victor Eniola"
+                loading="lazy"
+                decoding="async"
                 className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md flex-shrink-0"
                 style={{ objectPosition: 'center 20%' }}
                 onError={e => { (e.target as HTMLImageElement).src = ''; }}

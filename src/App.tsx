@@ -6,6 +6,8 @@ import { ModalRenderer } from "./components/Modal";
 import SwipeNavigator from "./components/SwipeNavigator";
 import BroadcastBanner from "./components/BroadcastBanner";
 import ProtectedRoute from "./components/ProtectedRoute";
+import SEO from "./components/SEO";
+import CanonicalRedirect from "./components/CanonicalRedirect";
 
 // Eagerly loaded core entry pages for instant landing speed
 import Home from "./pages/Home";
@@ -63,6 +65,8 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ModalProvider>
+          <SEO />
+          <CanonicalRedirect />
           <BroadcastBanner />
           <SwipeNavigator />
           <Suspense fallback={<PageLoadingFallback />}>
@@ -111,7 +115,7 @@ export default function App() {
               <Route path="/job-preferences" element={<JobPreferences />} />
               <Route path="/following" element={<Following />} />
               <Route path="/reviews" element={<Reviews />} />
-              <Route path="/revenue" element={<Pricing />} />
+              <Route path="/revenue" element={<Navigate to="/pricing" replace />} />
               <Route
                 path="/settings"
                 element={<Navigate to="/profile" replace />}

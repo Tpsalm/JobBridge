@@ -358,7 +358,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (actualRole === "provider") {
-          await supabase
+          const { error: providerError } = await supabase
             .from("service_providers")
             .upsert(
               {
@@ -368,8 +368,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 updated_at: new Date().toISOString(),
               },
               { onConflict: "profile_id" },
-            )
-            .catch(() => {});
+            );
+
+          if (providerError) {
+            console.warn(
+              "[AuthContext createProfileRecord] service provider upsert note:",
+              providerError,
+            );
+          }
         }
 
         return { error: null };

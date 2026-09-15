@@ -347,11 +347,14 @@ async function directDbActivateTrial(
     }
 
     // Also update service_providers table if row exists
-    await supabase
+    const { error: providerErr } = await supabase
       .from("service_providers")
       .update({ is_active: true, is_verified: isVerified })
-      .eq("profile_id", userId)
-      .catch(() => {});
+      .eq("profile_id", userId);
+
+    if (providerErr) {
+      console.warn("[trial] Direct service provider update returned error:", providerErr);
+    }
 
     return true;
   } catch (err) {

@@ -46,7 +46,7 @@ export default function About() {
       role: 'Chief Executive Officer',
       badge: 'Leadership',
       description: 'Victor is the CEO and founder of JobBridge. With extensive experience in HR technology and marketplace growth, he leads the company’s vision to connect talent and employers through better matching, fairness, and technology-driven insights.',
-      image: `${import.meta.env.BASE_URL}MrVictor1.jpeg.png`,
+      image: `${import.meta.env.BASE_URL}mr-victor-eniola.jpg`,
     },
     {
       name: 'Owoyemi Samuel Tobi',
@@ -107,6 +107,8 @@ export default function About() {
                 <img
                   src="https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=600&h=450&dpr=2"
                   alt="Team collaboration"
+                  loading="lazy"
+                  decoding="async"
                   className="rounded-2xl shadow-xl"
                 />
                 <div className="absolute -bottom-4 -left-4 bg-blue-700 text-white rounded-xl p-4 shadow-lg">
@@ -195,6 +197,8 @@ export default function About() {
                       <img
                         src={member.image}
                         alt={member.name}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                         style={{ objectPosition: 'center 20%' }}
                         onError={e => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}images/team-profile.jpeg`; }}

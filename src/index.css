@@ -44,6 +44,10 @@ img, picture, video, canvas, svg {
   max-width: 100%;
 }
 
+img, video {
+  height: auto;
+}
+
 /* Apple (44pt) / Google (48dp) touch-target floors on phones & tablets */
 @media (pointer: coarse) and (max-width: 767px) {
   button,
@@ -225,4 +229,3 @@ html { scroll-behavior: smooth; }
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-

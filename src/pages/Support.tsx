@@ -137,6 +137,8 @@ export default function Support() {
             <img
               src="https://images.pexels.com/photos/927022/pexels-photo-927022.jpeg?auto=compress&cs=tinysrgb&w=800&h=300&dpr=2"
               alt="Support center"
+              loading="eager"
+              decoding="async"
               className="w-full h-48 object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 to-blue-700/60 flex items-center justify-center">
