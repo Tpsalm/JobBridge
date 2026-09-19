@@ -23,7 +23,7 @@ export async function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-export async function subscribeToPush(vapidPublicKey: string) {
+export async function subscribeToPush(vapidPublicKey: string, userId?: string) {
   try {
     const reg = await registerServiceWorker();
     if (!reg) throw new Error('No service worker registration');
@@ -38,7 +38,7 @@ export async function subscribeToPush(vapidPublicKey: string) {
     await fetch('/api/register-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscription: sub }),
+      body: JSON.stringify({ subscription: sub, user_id: userId || null }),
     });
 
     return sub;

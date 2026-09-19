@@ -138,7 +138,7 @@ export default function Notifications() {
         push({ message: "Push is not configured on this site.", type: "error" });
         return;
       }
-      await subscribeToPush(VAPID_PUBLIC);
+      await subscribeToPush(VAPID_PUBLIC, user?.id);
       setPushSubscribed(true);
       push({ message: "Subscribed to browser notifications.", type: "success" });
     } catch (e) {

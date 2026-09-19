@@ -410,6 +410,7 @@
                 window.__JOBBRIDGE_SUPABASE_ANON_KEY__ || "";
             const FUNCTIONS_BASE_URL = `${SUPABASE_URL}/functions/v1`;
             const ADMIN_CREATE_USER_FUNCTION = `${FUNCTIONS_BASE_URL}/admin-create-user`;
+            const SEND_BROADCAST_API = "/api/send-broadcast";
 
             function isSupabaseConfigured() {
                 return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
@@ -530,6 +531,20 @@
                 if (!res.ok) {
                     throw new Error(json.error || `HTTP ${res.status}`);
                 }
+                return json;
+            }
+
+            async function callSendBroadcast(payload) {
+                const accessToken = await getAccessToken();
+                if (!accessToken) throw new Error("Admin session expired");
+                const res = await fetch(SEND_BROADCAST_API, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
+                    body: JSON.stringify(payload),
+                });
+                const text = await res.text();
+                const json = text ? JSON.parse(text) : {};
+                if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
                 return json;
             }
 
@@ -4006,6 +4021,10 @@
                                     value: "providers",
                                     label: "All Service Providers Only",
                                 },
+                                ...S.users.map((user) => ({
+                                    value: `user:${user.id}`,
+                                    label: `Direct: ${user.email || user.full_name || user.id}`,
+                                })),
                             ],
                             required: true,
                         },
@@ -4070,6 +4089,8 @@
                                     created_by: S.user.id,
                                 });
                                 if (insertError) throw insertError;
+
+                                await callSendBroadcast({ title, content, audience });
 
                                 // 2) Dispatch Realtime Broadcast
                                 const channel = sb.channel(
