@@ -410,7 +410,7 @@
                 window.__JOBBRIDGE_SUPABASE_ANON_KEY__ || "";
             const FUNCTIONS_BASE_URL = `${SUPABASE_URL}/functions/v1`;
             const ADMIN_CREATE_USER_FUNCTION = `${FUNCTIONS_BASE_URL}/admin-create-user`;
-            const SEND_BROADCAST_API = "/api/send-broadcast";
+            const SEND_BROADCAST_API = "/api/create-notification";
 
             function isSupabaseConfigured() {
                 return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
@@ -523,7 +523,7 @@
                         apikey: SUPABASE_ANON_KEY,
                         Authorization: "Bearer " + accessToken,
                     },
-                    body: JSON.stringify(payload),
+                    body: JSON.stringify({ ...payload, broadcast: true }),
                 });
 
                 const text = await res.text();
