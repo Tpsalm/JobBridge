@@ -6,6 +6,9 @@ const PORT = Number(process.env.NOTIFICATION_WS_PORT || 3001);
 const adminKey = process.env.JOBBRIDGE_WS_ADMIN_KEY || "jobbridge-local-dev";
 const defaultAudience = process.env.DEFAULT_NOTIFICATION_AUDIENCE || "broadcast";
 const verificationToken = process.env.JOBBRIDGE_WS_SHARED_SECRET || "";
+function isValidVerificationToken(token) {
+  return !verificationToken || token === verificationToken;
+}
 
 const clients = new Map();
 const rooms = new Map();
@@ -144,7 +147,7 @@ wss.on("connection", (socket, request) => {
   const token = url.searchParams.get("token") || "";
   const socketId = randomUUID();
 
-  if (verificationToken && token && token !== verificationToken) {
+  if (!isValidVerificationToken(token) ) {
     socket.close(1008, "Invalid auth token");
     return;
   }
@@ -213,4 +216,4 @@ server.listen(PORT, () => {
   console.log(`JobBridge WebSocket notification server listening on ws://localhost:${PORT}/ws/notifications`);
 });
 
-export { dispatchToTarget, buildPayload, targetRoomNames };
+export { dispatchToTarget, buildPayload, targetRoomNames, isValidVerificationToken };

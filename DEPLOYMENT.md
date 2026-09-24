@@ -1,14 +1,27 @@
-# JobBridge Deployment Guide (Supabase-only)
+# JobBridge Deployment Guide
 
 ## Architecture
 
 ```
 Browser ───► Supabase (Auth, Database, Storage)
                │
-               └── OpenAI API (optional, for AI features)
+               ├── OpenAI API (optional, for AI features)
+               └── WebSocket service (persistent notification fan-out)
 ```
 
-The Express backend is **no longer needed**. Everything runs directly between the browser and Supabase.
+The Express backend is **no longer needed**. The frontend uses Supabase directly, while notifications use a separate persistent Node WebSocket service.
+
+## WebSocket notification service
+
+Deploy the repository as a persistent Railway service using `railway.json`. Set these Railway variables:
+
+| Variable | Value |
+|---|---|
+| `NOTIFICATION_WS_PORT` | `3001` |
+| `JOBBRIDGE_WS_ADMIN_KEY` | A long random value shared only with Vercel |
+| `JOBBRIDGE_WS_SHARED_SECRET` | A long random value used by authenticated clients |
+
+Expose the service at `https://ws.jobbridge.com.ng` with WebSocket upgrade support. The public endpoints are `wss://ws.jobbridge.com.ng/ws/notifications` and `https://ws.jobbridge.com.ng/health`.
 
 ---
 
@@ -34,10 +47,15 @@ The Express backend is **no longer needed**. Everything runs directly between th
 | `VITE_SUPABASE_URL` | `https://gtstcstmezfiepzlvndt.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key (already in `.env`) |
 | `VITE_PAYSTACK_PUBLIC_KEY` | (Optional) Paystack public key for payments |
+| `VITE_WS_URL` | `wss://ws.jobbridge.com.ng/ws/notifications` |
+| `NOTIFICATION_WS_URL` | `https://ws.jobbridge.com.ng` |
+| `JOBBRIDGE_WS_ADMIN_KEY` | The same admin key configured on the WebSocket service |
 
 **Important:** Do NOT add OpenAI API key to Vercel environment variables. Instead, set it as a Supabase secret. See [AI_SETUP.md](./AI_SETUP.md) for details.
 
-8. Deploy
+8. Deploy and redeploy after changing any environment variable.
+
+Never commit private keys or production secrets. Use Vercel and Railway environment settings for server-side secrets.
 
 ## Step 3: Set up Supabase Auth
 
