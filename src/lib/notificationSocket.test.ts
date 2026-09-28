@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { getNotificationRooms, normalizeNotificationPayload } from "./notificationSocket";
+import {
+  getNotificationRooms,
+  normalizeNotificationPayload,
+  resolveNotificationSocketUrl,
+} from "./notificationSocket";
+
+describe("notification socket URL configuration", () => {
+  const fallbackUrl = "wss://ws.jobbridge.com.ng/ws/notifications";
+
+  it("falls back when the configured URL is malformed", () => {
+    expect(
+      resolveNotificationSocketUrl("wss://://jobbridge.com.ng/ws/notifications", fallbackUrl),
+    ).toBe(fallbackUrl);
+  });
+
+  it("rejects non-WebSocket protocols", () => {
+    expect(resolveNotificationSocketUrl("https://example.com/socket", fallbackUrl)).toBe(fallbackUrl);
+  });
+
+  it("preserves a valid WebSocket URL", () => {
+    expect(resolveNotificationSocketUrl("wss://socket.example.com/notifications", fallbackUrl)).toBe(
+      "wss://socket.example.com/notifications",
+    );
+  });
+});
 
 describe("notification socket routing", () => {
   it("groups global role and user rooms for a broadcast target", () => {

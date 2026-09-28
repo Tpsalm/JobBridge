@@ -36,6 +36,24 @@ export interface NotificationSocketOptions {
   authToken?: string;
 }
 
+export function resolveNotificationSocketUrl(
+  configuredUrl: string | undefined,
+  fallbackUrl: string,
+): string {
+  const candidate = configuredUrl?.trim();
+  if (!candidate) return fallbackUrl;
+
+  try {
+    const parsedUrl = new URL(candidate);
+    if (parsedUrl.protocol !== "ws:" && parsedUrl.protocol !== "wss:") {
+      return fallbackUrl;
+    }
+    return parsedUrl.toString();
+  } catch {
+    return fallbackUrl;
+  }
+}
+
 export function getNotificationRooms(options: {
   userId?: string;
   role?: string;
@@ -106,7 +124,10 @@ export class JobBridgeNotificationSocket {
           ? `${window.location.protocol === "https:" ? "wss" : "ws"}://localhost:3001/ws/notifications`
           : ""
         : "wss://ws.jobbridge.com.ng/ws/notifications";
-    this.url = options.url || import.meta.env.VITE_WS_URL || fallbackUrl;
+    this.url = resolveNotificationSocketUrl(
+      options.url || import.meta.env.VITE_WS_URL,
+      fallbackUrl,
+    );
   }
 
   public on(eventName: string, callback: (event: SocketMessage) => void): () => void {
