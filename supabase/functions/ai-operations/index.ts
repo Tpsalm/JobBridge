@@ -79,38 +79,69 @@ async function embed(text: string): Promise<number[]> {
   return data.data[0]?.embedding || [];
 }
 
+function sanitizeMarkdownOutput(text: string): string {
+  return String(text ?? '')
+    .trim()
+    .replace(/^```(?:markdown|md)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+}
+
 async function generateResume(
   resumeText: string,
   jobTitle: string,
   jobDescription: string
 ): Promise<string> {
-  const systemPrompt = `You are an expert resume writer. Your task is to tailor a resume for a specific job.
-Follow these rules:
-1. Keep the resume to one page maximum
-2. Use action verbs and quantifiable achievements
-3. Highlight skills matching the job description
-4. Maintain professional formatting
-5. Remove irrelevant experience
-6. Optimize for ATS (Applicant Tracking Systems)
-7. Include keywords from the job description
-8. Return ONLY the tailored resume text, no explanations or markdown commentary`;
+  const systemPrompt = `You are a Principal Technical Resume Writer and ATS Compliance Architect specializing in the United States corporate hiring standard. Your job is to parse raw user career history and output a highly optimized, high-impact resume.
 
-  const userPrompt = `Tailor this resume for the "${jobTitle}" position.
+[US ATS COMPLIANCE ARCHITECTURE]
+- Font Strategy Layout: Emulate a clean, single-column design. Do not use columns, tables, graphics, headers, or footers in the text output, as these break ATS parsers.
+- Chronological Order: Work history and education must be presented in reverse chronological order (most recent first).
+- Quantified Impact: Every bullet point in the professional history section must utilize the Google X-Y-Z formula: 'Accomplished [X] as measured by [Y], by doing [Z]' using strong action verbs (e.g., Spearheaded, Architected, Engineered).
+- Factual Integrity: Use only facts supported by the source career history. Never invent names, dates, credentials, tools, responsibilities, or metrics. Apply X-Y-Z with supplied metrics; when no metric is supplied, write a truthful impact-focused bullet without fabricating one.
 
-Current Resume:
+[REQUIRED 8 PROFESSIONAL SECTIONS]
+Use these exact section headings, once each, in this order:
+1. PROFESSIONAL CONTACT SUMMARY (name, title, location, LinkedIn, portfolio link)
+2. EXECUTIVE SUMMARY (3-4 sentences covering value proposition, experience, and domain expertise)
+3. CORE COMPETENCIES & EXPERTISE (hard skills, technical tools, and frameworks as simple bullets)
+4. PROFESSIONAL EXPERIENCE (company, location, role, dates, and 3-5 impact-focused bullets per role)
+5. TECHNICAL PROJECTS (project, tech stack, role, and architectural or performance outcomes)
+6. EDUCATION & CREDENTIALS (degree, major, institution, graduation year, and supported distinctions)
+7. CERTIFICATIONS & LICENSES (credential, issuing authority, and dates when supplied)
+8. LEADERSHIP & AWARDS (volunteering, publications, open-source contributions, and awards when supplied)
+
+[OUTPUT RULES]
+Output the content directly in clean Markdown (or the application's exact target JSON scheme). Do not add any conversational filler before or after the resume (e.g., do not say 'Here is your resume'). Start immediately with Section 1.`;
+
+  const userPrompt = `Tailor and rewrite the candidate's raw career history into a US-standard ATS-compliant resume for the "${jobTitle}" role.
+
+Raw career history:
 ${resumeText}
 
-Job Description:
+Target role:
+${jobTitle}
+
+Target job description:
 ${jobDescription}
 
-Please provide a tailored resume that highlights relevant experience, incorporates keywords from the job description, and is ATS-friendly.`;
+Requirements:
+- Use exact section names and order listed above.
+- Use reverse chronological work and education order.
+- Keep the single-column, ATS-safe structure.
+- Use the Google X-Y-Z formula for PROFESSIONAL EXPERIENCE bullets when the source provides the facts and metrics; never invent a metric to satisfy the formula.
+- Do not infer or fabricate missing contact details, dates, qualifications, achievements, or credentials. Omit unavailable facts rather than inserting placeholders.
+- Include relevant keywords from the job description without keyword stuffing.
+- Remove filler, generic summaries, and anything not directly relevant to the target role.
+- Format as clean Markdown only. Start immediately with the first section header and do not include any extra intro or closing text.`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ];
 
-  return await chat(messages);
+  const result = await chat(messages);
+  return sanitizeMarkdownOutput(result);
 }
 
 async function generateCoverLetter(

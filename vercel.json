@@ -1,17 +1,4 @@
 {
-  "redirects": [
-    {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "host",
-          "value": "jobbridge.com.ng"
-        }
-      ],
-      "destination": "https://www.jobbridge.com.ng/$1",
-      "permanent": true
-    }
-  ],
   "rewrites": [
     {
       "source": "/admin",

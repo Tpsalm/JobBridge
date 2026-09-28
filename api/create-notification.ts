@@ -5,8 +5,9 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API
 const RESEND_FROM = process.env.RESEND_FROM || 'JobBridge <onboarding@resend.dev>';
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || process.env.VITE_VAPID_PRIVATE_KEY;
-const NOTIFICATION_WS_URL = process.env.NOTIFICATION_WS_URL || process.env.VITE_WS_URL || 'http://localhost:3001';
-const JOBBRIDGE_WS_ADMIN_KEY = process.env.JOBBRIDGE_WS_ADMIN_KEY || 'jobbridge-local-dev';
+const isProduction = process.env.NODE_ENV === 'production';
+const NOTIFICATION_WS_URL = process.env.NOTIFICATION_WS_URL || (isProduction ? '' : 'http://localhost:3001');
+const JOBBRIDGE_WS_ADMIN_KEY = process.env.JOBBRIDGE_WS_ADMIN_KEY || (isProduction ? '' : 'jobbridge-local-dev');
 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails('mailto:jobbridgesupport@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE);
@@ -21,12 +22,14 @@ type BroadcastTarget = {
 };
 
 function normalizeChannels(value: unknown): Set<string> {
-  if (!Array.isArray(value) || value.length === 0) return new Set(['in_app', 'email', 'push']);
+  if (!Array.isArray(value)) return new Set(['in_app', 'email', 'push']);
   return new Set(value.filter((channel): channel is string => typeof channel === 'string'));
 }
 
 async function notifySocketClients(target: BroadcastTarget, payload: Record<string, unknown>) {
-  if (!NOTIFICATION_WS_URL) return { delivered: 0, configured: false };
+  if (!NOTIFICATION_WS_URL || !JOBBRIDGE_WS_ADMIN_KEY) {
+    return { delivered: 0, configured: false, error: 'Notification socket URL or admin key is not configured' };
+  }
 
   try {
     const response = await fetch(`${NOTIFICATION_WS_URL.replace(/\/+$/, '')}/api/notify`, {
@@ -52,7 +55,8 @@ async function notifySocketClients(target: BroadcastTarget, payload: Record<stri
     }
 
     const json = await response.json().catch(() => ({}));
-    return { delivered: Number(json.delivered || 0), configured: true, status: json };
+    const delivered = Number(json.delivered);
+    return { delivered: Number.isFinite(delivered) && delivered > 0 ? delivered : 0, configured: true, status: json };
   } catch (error) {
     console.warn('[api/create-notification] websocket broadcast error:', error);
     return { delivered: 0, configured: false, error: String(error) };
@@ -89,6 +93,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const profiles = await profileResponse.json();
       if (profiles[0]?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
+      if (payload.websocket_test === true) {
+        const socketResult = await notifySocketClients(
+          { audience: 'broadcast' },
+          {
+            id: `ws-test-${Date.now()}`,
+            title: payload.title || 'WebSocket fan-out test',
+            content: payload.content || 'JobBridge WebSocket fan-out test',
+            audience: 'broadcast',
+            type: 'announcement',
+            priority: 'high',
+            payload: { source: 'admin_ws_test', test: true },
+          },
+        );
+        return res.status(200).json({
+          success: true,
+          recipients: 0,
+          notificationsSent: 0,
+          emailsSent: 0,
+          pushesSent: 0,
+          websocketDelivered: socketResult.delivered,
+          websocketConfigured: socketResult.configured,
+          websocketError: socketResult.error || null,
+        });
+      }
+
       const targetAudience = payload.audience || 'broadcast';
       const role = payload.audience === 'recruiters' ? 'recruiter' : payload.audience === 'job_seekers' ? 'job_seeker' : payload.audience === 'providers' ? 'provider' : null;
       const userId = String(payload.audience || '').startsWith('user:') ? String(payload.audience).slice(5) : null;
@@ -99,6 +128,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!recipientsResponse.ok) return res.status(502).json({ error: 'Could not load broadcast recipients' });
       const recipients = await recipientsResponse.json() as Recipient[];
       const channels = normalizeChannels(payload.channels);
+      const unsupportedChannels = [...channels].filter((channel) => !['in_app', 'email', 'push'].includes(channel));
+      if (unsupportedChannels.length) {
+        return res.status(400).json({ error: `Unsupported broadcast channel(s): ${unsupportedChannels.join(', ')}` });
+      }
+      if (!channels.size) return res.status(400).json({ error: 'Select at least one supported broadcast channel' });
       const notificationRows = channels.has('in_app') ? recipients.map((recipient) => ({
         user_id: recipient.id,
         type: 'system',
@@ -159,9 +193,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         recipients: recipients.length,
         notificationsSent: notificationRows.length,
         emailsSent: emailResults.filter(Boolean).length,
+        emailConfigured: Boolean(RESEND_API_KEY),
         pushesSent,
+        pushConfigured: Boolean(VAPID_PUBLIC && VAPID_PRIVATE),
         websocketDelivered: socketResult.delivered,
         websocketConfigured: socketResult.configured,
+        websocketError: socketResult.error || null,
       });
     }
 

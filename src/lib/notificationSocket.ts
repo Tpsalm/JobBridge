@@ -95,14 +95,17 @@ export class JobBridgeNotificationSocket {
   private readonly url: string;
   private readonly config: NotificationSocketOptions;
   private reconnectTimeoutId: number | null = null;
+  private reconnectAttempts = 0;
   private readonly listeners = new Map<string, Set<(event: SocketMessage) => void>>();
 
   constructor(options: NotificationSocketOptions = {}) {
     this.config = options;
     const fallbackUrl =
-      typeof window !== "undefined"
-        ? `${window.location.protocol === "https:" ? "wss" : "ws"}://localhost:3001/ws/notifications`
-        : "ws://localhost:3001/ws/notifications";
+      import.meta.env.DEV
+        ? typeof window !== "undefined"
+          ? `${window.location.protocol === "https:" ? "wss" : "ws"}://localhost:3001/ws/notifications`
+          : ""
+        : "wss://ws.jobbridge.com.ng/ws/notifications";
     this.url = options.url || import.meta.env.VITE_WS_URL || fallbackUrl;
   }
 
@@ -122,6 +125,7 @@ export class JobBridgeNotificationSocket {
   }
 
   public connect(): void {
+    if (!this.url) return;
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       return;
     }
@@ -135,6 +139,7 @@ export class JobBridgeNotificationSocket {
     this.socket = new WebSocket(url.toString());
 
     this.socket.addEventListener("open", () => {
+      this.reconnectAttempts = 0;
       this.emit("connection", {
         type: "connection",
         status: "connected",
@@ -155,11 +160,13 @@ export class JobBridgeNotificationSocket {
 
     this.socket.addEventListener("close", () => {
       this.socket = null;
-      if (this.reconnectTimeoutId) return;
+      if (this.reconnectTimeoutId !== null) return;
+      const delay = Math.min(1500 * 2 ** this.reconnectAttempts, 30000);
+      this.reconnectAttempts += 1;
       this.reconnectTimeoutId = window.setTimeout(() => {
         this.reconnectTimeoutId = null;
         this.connect();
-      }, 1500);
+      }, delay);
     });
   }
 
@@ -168,6 +175,7 @@ export class JobBridgeNotificationSocket {
       window.clearTimeout(this.reconnectTimeoutId);
       this.reconnectTimeoutId = null;
     }
+    this.reconnectAttempts = 0;
 
     if (this.socket) {
       this.socket.close();

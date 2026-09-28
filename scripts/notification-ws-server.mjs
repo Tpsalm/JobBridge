@@ -2,12 +2,14 @@ import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { WebSocketServer } from "ws";
 
-const PORT = Number(process.env.NOTIFICATION_WS_PORT || 3001);
-const adminKey = process.env.JOBBRIDGE_WS_ADMIN_KEY || "jobbridge-local-dev";
+const PORT = Number(process.env.PORT || process.env.NOTIFICATION_WS_PORT || 3001);
+const isProduction = process.env.NODE_ENV === "production";
+const adminKey = process.env.JOBBRIDGE_WS_ADMIN_KEY || (isProduction ? "" : "jobbridge-local-dev");
 const defaultAudience = process.env.DEFAULT_NOTIFICATION_AUDIENCE || "broadcast";
 const verificationToken = process.env.JOBBRIDGE_WS_SHARED_SECRET || "";
-function isValidVerificationToken(token) {
-  return !verificationToken || token === verificationToken;
+function isValidVerificationToken(token, identity = {}) {
+  if (verificationToken && token === verificationToken) return true;
+  return identity.audience === "broadcast" && !identity.userId && !identity.role;
 }
 
 const clients = new Map();
@@ -30,15 +32,28 @@ function removeFromRoom(roomName, socket) {
 }
 
 function targetRoomNames(target = {}) {
-  const roomNames = new Set([defaultAudience]);
+  const roomNames = new Set();
   const audience = target.audience || defaultAudience;
   const userId = target.userId;
   const role = target.role;
 
-  if (audience) roomNames.add(String(audience));
+  if (audience === "broadcast") {
+    if (!userId && !role) roomNames.add("broadcast");
+  } else if (audience) {
+    roomNames.add(`audience:${audience}`);
+  }
   if (role) roomNames.add(`role:${role}`);
   if (userId) roomNames.add(`user:${userId}`);
 
+  return Array.from(roomNames);
+}
+
+function subscriberRoomNames({ audience = defaultAudience, userId, role } = {}) {
+  const roomNames = new Set();
+  if (audience === "broadcast") roomNames.add("broadcast");
+  else if (audience) roomNames.add(`audience:${audience}`);
+  if (role) roomNames.add(`role:${role}`);
+  if (userId) roomNames.add(`user:${userId}`);
   return Array.from(roomNames);
 }
 
@@ -104,7 +119,12 @@ const server = http.createServer(async (req, res) => {
       try {
         const incoming = JSON.parse(body || "{}");
         const headerKey = req.headers["x-admin-key"] || req.headers["x-jobbridge-key"];
-        if (adminKey && headerKey !== adminKey) {
+        if (!adminKey) {
+          res.writeHead(503, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Notification service admin key is not configured" }));
+          return;
+        }
+        if (headerKey !== adminKey) {
           res.writeHead(401, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: "Unauthorized" }));
           return;
@@ -147,7 +167,7 @@ wss.on("connection", (socket, request) => {
   const token = url.searchParams.get("token") || "";
   const socketId = randomUUID();
 
-  if (!isValidVerificationToken(token) ) {
+  if (!isValidVerificationToken(token, { audience, userId, role })) {
     socket.close(1008, "Invalid auth token");
     return;
   }
@@ -155,7 +175,7 @@ wss.on("connection", (socket, request) => {
   const identity = { id: socketId, userId, role, audience, connectedAt: new Date().toISOString() };
   clients.set(socket, identity);
 
-  const roomNames = targetRoomNames({ audience, userId, role });
+  const roomNames = subscriberRoomNames({ audience, userId, role });
   roomNames.forEach((roomName) => addToRoom(roomName, socket));
 
   sendJson(socket, {
@@ -192,7 +212,7 @@ wss.on("connection", (socket, request) => {
   socket.on("close", () => {
     const current = clients.get(socket);
     if (current) {
-      const roomNames = targetRoomNames({ audience: current.audience, userId: current.userId, role: current.role });
+      const roomNames = subscriberRoomNames(current);
       roomNames.forEach((roomName) => removeFromRoom(roomName, socket));
       clients.delete(socket);
     }

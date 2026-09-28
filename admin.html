@@ -1080,7 +1080,12 @@
                             },
                         );
                     }
-                    notify(msg);
+                    const delivery = res?.delivery || res;
+                    const socketUnavailable = delivery?.websocketConfigured === false || Number(delivery?.websocketDelivered) < 1;
+                    notify(
+                        typeof msg === "function" ? msg(res) : msg,
+                        socketUnavailable && typeof delivery?.websocketConfigured === "boolean" ? "warn" : "success",
+                    );
                     if (action) await audit(action, target, "");
                     await loadData();
                     closeModal();
@@ -3905,7 +3910,10 @@
               <h3 class="text-base font-extrabold text-slate-900 tracking-tight">Live Broadcasts & Announcement Center</h3>
               <p class="text-xs text-slate-500 mt-0.5">Broadcast instant popup banners, alerts, and notifications across jobbridge.com.ng in real-time.</p>
             </div>
-            <button class="btn btn-primary text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600" onclick="showQuickBroadcastModal()">+ New Live Broadcast</button>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button class="btn btn-ghost text-xs font-bold border border-slate-200 bg-white text-slate-700" onclick="triggerWebSocketTestBroadcast()">🔎 Test WS Fan-Out</button>
+              <button class="btn btn-primary text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600" onclick="showQuickBroadcastModal()">+ New Live Broadcast</button>
+            </div>
           </div>
 
           <div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-6 shadow-xl space-y-3 mb-6">
@@ -3952,6 +3960,37 @@
           </div>
         `;
             }
+
+            window.triggerWebSocketTestBroadcast = async () => {
+                const testTitle = "WebSocket fan-out test";
+                const testContent = "This live notification confirms the JobBridge socket broadcast is reaching all connected clients immediately.";
+
+                await doAct(
+                    async () => {
+                        const result = await callSendBroadcast({
+                            broadcast: true,
+                            websocket_test: true,
+                            audience: "broadcast",
+                            title: testTitle,
+                            content: testContent,
+                            channels: ["in_app"],
+                            broadcast_type: "announcement",
+                            action_url: "/notifications",
+                            action_label: "Open alerts",
+                        });
+                        if (!result.websocketConfigured) {
+                            throw new Error(`WebSocket service is unavailable${result.websocketError ? `: ${result.websocketError}` : "."}`);
+                        }
+                        if (result.websocketDelivered < 1) {
+                            throw new Error("WebSocket service responded, but no connected clients received the test broadcast.");
+                        }
+                        return result;
+                    },
+                    (result) => `WebSocket fan-out confirmed: ${result.websocketDelivered} connected client(s) received the test broadcast.`,
+                    "ws_test_broadcast",
+                    testTitle,
+                );
+            };
 
             window.showQuickBroadcastModal = () => {
                 showForm(

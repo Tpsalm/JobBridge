@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useToasts } from "../contexts/ToastContext";
 import { supabase } from "../lib/supabase";
 import { fetchUnreadNotificationCount } from "../lib/supabaseQueries";
+import { createJobBridgeNotificationSocket } from "../lib/notificationSocket";
 import {
   Bell,
   Menu,
@@ -55,11 +56,41 @@ export default function Header() {
   const [notifCount, setNotifCount] = useState(0);
   const { push } = useToasts();
   const profileRef = useRef<HTMLDivElement>(null);
+  const recentNotificationToasts = useRef(new Map<string, number>());
 
   const isMessageNotification = (next?: { type?: string; title?: string; content?: string }) => {
     const combinedText = `${next?.title || ""} ${next?.content || ""}`.toLowerCase();
     return next?.type === "message" || /new message|message sent|message from/i.test(combinedText);
   };
+
+  const showNotificationToast = useCallback((next: { type?: string; title?: string; content?: string }) => {
+    if (!next.title || isMessageNotification(next)) return;
+    const key = `${next.title}\n${next.content || ""}`;
+    const now = Date.now();
+    const lastShownAt = recentNotificationToasts.current.get(key) || 0;
+    if (now - lastShownAt < 10000) return;
+    recentNotificationToasts.current.set(key, now);
+    if (recentNotificationToasts.current.size > 50) {
+      const oldestKey = recentNotificationToasts.current.keys().next().value;
+      if (oldestKey) recentNotificationToasts.current.delete(oldestKey);
+    }
+    push({
+      message: `${next.title}${next.content ? ` — ${next.content}` : ""}`,
+      type: "info",
+    });
+  }, [push]);
+
+  useEffect(() => {
+    const socket = createJobBridgeNotificationSocket({ audience: "broadcast" });
+    const unsubscribe = socket.on("notification", (event) => {
+      if (event.type === "notification") showNotificationToast(event.payload);
+    });
+    socket.connect();
+    return () => {
+      unsubscribe();
+      socket.disconnect();
+    };
+  }, [showNotificationToast]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -99,12 +130,7 @@ export default function Header() {
           refreshCount();
           // Messages appear inside the chat area only (like WhatsApp) — don't
           // pop them out as a separate toast notification.
-          if (next?.title && !isMessageNotification(next)) {
-            push({
-              message: `${next.title}${next.content ? ` — ${next.content}` : ""}`,
-              type: "info",
-            });
-          }
+          showNotificationToast(next);
         },
       )
       .on(
@@ -144,7 +170,7 @@ export default function Header() {
       window.removeEventListener("focus", onFocus);
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [showNotificationToast, user?.id]);
 
   const isActive = (path: string) =>
     path === "/"
