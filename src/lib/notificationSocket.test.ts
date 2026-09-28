@@ -6,7 +6,7 @@ import {
 } from "./notificationSocket";
 
 describe("notification socket URL configuration", () => {
-  const fallbackUrl = "wss://ws.jobbridge.com.ng/ws/notifications";
+  const fallbackUrl = "wss://jobbridge-websocke.onrender.com/ws/notifications";
 
   it("falls back when the configured URL is malformed", () => {
     expect(

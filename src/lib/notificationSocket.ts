@@ -123,7 +123,7 @@ export class JobBridgeNotificationSocket {
         ? typeof window !== "undefined"
           ? `${window.location.protocol === "https:" ? "wss" : "ws"}://localhost:3001/ws/notifications`
           : ""
-        : "wss://ws.jobbridge.com.ng/ws/notifications";
+        : "wss://jobbridge-websocke.onrender.com/ws/notifications";
     this.url = resolveNotificationSocketUrl(
       options.url || import.meta.env.VITE_WS_URL,
       fallbackUrl,
