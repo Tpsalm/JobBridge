@@ -800,7 +800,7 @@ function AIAssistantWidget() {
         style={{
           bottom: "max(80px, env(safe-area-inset-bottom, 0px))",
           right: "max(16px, env(safe-area-inset-right, 0px))",
-          width: "calc(100vw - 32px)",
+          width: "min(420px, calc(100vw - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px))))",
           maxWidth: "420px",
           maxHeight:
             "calc(100dvh - max(120px, env(safe-area-inset-bottom, 0px)))",
