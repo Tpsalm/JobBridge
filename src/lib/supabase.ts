@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const DEFAULT_SUPABASE_URL = "https://ppramomuckkjzssrfghi.supabase.co";
+const DEFAULT_SUPABASE_URL = "https://gtstcstmezfiepzlvndt.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0c3Rjc3RtZXpmaWVwemx2bmR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTAxMDIsImV4cCI6MjA5NjcyNjEwMn0.HVy4hiR4_ZYbBHytnbpc3LZGM_BZvqEI62sgIE8t4UY";
 
 const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();

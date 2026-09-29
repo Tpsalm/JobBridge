@@ -3,10 +3,11 @@ self.addEventListener('push', function (event) {
   try {
     const payload = event.data ? event.data.json() : { title: 'JobBridge', body: 'You have a new notification' };
     const title = payload.title || 'JobBridge';
+    const appBaseUrl = self.registration.scope;
     const options = {
       body: payload.body || '',
-      icon: payload.icon || '/images/logo-192.png',
-      badge: payload.badge || '/images/logo-72.png',
+      icon: payload.icon || new URL('images/jobbridge-logo.jpeg', appBaseUrl).href,
+      badge: payload.badge || new URL('images/jobbridge-logo.jpeg', appBaseUrl).href,
       data: payload.data || {},
       renotify: payload.renotify || false,
     };
@@ -19,7 +20,7 @@ self.addEventListener('push', function (event) {
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  const url = event.notification.data?.url || '/';
+  const url = event.notification.data?.url || self.registration.scope;
   event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
     for (let i = 0; i < windowClients.length; i++) {
       const client = windowClients[i];
