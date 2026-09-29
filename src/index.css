@@ -12,6 +12,14 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Prevent long unbroken tokens (emails, URLs, hashtags) from causing horizontal scroll */
 h1, h2, h3, h4, h5, h6, p, li, a, button, label, span {
   overflow-wrap: break-word;

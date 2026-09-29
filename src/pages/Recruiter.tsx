@@ -132,6 +132,34 @@ export default function Recruiter() {
 
   useEffect(() => { fetchApps(); }, [user?.id]);
 
+  async function getResumeUrl(resumeUrl: string) {
+    const pathMatch = resumeUrl.match(/\/resumes\/([^?]+)/);
+    const path = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+    if (!path) throw new Error('This resume link is invalid.');
+    const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 3600);
+    if (error || !data?.signedUrl) throw error || new Error('Unable to fetch this resume.');
+    return data.signedUrl;
+  }
+
+  async function downloadAllApplicationCvs() {
+    const applicationsWithCvs = filteredApps.filter((app: any) => app.resume_url || app.cv_url);
+    for (const app of applicationsWithCvs) {
+      try {
+        const signedUrl = await getResumeUrl(app.resume_url || app.cv_url);
+        const anchor = document.createElement('a');
+        anchor.href = signedUrl;
+        anchor.download = `${(app.applicant?.full_name || 'applicant').replace(/[^a-z0-9]+/gi, '_')}_CV`;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      } catch (error) {
+        console.error('Could not download applicant CV:', error);
+      }
+    }
+  }
+
   async function updateStatus(appId: string, status: string) {
     try {
       await updateAppStatus(appId, status);
@@ -624,7 +652,17 @@ export default function Recruiter() {
             {/* Applications Panel */}
             <AnimatedSection direction="up"><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 mb-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Applications ({filteredApps.length})</h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900">Applications ({filteredApps.length})</h2>
+                  <button
+                    onClick={downloadAllApplicationCvs}
+                    disabled={!filteredApps.some((app: any) => app.resume_url || app.cv_url)}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Download every available CV in this list"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download all CVs
+                  </button>
+                </div>
               </div>
 
               {appsLoading ? (
@@ -675,26 +713,15 @@ export default function Recruiter() {
                       </div>
                     )}
 
-                    {selectedApp.resume_url && (
+                    {(selectedApp.resume_url || selectedApp.cv_url) && (
                         <div>
                           <button
                             onClick={async () => {
                               setResumeError('');
-                          const url = selectedApp.resume_url;
-                            const pathMatch = url.match(/\/resumes\/([^?]+)/);
-                            const path = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
-                          if (!path) {
-                              setResumeError('This resume link is invalid. Ask the applicant to upload it again.');
-                            return;
-                          }
+                              const url = selectedApp.resume_url || selectedApp.cv_url;
                           try {
-                            const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 3600);
-                            if (error) throw error;
-                            if (data?.signedUrl) {
-                              window.open(data.signedUrl, '_blank');
-                            } else {
-                              window.open(url, '_blank');
-                            }
+                              const signedUrl = await getResumeUrl(url);
+                              window.open(signedUrl, '_blank', 'noopener');
                           } catch (err) {
                             console.error('Error generating signed URL:', err);
                             setResumeError('Unable to fetch this resume. Please try again or ask the applicant to upload it again.');

@@ -149,6 +149,13 @@
                 border-color: #2563eb;
                 box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
             }
+            @media (max-width: 767px) {
+                input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+                select,
+                textarea {
+                    font-size: 16px;
+                }
+            }
             .badge {
                 display: inline-flex;
                 align-items: center;
@@ -921,7 +928,7 @@
                             .catch(() => []),
                         sb
                             .from("service_providers")
-                            .select("*")
+                            .select("*, profile:profiles(*)")
                             .order("created_at", { ascending: false })
                             .then((r) => r.data || [])
                             .catch(() => []),
@@ -1181,8 +1188,12 @@
               ${
                   f.type === "textarea"
                       ? `<textarea id="ff-${i}" rows="${f.rows || 3}" placeholder="${esc(f.placeholder || "")}" ${f.required ? "required" : ""}>${esc(f.value || "")}</textarea>`
-                      : f.type === "select"
-                        ? `<select id="ff-${i}" ${f.required ? "required" : ""}>${f.options.map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(f.value) ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select>`
+                      : f.type === "file"
+                          ? `<input id="ff-${i}" type="file" accept="${esc(f.accept || "")}" ${f.required ? "required" : ""}>`
+                                            : f.type === "checkbox-group"
+                                                ? `<div class="flex flex-wrap gap-3">${f.options.map((o) => `<label class="inline-flex items-center gap-2 text-xs text-gray-700"><input id="ff-${i}-${esc(o.value)}" type="checkbox" name="ff-${i}" value="${esc(o.value)}" ${o.checked ? "checked" : ""} class="w-auto">${esc(o.label)}</label>`).join("")}</div>`
+                                            : f.type === "select"
+                                                ? `<select id="ff-${i}" ${f.required ? "required" : ""} ${f.onchange ? `onchange="${f.onchange}"` : ""}>${f.options.map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(f.value) ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select>`
                         : `<input id="ff-${i}" type="${f.type || "text"}" placeholder="${esc(f.placeholder || "")}" value="${esc(f.value || "")}" ${f.required ? "required" : ""}>`
               }
             </div>
@@ -1208,9 +1219,15 @@
                 window.submitForm = (e) => {
                     e.preventDefault();
                     const vals = [];
-                    $$('#crud-form [id^="ff-"]').forEach((el) =>
-                        vals.push(el.value),
-                    );
+                    fields.forEach((field, i) => {
+                        if (field.type === "file") {
+                            vals.push($(`#ff-${i}`)?.files?.[0] || null);
+                        } else if (field.type === "checkbox-group") {
+                            vals.push($$(`input[name="ff-${i}"]:checked`).map((el) => el.value).join(","));
+                        } else {
+                            vals.push($(`#ff-${i}`)?.value || "");
+                        }
+                    });
                     submitFn(vals);
                 };
                 render();
@@ -1293,6 +1310,7 @@
                     { id: "tables", label: "Table Explorer", icon: "🗄️" },
                     { id: "enums", label: "ENUM Manager", icon: "🏷️" },
                     { id: "users", label: "User Accounts", icon: "👥" },
+                    { id: "recruiters", label: "Recruiter Dashboard", icon: "🧭" },
                     {
                         id: "jobs",
                         label: "Job Postings",
@@ -1378,6 +1396,7 @@
                   ${s.tab === "tables" ? tableExplorerHtml(s) : ""}
                   ${s.tab === "enums" ? enumManagerHtml() : ""}
                   ${s.tab === "users" ? usersHtml(s.users) : ""}
+                  ${s.tab === "recruiters" ? recruitersHtml(s) : ""}
                   ${s.tab === "jobs" ? jobsHtml(s.jobs) : ""}
                   ${s.tab === "apps" ? appsHtml(s.apps) : ""}
                   ${s.tab === "providers" ? providersHtml(s.providers, st) : ""}
@@ -2827,6 +2846,36 @@
         `;
             }
 
+                        function recruitersHtml(state) {
+                                const recruiters = state.users.filter((u) => u.role === "recruiter");
+                                return `
+                    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                        <div>
+                            <h3 class="text-base font-extrabold text-slate-900 tracking-tight">Recruiter Dashboard (${recruiters.length})</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Create recruiters and monitor their job posts, applicants, and hiring activity.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="btn btn-primary text-xs font-bold" onclick="showAddRecruiter()">+ Create Recruiter</button>
+                            <button class="btn btn-ghost text-xs font-bold" onclick="showAddAdmin()">+ Create Admin</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                        <div class="bg-white border border-slate-200 rounded-xl p-4"><div class="text-[10px] uppercase font-bold text-slate-400">Recruiters</div><div class="text-2xl font-extrabold text-slate-900 mt-1">${recruiters.length}</div></div>
+                        <div class="bg-white border border-slate-200 rounded-xl p-4"><div class="text-[10px] uppercase font-bold text-slate-400">Recruiter jobs</div><div class="text-2xl font-extrabold text-slate-900 mt-1">${state.jobs.filter((j) => recruiters.some((r) => r.id === j.recruiter_id)).length}</div></div>
+                        <div class="bg-white border border-slate-200 rounded-xl p-4"><div class="text-[10px] uppercase font-bold text-slate-400">Applications</div><div class="text-2xl font-extrabold text-slate-900 mt-1">${state.apps.filter((a) => a.job?.recruiter_id && recruiters.some((r) => r.id === a.job.recruiter_id)).length}</div></div>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                        <div class="table-wrap"><table>
+                            <tr><th>Recruiter</th><th>Email</th><th>Company</th><th>Jobs</th><th>Applications</th><th>Status</th><th>Actions</th></tr>
+                            ${recruiters.length ? recruiters.map((r) => {
+                                    const jobs = state.jobs.filter((j) => j.recruiter_id === r.id);
+                                    const applications = state.apps.filter((a) => a.job?.recruiter_id === r.id);
+                                    return `<tr><td class="font-bold text-slate-900">${esc(r.full_name || "—")}</td><td class="text-xs text-slate-500">${esc(r.email || "—")}</td><td class="text-xs">${esc(r.company || "—")}</td><td class="text-xs font-bold">${jobs.length}</td><td class="text-xs font-bold">${applications.length}</td><td><span class="badge ${sColor(r.is_active !== false)}">${r.is_active !== false ? "Active" : "Suspended"}</span></td><td><button class="btn btn-ghost text-xs py-1 px-2" onclick="editUser('${r.id}')">Manage</button></td></tr>`;
+                                }).join("") : '<tr><td colspan="7" class="text-center text-slate-400 py-10 text-xs">No recruiters created yet</td></tr>'}
+                        </table></div>
+                    </div>`;
+                        }
+
             window.setUserFilter = (r) => {
                 userFilter = r;
                 render();
@@ -2839,7 +2888,7 @@
                 });
             };
 
-            function userFormFields(u) {
+            function userFormFields(u, defaultRole) {
                 const base = [
                     {
                         label: "Full Name",
@@ -2863,7 +2912,7 @@
                     {
                         label: "Role",
                         type: "select",
-                        value: u?.role || "job_seeker",
+                        value: u?.role || defaultRole || "job_seeker",
                         options: [
                             { value: "job_seeker", label: "Job Seeker" },
                             { value: "recruiter", label: "Recruiter" },
@@ -2892,10 +2941,10 @@
                 ];
             }
 
-            window.showAddUser = () =>
+            window.showAddUser = (defaultRole) =>
                 showForm(
-                    "Provision New User Account",
-                    userFormFields(),
+                    defaultRole === "admin" ? "Create Admin Account" : defaultRole === "recruiter" ? "Create Recruiter Account" : "Provision New User Account",
+                    userFormFields(null, defaultRole),
                     (vals) => {
                         S.loading = true;
                         render();
@@ -2926,6 +2975,9 @@
                     },
                     "Create User",
                 );
+
+            window.showAddRecruiter = () => window.showAddUser("recruiter");
+            window.showAddAdmin = () => window.showAddUser("admin");
 
             window.editUser = (id) => {
                 const u = S.users.find((x) => x.id === id);
@@ -3335,6 +3387,21 @@
             // ═══════════════════════════════════════════════════════════════
             //  TAB 8: CANDIDATE APPLICATION PIPELINE
             // ═══════════════════════════════════════════════════════════════
+            window.openAdminResume = async (url) => {
+                const pathMatch = String(url || "").match(/\/resumes\/([^?]+)/);
+                const path = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+                if (!path) {
+                    notify("This CV link is invalid.", "error");
+                    return;
+                }
+                const { data, error } = await sb.storage.from("resumes").createSignedUrl(path, 3600);
+                if (error || !data?.signedUrl) {
+                    notify("Unable to create a secure CV link.", "error");
+                    return;
+                }
+                window.open(data.signedUrl, "_blank", "noopener");
+            };
+
             function appsHtml(apps) {
                 const stages = [
                     "pending",
@@ -3382,7 +3449,7 @@
                       <td class="font-bold text-slate-900 text-sm">${esc(a.applicant?.full_name || "—")}</td>
                       <td class="text-xs text-slate-600">${esc(a.job?.title || "—")}</td>
                       <td><span class="badge ${sColor(a.status)}">${a.status || "pending"}</span></td>
-                      <td>${a.cv_url || a.resume_url ? `<a href="${esc(a.cv_url || a.resume_url)}" target="_blank" class="text-blue-600 font-bold hover:underline text-xs">View CV ↗</a>` : '<span class="text-slate-400 text-xs">—</span>'}</td>
+                      <td>${a.cv_url || a.resume_url ? `<button onclick="openAdminResume('${esc(a.cv_url || a.resume_url)}')" class="text-blue-600 font-bold hover:underline text-xs">View / Download CV</button>` : '<span class="text-slate-400 text-xs">—</span>'}</td>
                       <td class="text-xs text-slate-400">${fdate(a.created_at)}</td>
                       <td>
                         <div class="flex gap-1">
@@ -3867,33 +3934,79 @@
                     "Create Advertisement",
                     [
                         {
+                            label: "Business Name",
+                            type: "text",
+                            required: true,
+                        },
+                        {
                             label: "Campaign Title",
                             type: "text",
                             required: true,
                         },
                         {
-                            label: "Image URL",
-                            type: "text",
+                            label: "Contact Number",
+                            type: "tel",
+                        },
+                        {
+                            label: "Contact Email",
+                            type: "email",
+                        },
+                        {
+                            label: "Website",
+                            type: "url",
                             placeholder: "https://...",
                         },
                         {
+                            label: "Details",
+                            type: "textarea",
+                            rows: 4,
+                            full: true,
+                        },
+                        {
+                            label: "Photo",
+                            type: "file",
+                            accept: "image/*",
+                        },
+                        {
                             label: "Destination Link URL",
-                            type: "text",
+                            type: "url",
                             placeholder: "https://...",
                         },
                     ],
                     (vals) => {
                         doAct(
-                            () =>
-                                sb.from("advertisements").insert({
-                                    title: vals[0],
-                                    image_url: vals[1] || null,
-                                    link_url: vals[2] || null,
+                            async () => {
+                                let imageUrl = null;
+                                const photo = vals[6];
+                                if (photo) {
+                                    const extension = photo.name.split(".").pop()?.toLowerCase() || "jpg";
+                                    const imagePath = `${S.user.id}/${Date.now()}.${extension}`;
+                                    const { error: uploadError } = await sb.storage
+                                        .from("advertisements")
+                                        .upload(imagePath, photo, {
+                                            upsert: true,
+                                            contentType: photo.type,
+                                        });
+                                    if (uploadError) throw uploadError;
+                                    imageUrl = sb.storage.from("advertisements").getPublicUrl(imagePath).data.publicUrl;
+                                }
+
+                                return sb.from("advertisements").insert({
+                                    owner_id: S.user.id,
+                                    business_name: vals[0],
+                                    title: vals[1],
+                                    phone: vals[2] || null,
+                                    email: vals[3] || null,
+                                    website_url: vals[4] || null,
+                                    description: vals[5] || null,
+                                    image_url: imageUrl,
+                                    link_url: vals[7] || null,
                                     is_active: true,
-                                }),
+                                });
+                            },
                             "Ad created and published",
                             "ad_create",
-                            vals[0],
+                            vals[1],
                         );
                     },
                     "Publish Ad",
@@ -3993,18 +4106,48 @@
             };
 
             window.showQuickBroadcastModal = () => {
+                window.applyBroadcastTemplate = (value) => {
+                    const templates = {
+                        welcome: ["Welcome to JobBridge", "Discover verified jobs, trusted recruiters, and professional services on JobBridge."],
+                        jobs: ["New jobs are waiting for you", "Fresh opportunities have been posted. Open JobBridge to find your next role."],
+                        maintenance: ["Scheduled maintenance notice", "JobBridge will be briefly unavailable while we improve the platform. Thank you for your patience."],
+                        recruiter: ["Recruiter update", "Review your latest applications and keep your hiring pipeline moving."],
+                        promotion: ["JobBridge special offer", "A new JobBridge offer is available now. Open the platform to learn more."],
+                    };
+                    const template = templates[value];
+                    if (!template) return;
+                    const title = $("#ff-1");
+                    const message = $("#ff-2");
+                    if (title && !title.value) title.value = template[0];
+                    if (message && !message.value) message.value = template[1];
+                };
                 showForm(
                     "Send Instant Live Broadcast to jobbridge.com.ng",
                     [
                         {
+                            label: "Built-in Notification Template",
+                            type: "select",
+                            value: "welcome",
+                            onchange: "applyBroadcastTemplate(this.value)",
+                            options: [
+                                { value: "welcome", label: "Welcome / onboarding" },
+                                { value: "jobs", label: "New jobs alert" },
+                                { value: "maintenance", label: "Maintenance notice" },
+                                { value: "recruiter", label: "Recruiter update" },
+                                { value: "promotion", label: "Promotion / campaign" },
+                            ],
+                        },
+                        {
                             label: "Broadcast Title",
                             type: "text",
+                            value: "Welcome to JobBridge",
                             placeholder: "e.g. 🚀 Platform Upgrade or ⚡ Weekend Flash Event",
                             required: true,
                         },
                         {
                             label: "Broadcast Message / Details",
                             type: "textarea",
+                            value: "Discover verified jobs, trusted recruiters, and professional services on JobBridge.",
                             rows: 3,
                             placeholder:
                                 "Write the announcement message shown to users...",
@@ -4068,6 +4211,17 @@
                             required: true,
                         },
                         {
+                            label: "Delivery Channels",
+                            type: "checkbox-group",
+                            options: [
+                                { value: "in_app", label: "In-app notification", checked: true },
+                                { value: "email", label: "Email", checked: true },
+                                { value: "push", label: "Browser push", checked: true },
+                            ],
+                            required: true,
+                            full: true,
+                        },
+                        {
                             label: "Display Presentation",
                             type: "select",
                             value: "banner",
@@ -4095,13 +4249,18 @@
                         },
                     ],
                     async (vals) => {
-                        const title = vals[0];
-                        const content = vals[1];
-                        const broadcastType = vals[2];
-                        const audience = vals[3];
-                        const displayFormat = vals[4];
-                        const actionUrl = vals[5] || null;
-                        const actionLabel = vals[6] || null;
+                        const title = vals[1];
+                        const content = vals[2];
+                        const broadcastType = vals[3];
+                        const audience = vals[4];
+                        const channels = vals[5].split(",").filter(Boolean);
+                        const displayFormat = vals[6];
+                        const actionUrl = vals[7] || null;
+                        const actionLabel = vals[8] || null;
+                        if (!title.trim() || !content.trim() || !channels.length) {
+                            notify("Add a title, message, and at least one delivery channel.", "error");
+                            return;
+                        }
 
                         const broadcastPayload = {
                             id: "bc-" + Date.now(),
@@ -4129,8 +4288,7 @@
                                 });
                                 if (insertError) throw insertError;
 
-                                await callSendBroadcast({ title, content, audience });
-
+                                const delivery = await callSendBroadcast({ title, content, audience, channels, broadcast_type: broadcastType });
                                 // 2) Dispatch Realtime Broadcast
                                 const channel = sb.channel(
                                     "jobbridge_broadcasts",
@@ -4141,9 +4299,15 @@
                                     payload: broadcastPayload,
                                 });
 
-                                return { success: true };
+                                return { success: true, delivery };
                             },
-                            "Live Broadcast dispatched to jobbridge.com.ng!",
+                            (result) => {
+                                const delivery = result.delivery;
+                                const socketStatus = delivery.websocketConfigured && delivery.websocketDelivered > 0
+                                    ? `${delivery.websocketDelivered} socket client(s)`
+                                    : "0 socket clients (live delivery unavailable)";
+                                return `Broadcast saved for ${delivery.recipients} recipients; ${socketStatus}, ${delivery.emailsSent} emails, ${delivery.pushesSent} pushes.`;
+                            },
                             "broadcast_send",
                             title,
                         );
