@@ -691,6 +691,52 @@ export default function Recruiter() {
                       }`}>{selectedApp.status}</span>
                     </div>
 
+                    <section className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+                      <h4 className="text-sm font-bold text-gray-900 mb-3">Job applied for</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm mb-3">
+                        <p><span className="text-gray-500">Company:</span> <span className="font-medium">{selectedApp.job?.company || '-'}</span></p>
+                        <p><span className="text-gray-500">Employment type:</span> <span className="font-medium">{selectedApp.job?.type || '-'}</span></p>
+                        <p><span className="text-gray-500">Category:</span> <span className="font-medium">{selectedApp.job?.category || '-'}</span></p>
+                        <p><span className="text-gray-500">Location:</span> <span className="font-medium">{selectedApp.job?.location || '-'}</span></p>
+                        <p><span className="text-gray-500">Salary range:</span> <span className="font-medium">{selectedApp.job?.salary_range || '-'}</span></p>
+                        <p><span className="text-gray-500">Posted:</span> <span className="font-medium">{selectedApp.job?.created_at ? new Date(selectedApp.job.created_at).toLocaleDateString() : '-'}</span></p>
+                        <p><span className="text-gray-500">Deadline:</span> <span className="font-medium">{selectedApp.job?.expires_at ? new Date(selectedApp.job.expires_at).toLocaleDateString() : 'Not specified'}</span></p>
+                      </div>
+                      <p className="text-xs font-semibold text-gray-700 mb-1">Job description</p>
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{selectedApp.job?.description || 'No job description provided.'}</p>
+                      {Array.isArray(selectedApp.job?.requirements) && selectedApp.job.requirements.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold text-gray-700 mb-1">Requirements</p>
+                          <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
+                            {selectedApp.job.requirements.map((requirement: string, index: number) => <li key={index}>{requirement}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      {Array.isArray(selectedApp.job?.benefits) && selectedApp.job.benefits.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold text-gray-700 mb-1">Benefits</p>
+                          <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
+                            {selectedApp.job.benefits.map((benefit: string, index: number) => <li key={index}>{benefit}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="rounded-lg border border-gray-200 bg-white p-4">
+                      <h4 className="text-sm font-bold text-gray-900 mb-2">Applicant bio</h4>
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{selectedApp.applicant?.bio || 'This applicant has not added a bio yet.'}</p>
+                      {Array.isArray(selectedApp.applicant?.skills) && selectedApp.applicant.skills.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold text-gray-700 mb-2">Skills</p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedApp.applicant.skills.map((skill: string, index: number) => (
+                              <span key={`${skill}-${index}`} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">{skill}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </section>
+
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div><span className="text-gray-500">DOB:</span> <span className="font-medium">{selectedApp.date_of_birth || selectedApp.applicant?.date_of_birth || '-'}</span></div>
                       <div><span className="text-gray-500">Gender:</span> <span className="font-medium capitalize">{selectedApp.gender || selectedApp.applicant?.gender || '-'}</span></div>
@@ -713,7 +759,7 @@ export default function Recruiter() {
                       </div>
                     )}
 
-                    {(selectedApp.resume_url || selectedApp.cv_url) && (
+                    {(selectedApp.resume_url || selectedApp.cv_url) ? (
                         <div>
                           <button
                             onClick={async () => {
@@ -733,7 +779,7 @@ export default function Recruiter() {
                         </button>
                         {resumeError && <p className="mt-2 text-xs text-red-600">{resumeError}</p>}
                       </div>
-                    )}
+                    ) : <p className="text-sm text-gray-500">No CV was attached to this application.</p>}
 
                     {/* Status actions */}
                     <div className="flex gap-2 pt-3 border-t border-gray-200">
@@ -790,7 +836,14 @@ export default function Recruiter() {
                           <p className="text-xs text-gray-400 mt-1">
                             {app.function} · {app.location} · {app.years_of_experience} exp · NGN {parseInt(app.salary_expectation || 0).toLocaleString()}
                           </p>
-                          <p className="text-xs text-gray-400 mt-0.5">Applied for: {app.job?.title || 'Job'} · {new Date(app.created_at).toLocaleDateString()}</p>
+                          <p className="text-xs text-gray-500 mt-1">Applied for: <span className="font-medium text-gray-700">{app.job?.title || 'Job'}</span>{app.job?.company ? ` at ${app.job.company}` : ''}{app.job?.location ? ` · ${app.job.location}` : ''} · {new Date(app.created_at).toLocaleDateString()}</p>
+                          {app.applicant?.bio && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{app.applicant.bio}</p>}
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${app.resume_url || app.cv_url ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                              <FileText className="w-3 h-3" /> {app.resume_url || app.cv_url ? 'CV attached' : 'No CV attached'}
+                            </span>
+                            {app.job?.type && <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-600">{app.job.type}</span>}
+                          </div>
                         </div>
                       <ChevronDown className="w-5 h-5 text-gray-400 shrink-0 mt-1" />
                     </div>
