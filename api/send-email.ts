@@ -2,8 +2,17 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const RESEND_API = 'https://api.resend.com/emails';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
-const RESEND_FROM = process.env.RESEND_FROM || 'JobBridge <onboarding@resend.dev>';
 const FALLBACK_FROM_EMAIL = 'JobBridge <onboarding@resend.dev>';
+
+export function jobBridgeSender(raw: string | undefined): string {
+  const configuredAddress = raw?.match(/<\s*([^<>]+)\s*>/)?.[1] || raw?.trim();
+  if (!configuredAddress || !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(configuredAddress)) {
+    return FALLBACK_FROM_EMAIL;
+  }
+  return `JobBridge <${configuredAddress}>`;
+}
+
+const RESEND_FROM = jobBridgeSender(process.env.RESEND_FROM);
 
 function isUnverifiedSenderError(message: unknown): boolean {
   const text = String(message || '').toLowerCase();
@@ -119,7 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = req.body || {};
-    const { email, name, type, from, link } = body;
+    const { email, name, type, link } = body;
     if (!email || !type) return res.status(400).json({ error: 'Missing email or type' });
 
     // Password reset: generate the one-time recovery link (the Supabase
@@ -137,7 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const sender = (from && from.trim()) || RESEND_FROM;
+    const sender = RESEND_FROM;
     const { subject, html } = buildEmailHtml(type, name || 'there', resetLink || '');
 
     async function postEmail(fromAddress: string) {

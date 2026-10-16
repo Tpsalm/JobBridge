@@ -117,8 +117,9 @@ export async function incrementJobViews(id: string, currentViews: number) {
 export async function fetchApplications(recruiterId?: string) {
   if (recruiterId) {
     const { data, error } = await supabase.rpc("get_recruiter_applications");
-    if (error) throw error;
-    return data || [];
+    if (!error) return data || [];
+    if (error.code !== "PGRST202" && error.code !== "42883") throw error;
+    console.warn("[fetchApplications] Recruiter applications RPC is unavailable; using the authorized relational query.");
   }
   let query = supabase
     .from("applications")

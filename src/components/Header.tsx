@@ -23,6 +23,7 @@ import {
   Shield,
   LogOut,
   Loader2,
+  Bot,
 } from "lucide-react";
 import JobBridgeLogo from "./JobBridgeLogo";
 
@@ -36,6 +37,7 @@ const navLinks = [
 
 const moreLinks = [
   { label: "Recruiter", path: "/recruiter" },
+  { label: "Joba AI Assistant", path: "/ai-assistant", icon: Bot },
   { label: "AI Resume Studio", path: "/ai-resume" },
   { label: "Support", path: "/support" },
   { label: "Blog", path: "/blog" },

@@ -22,7 +22,16 @@ async function requestAI(
     { body },
   );
   if (error) {
-    throw new Error(`AI service request failed: ${error.message}`);
+    const response = await fetch('/api/ai-operations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const fallback = await response.json().catch(() => null) as AIResponse | null;
+    if (!response.ok || !fallback || fallback.ok !== true) {
+      throw new Error(fallback?.error || `AI service request failed: ${error.message}`);
+    }
+    return fallback;
   }
   if (!data || typeof data !== "object" || typeof data.ok !== "boolean") {
     throw new Error("AI service returned an invalid response.");

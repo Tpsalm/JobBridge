@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
-import { Bot, Send, Lightbulb, Zap, Brain, TrendingUp } from 'lucide-react';
+import { Bot, Send, Lightbulb, Zap, Brain, TrendingUp, Loader2 } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
 import { IMG, VIDEO } from '../lib/media';
+import { aiChat } from '../lib/aiBackend';
 
 interface ChatMessage {
-  role: 'user' | 'bot';
+  role: 'user' | 'assistant';
   content: string;
 }
 
@@ -21,21 +22,14 @@ export default function AIAssistant() {
   const { openModal } = useModal();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      role: 'bot',
+      role: 'assistant',
       content:
-        `${getTimeGreeting()}! I'm your AI career assistant. I can help with resume writing, interview prep, job search strategies, and salary negotiation. What can I help you today?`,
-    },
-    {
-      role: 'user',
-      content: 'Can you help me optimize my resume for a senior frontend role?',
-    },
-    {
-      role: 'bot',
-      content:
-        'Absolutely! To optimize your resume for a senior frontend role, focus on: 1) Quantifiable achievements (e.g., "Reduced load time by 40%"), 2) Modern tech stack keywords (React, TypeScript, Next.js), 3) Leadership examples, 4) Open source contributions. Would you like me to analyze your current resume?',
+        `${getTimeGreeting()}! I'm Joba, your JobBridge AI career assistant. I can help with resume writing, interview prep, job search strategies, and career questions. What can I help you with?`,
     },
   ]);
   const [inputValue, setInputValue] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
 
   const suggestedPrompts = [
     'Review my resume',
@@ -46,16 +40,32 @@ export default function AIAssistant() {
     'Skills gap analysis',
   ];
 
-  const handleSendMessage = () => {
-    if (inputValue.trim()) {
-      setMessages([...messages, { role: 'user', content: inputValue }]);
-      setInputValue('');
+  const handleSendMessage = async (message = inputValue) => {
+    const content = message.trim();
+    if (!content || sending) return;
+    const conversation = [...messages, { role: 'user' as const, content }];
+    setMessages(conversation);
+    setInputValue('');
+    setSending(true);
+    setError('');
+    try {
+      const answer = await aiChat([
+        {
+          role: 'system',
+          content: 'You are Joba, JobBridge’s helpful career assistant. Give practical, accurate, concise advice. Do not claim to access a user account or perform actions you cannot perform.',
+        },
+        ...conversation.map(({ role, content: text }) => ({ role, content: text })),
+      ]);
+      setMessages((current) => [...current, { role: 'assistant', content: answer }]);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Joba could not respond. Please try again.');
+    } finally {
+      setSending(false);
     }
   };
 
   const handleSuggestedPrompt = (prompt: string) => {
-    setMessages([...messages, { role: 'user', content: prompt }]);
-    setInputValue('');
+    void handleSendMessage(prompt);
   };
 
   return (
@@ -68,7 +78,7 @@ export default function AIAssistant() {
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-2">
               <Bot className="w-8 h-8 text-blue-700" />
-              <h1 className="text-3xl font-bold text-gray-900">JobBridge AI</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Joba</h1>
             </div>
             <p className="text-gray-600">Your AI-powered career coach</p>
           </div>
@@ -92,8 +102,16 @@ export default function AIAssistant() {
                   </div>
                 </div>
               ))}
+              {sending && (
+                <div className="flex justify-start">
+                  <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Joba is responding…
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+          {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
           {/* Suggested Prompts */}
           <div className="mb-4">
@@ -103,6 +121,7 @@ export default function AIAssistant() {
                 <button
                   key={prompt}
                   onClick={() => handleSuggestedPrompt(prompt)}
+                  disabled={sending}
                   className="whitespace-nowrap px-4 py-2 rounded-full bg-gray-100 text-gray-700 text-sm hover:bg-blue-100 hover:text-blue-700 transition"
                 >
                   {prompt}
@@ -117,16 +136,17 @@ export default function AIAssistant() {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder="Ask me anything about your career..."
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), void handleSendMessage())}
+              placeholder="Ask Joba about your career..."
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-700"
             />
             <button
-              onClick={handleSendMessage}
-              className="px-6 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition flex items-center gap-2"
+              onClick={() => void handleSendMessage()}
+              disabled={sending || !inputValue.trim()}
+              className="px-6 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Send className="w-4 h-4" />
-              Send
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {sending ? 'Sending' : 'Send'}
             </button>
           </div>
         </div>

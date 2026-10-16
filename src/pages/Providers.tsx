@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchProviders, createConversationMessage } from '../lib/supabaseQueries';
 import { PROVIDER_CATEGORIES } from '../lib/providerCategories';
 import type { Profile } from '../lib/supabase';
-import { Search, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, Sparkles, MapPin, Clock, ChevronDown, ChevronUp, Users } from 'lucide-react';
+import { Search, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, MapPin, Clock, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import FloatingDecorations from '../components/FloatingDecorations';
 import { IMG } from '../lib/media';
 
@@ -166,20 +166,13 @@ export default function Providers() {
   });
 
   const sortedProviders = [...filteredProviders].sort((a, b) => {
-    if (a.featured && !b.featured) return -1;
-    if (!a.featured && b.featured) return 1;
     if (a.verified && !b.verified) return -1;
     if (!a.verified && b.verified) return 1;
     return b.reviews - a.reviews;
   });
 
-  // Structure the feed exactly as requested:
-  //   1. Featured Professional (paid subscribers) — top
-  //   2. Verified Professional — middle
-  //   3. Everyone else (unfeatured / unverified) — last
-  const featuredProviders = sortedProviders.filter(p => p.featured);
-  const verifiedProviders = sortedProviders.filter(p => !p.featured && p.verified);
-  const standardProviders = sortedProviders.filter(p => !p.featured && !p.verified);
+  const verifiedProviders = sortedProviders.filter(p => p.verified);
+  const standardProviders = sortedProviders.filter(p => !p.verified);
 
   const renderStars = (rating: number) => (
     <div className="flex items-center gap-0.5">
@@ -197,21 +190,9 @@ export default function Providers() {
     <div
       key={p.id}
       className={`group bg-white rounded-xl border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden ${
-        p.featured
-          ? 'border-amber-200 shadow-sm hover:shadow-amber-100/50'
-          : p.verified
-          ? 'border-blue-100 shadow-sm hover:shadow-blue-100/30'
-          : 'border-slate-100 shadow-sm'
+        p.verified ? 'border-blue-100 shadow-sm hover:shadow-blue-100/30' : 'border-slate-100 shadow-sm'
       }`}
     >
-      {/* Featured banner */}
-      {p.featured && (
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2 flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-white shrink-0" />
-          <span className="text-white text-xs font-semibold tracking-wide">Featured Professional</span>
-        </div>
-      )}
-
       <div className="p-5">
         {/* Avatar + Name row */}
         <div className="flex items-start gap-4 mb-4">
@@ -380,26 +361,10 @@ export default function Providers() {
           </p>
         </div>
 
-        {/* ─── Provider Sections (Featured → Verified → All) ─── */}
+        {/* ─── Provider Sections (Verified → All) ─── */}
         {sortedProviders.length > 0 ? (
           <>
-            {/* Featured Professionals — paid subscribers appear first */}
-            {featuredProviders.length > 0 && (
-              <section className="mb-10">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shrink-0">
-                    <Sparkles className="w-4 h-4" />
-                  </span>
-                  <h2 className="text-lg sm:text-xl font-bold text-slate-900">Featured Professionals</h2>
-                  <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full font-bold">{featuredProviders.length}</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {featuredProviders.map(p => renderProviderCard(p))}
-                </div>
-              </section>
-            )}
-
-            {/* Verified Professionals — verified badge holders */}
+            {/* Verified Professionals */}
             {verifiedProviders.length > 0 && (
               <section className="mb-10">
                 <div className="flex items-center gap-2 mb-4">

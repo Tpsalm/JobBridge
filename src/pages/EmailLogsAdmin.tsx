@@ -49,20 +49,30 @@ type AdminSubscription = {
   created_at?: string;
 };
 
+type BackendCheck = {
+  name: string;
+  status: 'ready' | 'not_configured' | 'disabled';
+  detail: string;
+};
+
 export default function EmailLogsAdmin() {
   const { profile, isAuthenticated } = useAuth();
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState<'logs' | 'queue' | 'reports' | 'subscriptions'>(() =>
+  const [tab, setTab] = useState<'logs' | 'queue' | 'reports' | 'subscriptions' | 'health'>(() =>
     searchParams.get('tab') === 'reports'
       ? 'reports'
       : searchParams.get('tab') === 'subscriptions'
         ? 'subscriptions'
+        : searchParams.get('tab') === 'health'
+          ? 'health'
         : 'logs',
   );
   const [logs, setLogs] = useState<EmailLog[]>([]);
   const [queue, setQueue] = useState<EmailQueueItem[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
   const [subscriptions, setSubscriptions] = useState<AdminSubscription[]>([]);
+  const [healthChecks, setHealthChecks] = useState<BackendCheck[]>([]);
+  const [healthCheckedAt, setHealthCheckedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
@@ -83,6 +93,8 @@ export default function EmailLogsAdmin() {
       loadQueue();
     } else if (tab === 'reports') {
       loadReports();
+    } else if (tab === 'health') {
+      loadHealth();
     } else {
       loadSubscriptions();
     }
@@ -155,6 +167,27 @@ export default function EmailLogsAdmin() {
       setSubscriptions((data || []) as AdminSubscription[]);
     } catch (e: any) {
       setError(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadHealth() {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session?.access_token) throw new Error('Your administrator session has expired. Sign in again.');
+      const response = await fetch('/api/admin-health', {
+        headers: { Authorization: `Bearer ${sessionData.session.access_token}` },
+      });
+      const result = await response.json().catch(() => null) as { checks?: BackendCheck[]; checkedAt?: string; error?: string } | null;
+      if (!response.ok || !result?.checks) throw new Error(result?.error || 'Could not load backend health.');
+      setHealthChecks(result.checks);
+      setHealthCheckedAt(result.checkedAt || null);
+    } catch (healthError) {
+      setError(healthError instanceof Error ? healthError.message : 'Could not load backend health.');
     } finally {
       setLoading(false);
     }
@@ -259,7 +292,14 @@ export default function EmailLogsAdmin() {
         >
           Subscriptions
         </button>
-        <button type="button" onClick={() => (tab === 'logs' ? loadLogs() : tab === 'queue' ? loadQueue() : tab === 'reports' ? loadReports() : loadSubscriptions())} className="px-3 py-2 bg-gray-100 rounded">
+        <button
+          type="button"
+          onClick={() => setTab('health')}
+          className={`px-3 py-2 rounded ${tab === 'health' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+        >
+          API Health
+        </button>
+        <button type="button" onClick={() => (tab === 'logs' ? loadLogs() : tab === 'queue' ? loadQueue() : tab === 'reports' ? loadReports() : tab === 'health' ? loadHealth() : loadSubscriptions())} className="px-3 py-2 bg-gray-100 rounded">
           Refresh
         </button>
         <button type="button" onClick={() => handleProcessQueue()} className="px-3 py-2 bg-gray-100 rounded">
@@ -272,8 +312,32 @@ export default function EmailLogsAdmin() {
       {tab === 'queue' && queueError && <div className="text-red-600 mb-4">Error: {queueError}</div>}
       {tab === 'reports' && error && <div className="text-red-600 mb-4">Error: {error}</div>}
       {tab === 'subscriptions' && error && <div className="text-red-600 mb-4">Error: {error}</div>}
+      {tab === 'health' && error && <div role="alert" className="text-red-700 mb-4">Error: {error}</div>}
 
-      {tab === 'subscriptions' ? (
+      {tab === 'health' ? (
+        <section aria-label="Backend API health" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-gray-600">Configuration status only; provider delivery is not simulated or triggered.</p>
+            {healthCheckedAt && <p className="text-xs text-gray-500">Checked {new Date(healthCheckedAt).toLocaleString()}</p>}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {healthChecks.map((check) => (
+              <article key={check.name} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="font-semibold text-gray-900">{check.name}</h3>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    check.status === 'ready' ? 'bg-emerald-100 text-emerald-800' :
+                    check.status === 'disabled' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {check.status === 'ready' ? 'Ready' : check.status === 'disabled' ? 'Disabled' : 'Not configured'}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-gray-600">{check.detail}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : tab === 'subscriptions' ? (
         <div className="overflow-auto border rounded">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">

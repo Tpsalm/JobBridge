@@ -41,6 +41,7 @@ const MyJobs = lazy(() => import("./pages/MyJobs"));
 const Messages = lazy(() => import("./pages/Messages"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const AIResume = lazy(() => import("./pages/AIResume"));
+const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 const EmailLogsAdmin = lazy(() => import("./pages/EmailLogsAdmin"));
 const Career = lazy(() => import("./pages/Career"));
 const Following = lazy(() => import("./pages/Following"));
@@ -103,6 +104,7 @@ export default function App() {
               <Route path="/messages" element={<Messages />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/ai-resume" element={<AIResume />} />
+              <Route path="/ai-assistant" element={<AIAssistant />} />
               <Route
                 path="/admin/email-logs"
                 element={

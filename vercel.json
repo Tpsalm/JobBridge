@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/admin-health",
+      "destination": "/api/broadcast?endpoint=health"
+    },
+    {
+      "source": "/api/ai-operations",
+      "destination": "/api/broadcast?endpoint=ai"
+    },
+    {
       "source": "/api/admin-broadcast",
       "destination": "/api/broadcast?endpoint=admin"
     },

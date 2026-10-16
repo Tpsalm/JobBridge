@@ -115,7 +115,9 @@ export default function Recruiter() {
   // Applications state
   const [applications, setApplications] = useState<any[]>([]);
   const [appsLoading, setAppsLoading] = useState(true);
+  const [appsError, setAppsError] = useState('');
   const [selectedApp, setSelectedApp] = useState<any>(null);
+  const [statusError, setStatusError] = useState('');
   const [resumeError, setResumeError] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
   const [messageError, setMessageError] = useState('');
@@ -123,11 +125,19 @@ export default function Recruiter() {
   const [statusFilter, setStatusFilter] = useState('all');
 
   async function fetchApps() {
+    if (!user?.id) {
+      setApplications([]);
+      setAppsLoading(false);
+      return;
+    }
+    setAppsLoading(true);
+    setAppsError('');
     try {
-      const data = await fetchApplications(user?.id);
+      const data = await fetchApplications(user.id);
       setApplications(data);
     } catch (e) {
       console.error('fetch applications error', e);
+      setAppsError(e instanceof Error ? e.message : 'Could not load applications.');
     } finally {
       setAppsLoading(false);
     }
@@ -174,6 +184,7 @@ export default function Recruiter() {
     const confirmed = window.confirm(`Are you sure you want to ${actionText} this application?`);
     if (!confirmed) return;
 
+    setStatusError('');
     try {
       await updateAppStatus(appId, status);
       setApplications(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
@@ -191,6 +202,7 @@ export default function Recruiter() {
       }
     } catch (e) {
       console.error('update status error', e);
+      setStatusError(e instanceof Error ? e.message : 'Could not update the application status. Please try again.');
     }
   }
 
@@ -711,6 +723,18 @@ export default function Recruiter() {
                 <div className="flex items-center justify-center py-12">
                   <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
                 </div>
+              ) : appsError ? (
+                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-center">
+                  <p className="font-semibold text-red-800">Applications could not be loaded.</p>
+                  <p className="mt-1 text-sm text-red-700">{appsError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void fetchApps()}
+                    className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
+                  >
+                    Retry
+                  </button>
+                </div>
               ) : selectedApp ? (
                 /* Application Detail View */
                 <div>
@@ -824,6 +848,7 @@ export default function Recruiter() {
                     ) : <p className="text-sm text-gray-500">No CV was attached to this application.</p>}
 
                     {/* Status actions */}
+                    {statusError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{statusError}</p>}
                     <div className="flex gap-2 pt-3 border-t border-gray-200">
                       {selectedApp.status !== 'shortlisted' && (
                         <button onClick={() => updateStatus(selectedApp.id, 'shortlisted')}
