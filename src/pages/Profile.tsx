@@ -41,6 +41,15 @@ import {
   LanguagesIcon,
 } from "lucide-react";
 
+interface ManagedServiceSubscription {
+  id: string;
+  plan_key: string;
+  status: "active" | "trialing" | "past_due" | "canceled" | "expired" | "paused";
+  current_period_end: string;
+  auto_renew: boolean;
+  canceled_at: string | null;
+}
+
 const PROFILE_FIELDS = {
   full_name: { label: "Full Name", section: "personal", weight: 2, icon: User },
   phone: { label: "Phone Number", section: "personal", weight: 1, icon: Phone },
@@ -122,7 +131,7 @@ function ProfileCompletionRing({ percentage }: { percentage: number }) {
 }
 
 export default function Profile() {
-  const { user, profile: userProfile, updatePassword, isAuthenticated, loading: authLoading } = useAuth();
+  const { user, profile: userProfile, updatePassword, isAuthenticated, loading: authLoading, subscription, fetchSubscription } = useAuth();
   const { push } = useToasts();
   const navigate = useNavigate();
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -137,12 +146,77 @@ export default function Profile() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [profileLoading, setProfileLoading] = useState(true);
+  const [managedSubscription, setManagedSubscription] = useState<ManagedServiceSubscription | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [cancelingSubscription, setCancelingSubscription] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState("");
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const initialFormRef = useRef<Record<string, string> | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const securityRef = useRef<HTMLDivElement | null>(null);
   const activityRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const loadSubscription = async () => {
+      if (!user?.id) {
+        setManagedSubscription(null);
+        setSubscriptionLoading(false);
+        return;
+      }
+      setSubscriptionLoading(true);
+      setSubscriptionError("");
+      const { data, error } = await supabase
+        .from("subscriptions")
+        .select("id, plan_key, status, current_period_end, auto_renew, canceled_at")
+        .eq("user_id", user.id)
+        .eq("product_line", "service")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!active) return;
+      if (error) {
+        setSubscriptionError("Could not load your service subscription. Please refresh and try again.");
+        console.error("[Profile] Subscription load failed:", error);
+      } else {
+        setManagedSubscription(data as ManagedServiceSubscription | null);
+      }
+      setSubscriptionLoading(false);
+    };
+    void loadSubscription();
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  const handleCancelSubscription = async () => {
+    if (!managedSubscription || !window.confirm(
+      "Cancel this service-provider subscription now? Your listing will be removed immediately and KoraPay will not charge it again.",
+    )) return;
+
+    setCancelingSubscription(true);
+    setSubscriptionError("");
+    try {
+      const { error } = await supabase.rpc("cancel_my_service_subscription");
+      if (error) throw error;
+      const canceledAt = new Date().toISOString();
+      setManagedSubscription({
+        ...managedSubscription,
+        status: "canceled",
+        auto_renew: false,
+        canceled_at: canceledAt,
+      });
+      await fetchSubscription();
+      push({ message: "Subscription canceled. Your provider listing is no longer visible.", type: "success" });
+    } catch (error) {
+      console.error("[Profile] Subscription cancellation failed:", error);
+      setSubscriptionError(error instanceof Error ? error.message : "Could not cancel your subscription. Please try again.");
+      push({ message: "Could not cancel your subscription. Please try again.", type: "error" });
+    } finally {
+      setCancelingSubscription(false);
+    }
+  };
 
   // ─── Dynamic section data ──────────────────────────────────────────────────
   const [experience, setExperience] = useState<ExperienceEntry[]>([]);
@@ -809,6 +883,59 @@ export default function Profile() {
                     <ShieldCheck className="h-4 w-4" /> Security
                   </button>
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Manage subscription</p>
+                  <h2 className="mt-2 text-xl font-bold text-slate-900">{managedSubscription?.plan_key.replace(/_/g, ' ') || (subscription?.tier ? subscription.tier.replace(/_/g, ' ') : userProfile?.role === 'provider' ? 'Service provider' : 'Standard')}</h2>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${managedSubscription?.status === 'active' || managedSubscription?.status === 'trialing' || subscription.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {subscriptionLoading ? 'Checking' : managedSubscription?.status === 'trialing' ? 'Free trial' : managedSubscription?.status === 'active' ? 'Active' : managedSubscription?.status === 'past_due' ? 'Payment due' : managedSubscription?.status === 'canceled' ? 'Canceled' : managedSubscription?.status === 'expired' ? 'Expired' : subscription.status === 'active' ? 'Active' : subscription.status === 'expired' ? 'Expired' : 'Not active'}
+                </span>
+              </div>
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <div className="rounded-2xl bg-slate-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Current plan</p>
+                  <p className="mt-1 font-semibold text-slate-900">{managedSubscription?.plan_key.replace(/_/g, ' ') || (subscription?.tier ? subscription.tier.replace(/_/g, ' ') : userProfile?.role === 'provider' ? 'Service provider' : 'Free plan')}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{managedSubscription?.status === 'trialing' ? 'Trial ends / next charge' : 'Next charge'}</p>
+                  <p className="mt-1 font-semibold text-slate-900">{managedSubscription?.auto_renew && managedSubscription.status !== 'canceled' ? new Date(managedSubscription.current_period_end).toLocaleDateString() : managedSubscription ? 'No further charge scheduled' : subscription.expires_at ? new Date(subscription.expires_at).toLocaleDateString() : 'Not scheduled'}</p>
+                </div>
+                {managedSubscription?.canceled_at && (
+                  <p className="text-xs text-slate-500">Canceled on {new Date(managedSubscription.canceled_at).toLocaleDateString()}. Your provider listing is hidden.</p>
+                )}
+                {subscriptionError && <p role="alert" className="text-xs text-red-600">{subscriptionError}</p>}
+                <p className="text-xs text-slate-500">Payment is processed securely through KoraPay and JobBridge never stores card details.</p>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link
+                  to="/pricing#services"
+                  className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Explore plans
+                </Link>
+                {userProfile?.role !== 'provider' && (
+                  <Link
+                    to="/pricing#services"
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Upgrade to service provider
+                  </Link>
+                )}
+                {managedSubscription?.auto_renew && ['active', 'trialing', 'past_due'].includes(managedSubscription.status) && (
+                  <button
+                    type="button"
+                    onClick={handleCancelSubscription}
+                    disabled={cancelingSubscription}
+                    className="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {cancelingSubscription ? 'Canceling…' : 'Cancel subscription'}
+                  </button>
+                )}
               </div>
             </div>
 

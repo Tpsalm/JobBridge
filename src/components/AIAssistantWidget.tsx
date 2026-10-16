@@ -34,7 +34,7 @@ interface Message {
   error?: boolean;
 }
 
-const CONVERSATION_ID = "jobbridge-ai-widget";
+const CONVERSATION_ID = "joba-widget";
 
 function renderInline(text: string): React.ReactNode {
   const result: React.ReactNode[] = [];
@@ -453,7 +453,7 @@ function AIAssistantWidget() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: nextId(),
-      text: `${getTimeGreeting()}! I'm your JobBridge AI Career Agent. I have deep knowledge of the platform and can inspect your active page to help you guide actions or fill forms. Ask me anything!`,
+      text: `${getTimeGreeting()}! I'm Joba, your JobBridge AI Career Assistant. I can help you navigate the platform, check your page, and guide actions on jobs, profiles, and subscriptions. Ask me anything!`,
       sender: "bot",
     },
   ]);
@@ -822,7 +822,7 @@ function AIAssistantWidget() {
               <div>
                 <div className="flex items-center gap-1.5">
                   <h3 className="font-bold text-white text-sm">
-                    JobBridge AI Agent
+                    Joba
                   </h3>
                   <span className="px-1.5 py-0.5 bg-emerald-400/25 border border-emerald-400/20 text-emerald-300 text-[9px] font-bold rounded-md">
                     {modelInfo.provider === "DeepSeek" ? "DeepSeek" : "GPT"}
@@ -1075,7 +1075,7 @@ function AIAssistantWidget() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask AI Agent to search, route, or fill forms..."
+                placeholder="Ask Joba to search, route, or fill forms..."
                 disabled={!!phase}
                 className="flex-1 px-4 py-3 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 text-sm disabled:opacity-50 transition-all shadow-inner bg-gray-50"
               />

@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land"
-import { createClient } from "https://esm.sh"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,7 +25,26 @@ serve(async (req) => {
     const { documentType, rawData } = await req.json()
     
     const apiKey = Deno.env.get("DEEPSEEK_API_KEY")
-    const deepSeekResponse = await fetch("https://deepseek.com", {
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "AI service is not configured." }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+    if (
+      typeof documentType !== "string" ||
+      !documentType.trim() ||
+      typeof rawData !== "string" ||
+      !rawData.trim() ||
+      rawData.length > 24000
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Document details are missing or exceed the supported length." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    const deepSeekResponse = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -40,6 +59,14 @@ serve(async (req) => {
         temperature: 0.7
       })
     })
+
+    if (!deepSeekResponse.ok) {
+      console.error("[ai-resume] DeepSeek request failed:", deepSeekResponse.status)
+      return new Response(
+        JSON.stringify({ error: "Resume generation is temporarily unavailable. Please try again." }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
 
     const deepSeekData = await deepSeekResponse.json()
     

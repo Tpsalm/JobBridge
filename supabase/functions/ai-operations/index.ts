@@ -4,6 +4,10 @@ import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
 // Read keys from Supabase secret environment
 const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY') || Deno.env.get('VITE_DEEPSEEK_API_KEY') || '';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('VITE_OPENAI_API_KEY') || '';
+const MAX_MESSAGES = 30;
+const MAX_MESSAGE_LENGTH = 12000;
+const MAX_TOTAL_MESSAGE_LENGTH = 24000;
+const MAX_INPUT_LENGTH = 24000;
 
 interface AIRequest {
   type: 'status' | 'chat' | 'embed' | 'resume' | 'cover-letter';
@@ -182,6 +186,10 @@ Please write a personalized, compelling cover letter.`;
 
 async function handleRequest(body: AIRequest): Promise<AIResponse> {
   try {
+    if (!body || typeof body !== 'object' || typeof body.type !== 'string') {
+      return { ok: false, error: 'Invalid AI request.' };
+    }
+
     switch (body.type) {
       case 'status': {
         if (!DEEPSEEK_API_KEY) {
@@ -191,26 +199,53 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
       }
 
       case 'chat': {
-        if (!body.messages || body.messages.length === 0) {
-          return { ok: false, error: 'Missing messages' };
+        if (
+          !Array.isArray(body.messages) ||
+          body.messages.length === 0 ||
+          body.messages.length > MAX_MESSAGES
+        ) {
+          return { ok: false, error: `Chat must include 1-${MAX_MESSAGES} messages.` };
+        }
+        let totalLength = 0;
+        for (const message of body.messages) {
+          if (
+            !message ||
+            !['system', 'user', 'assistant'].includes(message.role) ||
+            typeof message.content !== 'string' ||
+            !message.content.trim() ||
+            message.content.length > MAX_MESSAGE_LENGTH
+          ) {
+            return { ok: false, error: 'Chat contains an invalid or oversized message.' };
+          }
+          totalLength += message.content.length;
+        }
+        if (totalLength > MAX_TOTAL_MESSAGE_LENGTH) {
+          return { ok: false, error: 'Chat exceeds the maximum supported length.' };
         }
         const result = await chat(body.messages);
         return { ok: true, result };
       }
 
       case 'embed': {
-        if (!body.text) {
-          return { ok: false, error: 'Missing text for embedding' };
+        if (!body.text?.trim() || body.text.length > MAX_INPUT_LENGTH) {
+          return { ok: false, error: 'Text is missing or exceeds the maximum supported length.' };
         }
         const embedding = await embed(body.text);
         return { ok: true, embedding };
       }
 
       case 'resume': {
-        if (!body.resumeText || !body.jobTitle || !body.jobDescription) {
+        if (
+          !body.resumeText?.trim() ||
+          !body.jobTitle?.trim() ||
+          !body.jobDescription?.trim() ||
+          body.resumeText.length > MAX_INPUT_LENGTH ||
+          body.jobTitle.length > 500 ||
+          body.jobDescription.length > MAX_INPUT_LENGTH
+        ) {
           return {
             ok: false,
-            error: 'Missing required fields: resumeText, jobTitle, jobDescription',
+            error: 'Resume details are missing or exceed the maximum supported length.',
           };
         }
         const result = await generateResume(
@@ -222,10 +257,18 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
       }
 
       case 'cover-letter': {
-        if (!body.resumeText || !body.jobTitle || !body.jobDescription) {
+        if (
+          !body.resumeText?.trim() ||
+          !body.jobTitle?.trim() ||
+          !body.jobDescription?.trim() ||
+          body.resumeText.length > MAX_INPUT_LENGTH ||
+          body.jobTitle.length > 500 ||
+          body.jobDescription.length > MAX_INPUT_LENGTH ||
+          (body.companyName?.length ?? 0) > 500
+        ) {
           return {
             ok: false,
-            error: 'Missing required fields: resumeText, jobTitle, jobDescription',
+            error: 'Cover letter details are missing or exceed the maximum supported length.',
           };
         }
         const companyName = body.companyName || 'the company';

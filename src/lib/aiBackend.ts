@@ -1,204 +1,143 @@
-/**
- * AI Backend Communication Helper
- * 
- * This module provides secure communication with JobBridge AI services
- * running on Supabase Edge Functions. All sensitive API keys are handled
- * server-side only, never exposed to the client.
- */
+import { supabase } from "./supabase";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+type AIRequestType = "status" | "chat" | "embed" | "resume" | "cover-letter";
+type AIMessageRole = "system" | "user" | "assistant";
 
-/**
- * Get the AI operations endpoint URL
- */
-export function getAIEndpoint(): string {
-  const url = new URL(`${SUPABASE_URL}/functions/v1/ai-operations`);
-  return url.toString();
+interface AIResponse {
+  ok: boolean;
+  result?: string;
+  embedding?: number[];
+  error?: string;
 }
 
-/**
- * Check if AI services are available
- */
+const MAX_MESSAGES = 30;
+const MAX_MESSAGE_LENGTH = 12000;
+const MAX_INPUT_LENGTH = 24000;
+
+async function requestAI(
+  body: Record<string, unknown> & { type: AIRequestType },
+): Promise<AIResponse> {
+  const { data, error } = await supabase.functions.invoke<AIResponse>(
+    "ai-operations",
+    { body },
+  );
+  if (error) {
+    throw new Error(`AI service request failed: ${error.message}`);
+  }
+  if (!data || typeof data !== "object" || typeof data.ok !== "boolean") {
+    throw new Error("AI service returned an invalid response.");
+  }
+  if (!data.ok) {
+    throw new Error(data.error || "AI service request failed.");
+  }
+  return data;
+}
+
+function validateText(value: string, label: string): void {
+  if (!value.trim()) throw new Error(`${label} is required.`);
+  if (value.length > MAX_INPUT_LENGTH) {
+    throw new Error(`${label} exceeds the maximum supported length.`);
+  }
+}
+
+function validateMessages(
+  messages: Array<{ role: string; content: string }>,
+): Array<{ role: AIMessageRole; content: string }> {
+  if (!messages.length || messages.length > MAX_MESSAGES) {
+    throw new Error(`Chat must include between 1 and ${MAX_MESSAGES} messages.`);
+  }
+  return messages.map(({ role, content }) => {
+    if (role !== "system" && role !== "user" && role !== "assistant") {
+      throw new Error("Chat contains an unsupported message role.");
+    }
+    if (typeof content !== "string" || content.length > MAX_MESSAGE_LENGTH) {
+      throw new Error("Chat message is empty or exceeds the supported length.");
+    }
+    return { role, content };
+  });
+}
+
 export async function isAIAvailable(): Promise<boolean> {
   try {
-    const response = await fetch(getAIEndpoint(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ type: 'status' }),
-    });
-    return response.ok;
+    await requestAI({ type: "status" });
+    return true;
   } catch {
     return false;
   }
 }
 
-/**
- * Send a chat request to the AI backend
- */
-export async function aiChat(messages: Array<{ role: string; content: string }>): Promise<string> {
-  const response = await fetch(getAIEndpoint(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({
-      type: 'chat',
-      messages,
-    }),
+export async function aiChat(
+  messages: Array<{ role: string; content: string }>,
+): Promise<string> {
+  const data = await requestAI({
+    type: "chat",
+    messages: validateMessages(messages),
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`AI Chat API error: ${response.status} ${error}`);
+  if (typeof data.result !== "string" || !data.result.trim()) {
+    throw new Error("AI service returned an empty chat response.");
   }
-
-  const data = await response.json();
-  if (!data.ok) {
-    throw new Error(data.error || 'Unknown error from AI service');
-  }
-
   return data.result;
 }
 
-/**
- * Send a streaming chat request to the AI backend
- */
 export async function aiChatStream(
   messages: Array<{ role: string; content: string }>,
-  onToken: (token: string) => void
+  onToken: (token: string) => void,
 ): Promise<string> {
-  const response = await fetch(getAIEndpoint(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({
-      type: 'chat',
-      messages,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`AI Chat API error: ${response.status} ${error}`);
-  }
-
-  const data = await response.json();
-  if (!data.ok) {
-    throw new Error(data.error || 'Unknown error from AI service');
-  }
-
-  // For non-streaming response, call onToken with the full result
-  if (data.result) {
-    onToken(data.result);
-  }
-
-  return data.result;
+  const result = await aiChat(messages);
+  onToken(result);
+  return result;
 }
 
-/**
- * Generate an embedding for text
- */
 export async function aiEmbed(text: string): Promise<number[]> {
-  const response = await fetch(getAIEndpoint(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({
-      type: 'embed',
-      text,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`AI Embed API error: ${response.status} ${error}`);
+  validateText(text, "Text");
+  const data = await requestAI({ type: "embed", text });
+  if (
+    !Array.isArray(data.embedding) ||
+    data.embedding.some((value) => !Number.isFinite(value))
+  ) {
+    throw new Error("AI service returned an invalid embedding.");
   }
-
-  const data = await response.json();
-  if (!data.ok) {
-    throw new Error(data.error || 'Unknown error from AI service');
-  }
-
-  return data.embedding || [];
+  return data.embedding;
 }
 
-/**
- * Generate a tailored resume
- */
 export async function aiGenerateResume(
   resumeText: string,
   jobTitle: string,
-  jobDescription: string
+  jobDescription: string,
 ): Promise<string> {
-  const response = await fetch(getAIEndpoint(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({
-      type: 'resume',
-      resumeText,
-      jobTitle,
-      jobDescription,
-    }),
+  validateText(resumeText, "Resume");
+  validateText(jobTitle, "Job title");
+  validateText(jobDescription, "Job description");
+  const data = await requestAI({
+    type: "resume",
+    resumeText,
+    jobTitle,
+    jobDescription,
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`AI Resume API error: ${response.status} ${error}`);
+  if (typeof data.result !== "string" || !data.result.trim()) {
+    throw new Error("AI service returned an empty resume.");
   }
-
-  const data = await response.json();
-  if (!data.ok) {
-    throw new Error(data.error || 'Unknown error from AI service');
-  }
-
   return data.result;
 }
 
-/**
- * Generate a cover letter
- */
 export async function aiGenerateCoverLetter(
   resumeText: string,
   jobTitle: string,
   jobDescription: string,
-  companyName?: string
+  companyName?: string,
 ): Promise<string> {
-  const response = await fetch(getAIEndpoint(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({
-      type: 'cover-letter',
-      resumeText,
-      jobTitle,
-      jobDescription,
-      companyName: companyName || 'the company',
-    }),
+  validateText(resumeText, "Resume");
+  validateText(jobTitle, "Job title");
+  validateText(jobDescription, "Job description");
+  const data = await requestAI({
+    type: "cover-letter",
+    resumeText,
+    jobTitle,
+    jobDescription,
+    companyName: companyName?.trim() || "the company",
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`AI Cover Letter API error: ${response.status} ${error}`);
+  if (typeof data.result !== "string" || !data.result.trim()) {
+    throw new Error("AI service returned an empty cover letter.");
   }
-
-  const data = await response.json();
-  if (!data.ok) {
-    throw new Error(data.error || 'Unknown error from AI service');
-  }
-
   return data.result;
 }

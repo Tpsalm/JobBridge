@@ -6,6 +6,7 @@ import { cardTokenFromVerification, persistKoraCardToken } from "../_shared/kora
 const KORA_SECRET_KEY = Deno.env.get("KORA_SECRET_KEY") || Deno.env.get("VITE_KORA_SECRET_KEY") || "";
 const KORA_ALLOW_SIMULATED_VERIFICATION = Boolean(Deno.env.get("KORA_ALLOW_SIMULATED_VERIFICATION"));
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const KORA_API_BASE = "https://api.korapay.com/merchant/api/v1";
 
@@ -61,6 +62,17 @@ serve(async (req: Request) => {
     // Universal activation: called with activate_plan, plan_key, user_id, duration_days, credits, etc.
     if (requestBody?.activate_plan === true && requestBody?.user_id && requestBody?.plan_key) {
       const userId = String(requestBody.user_id);
+      const authorization = req.headers.get("Authorization");
+      if (!authorization || !SUPABASE_ANON_KEY) {
+        return new Response(JSON.stringify({ error: "Authentication required" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: authorization } },
+      });
+      const { data: { user: authenticatedUser }, error: authError } = await authClient.auth.getUser();
+      if (authError || authenticatedUser?.id !== userId) {
+        return new Response(JSON.stringify({ error: "Not authorized to activate this account" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
       const planKey = String(requestBody.plan_key);
       const durationDays = Number(requestBody.duration_days) || 30;
       const creditsToAdd = Number(requestBody.credits) || 0;
@@ -74,6 +86,24 @@ serve(async (req: Request) => {
       const isBusinessPlan = planKey === "business_weekly" || planKey === "business_monthly" || planKey === "business_featured";
 
       const tier = isAiPlan ? "ai_tools" : planKey;
+
+      if (isServicePlan) {
+        const cardToken = String(requestBody.card_token || "");
+        if (!cardToken) {
+          return new Response(JSON.stringify({ error: "KoraPay card token is required for a service-provider subscription" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        const tokenResult = await persistKoraCardToken(
+          supabase,
+          userId,
+          planKey,
+          cardToken,
+          requestBody.trial === true,
+        );
+        if (!tokenResult || tokenResult.error || tokenResult.skipped) {
+          console.error("[verify-payment] Could not persist KoraPay subscription token:", tokenResult?.error || "No subscription was created");
+          return new Response(JSON.stringify({ error: "Could not activate the KoraPay subscription. Please contact support." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
 
       // 1) Update profile subscription
       const profileUpdates: Record<string, unknown> = {
@@ -115,6 +145,7 @@ serve(async (req: Request) => {
       // Service subscribers must appear in the public marketplace feed
       // (feed gates on profiles.visibility_until > now + is_active).
       if (isServicePlan) {
+        profileUpdates.role = "provider";
         profileUpdates.visibility_until = expiresAt;
         profileUpdates.is_active = true;
         if (requestBody.trial === true) {
@@ -134,7 +165,37 @@ serve(async (req: Request) => {
       } else {
         console.log(`[verify-payment] Profile activated for user ${userId}, plan ${planKey}, ${durationDays} days`);
         if (isServicePlan) {
-          await supabase.from("service_providers").update({ is_active: true }).eq("profile_id", userId).catch(() => {});
+          const { data: providerProfile } = await supabase
+            .from("profiles")
+            .select("specialty, service_category")
+            .eq("id", userId)
+            .maybeSingle();
+          const providerListing = {
+            specialty: providerProfile?.specialty || providerProfile?.service_category || "Service Professional",
+            is_verified: planKey !== "service_monthly",
+            is_active: true,
+            updated_at: now,
+          };
+          const { data: existingProvider, error: providerLookupError } = await supabase
+            .from("service_providers")
+            .select("id")
+            .eq("profile_id", userId)
+            .limit(1)
+            .maybeSingle();
+          if (providerLookupError) {
+            console.error("[verify-payment] Provider listing lookup failed:", providerLookupError.message);
+          } else if (existingProvider) {
+            const { error: providerUpdateError } = await supabase
+              .from("service_providers")
+              .update(providerListing)
+              .eq("id", existingProvider.id);
+            if (providerUpdateError) console.error("[verify-payment] Provider listing update failed:", providerUpdateError.message);
+          } else {
+            const { error: providerInsertError } = await supabase
+              .from("service_providers")
+              .insert({ profile_id: userId, ...providerListing });
+            if (providerInsertError) console.error("[verify-payment] Provider listing insert failed:", providerInsertError.message);
+          }
         }
       }
 
@@ -181,20 +242,6 @@ serve(async (req: Request) => {
         } catch (advertErr) {
           console.error("[verify-payment] Business advert processing error:", advertErr);
         }
-      }
-
-      // 3) Save the KoraPay card token (if present) so monthly renewals auto-debit.
-      //    `trial` signups enter `trialing` (no charge for 30 days) and are
-      //    auto-debited by billing-daily once the trial period ends.
-      const cardToken = String(requestBody.card_token || "");
-      const isTrialActivation = requestBody.trial === true;
-      const tokenResult = cardToken
-        ? await persistKoraCardToken(supabase, userId, planKey, cardToken, isTrialActivation)
-        : null;
-      if (cardToken && tokenResult && !tokenResult.skipped && !tokenResult.error) {
-        console.log(`[verify-payment] Card token saved for user ${userId}, plan ${planKey}`);
-      } else if (tokenResult?.error) {
-        console.error("[verify-payment] Failed to persist card token:", tokenResult.error);
       }
 
       const result: Record<string, unknown> = {

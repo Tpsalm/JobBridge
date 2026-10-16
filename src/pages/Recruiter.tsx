@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { type FormEvent, useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
@@ -32,7 +32,7 @@ import PageHero from '../components/PageHero';
 import VideoPlayer from '../components/VideoPlayer';
 import { HERO_CAROUSELS, VIDEO } from '../lib/media';
 import { supabase } from '../lib/supabase';
-import { fetchApplications, updateApplicationStatus as updateAppStatus } from '../lib/supabaseQueries';
+import { createConversationMessage, fetchApplications, updateApplicationStatus as updateAppStatus } from '../lib/supabaseQueries';
 import { sendEmail } from '../lib/email';
 import type { Job } from '../lib/supabase';
 import AnimatedSection from '../components/AnimatedSection';
@@ -117,6 +117,9 @@ export default function Recruiter() {
   const [appsLoading, setAppsLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [resumeError, setResumeError] = useState('');
+  const [messageDraft, setMessageDraft] = useState('');
+  const [messageError, setMessageError] = useState('');
+  const [messageSending, setMessageSending] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
 
   async function fetchApps() {
@@ -161,11 +164,20 @@ export default function Recruiter() {
   }
 
   async function updateStatus(appId: string, status: string) {
+    const actionLabels: Record<string, string> = {
+      shortlisted: 'shortlist',
+      reviewed: 'mark reviewed',
+      rejected: 'reject',
+      hired: 'hire',
+    };
+    const actionText = actionLabels[status] || 'update';
+    const confirmed = window.confirm(`Are you sure you want to ${actionText} this application?`);
+    if (!confirmed) return;
+
     try {
       await updateAppStatus(appId, status);
       setApplications(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
       if (selectedApp?.id === appId) setSelectedApp({ ...selectedApp, status });
-      // Send status update email to applicant
       const app = applications.find(a => a.id === appId);
       if (app?.applicant?.email) {
         sendEmail({
@@ -179,6 +191,36 @@ export default function Recruiter() {
       }
     } catch (e) {
       console.error('update status error', e);
+    }
+  }
+
+  async function messageApplicant(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const recipient = selectedApp?.applicant;
+    const content = messageDraft.trim();
+    if (!user?.id || !recipient?.id || !content) {
+      setMessageError('Applicant details or message text are missing.');
+      return;
+    }
+
+    setMessageSending(true);
+    setMessageError('');
+    try {
+      const conversationId = await createConversationMessage({
+        senderId: user.id,
+        senderName: selectedApp?.job?.company || user.email || 'Recruiter',
+        recipientId: recipient.id,
+        recipientName: recipient.full_name || 'Applicant',
+        recipientEmail: recipient.email || undefined,
+        message: content,
+      });
+      if (!conversationId) throw new Error('Message was saved but no conversation was returned.');
+      navigate(`/messages?conversationId=${encodeURIComponent(conversationId)}`);
+    } catch (error) {
+      console.error('[Recruiter] Could not message applicant:', error);
+      setMessageError(error instanceof Error ? error.message : 'Could not send your message. Please try again.');
+    } finally {
+      setMessageSending(false);
     }
   }
 
@@ -808,6 +850,30 @@ export default function Recruiter() {
                         </button>
                       )}
                     </div>
+                    <form onSubmit={messageApplicant} className="border-t border-gray-200 pt-4">
+                      <label htmlFor="applicant-message" className="block text-sm font-semibold text-gray-900">
+                        Message applicant
+                      </label>
+                      <textarea
+                        id="applicant-message"
+                        value={messageDraft}
+                        onChange={(event) => setMessageDraft(event.target.value)}
+                        rows={3}
+                        maxLength={4000}
+                        required
+                        placeholder="Write a message about their application..."
+                        className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      />
+                      {messageError && <p role="alert" className="mt-2 text-sm text-red-700">{messageError}</p>}
+                      <button
+                        type="submit"
+                        disabled={messageSending || !selectedApp.applicant?.id || !messageDraft.trim()}
+                        className="mt-2 inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        {messageSending ? 'Sending...' : 'Send message'}
+                      </button>
+                    </form>
                   </div>
                 </div>
               ) : filteredApps.length === 0 ? (

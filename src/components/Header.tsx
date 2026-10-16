@@ -14,7 +14,6 @@ import {
   Users,
   Wrench,
   BarChart3,
-  CreditCard,
   ChevronDown,
   Bookmark,
   MessageSquare,
@@ -33,7 +32,6 @@ const navLinks = [
   { label: "Providers", path: "/providers", icon: Users },
   { label: "Business", path: "/business", icon: BarChart3 },
   { label: "Pricing", path: "/pricing", icon: Wrench },
-  { label: "Payment", path: "/payment", icon: CreditCard },
 ];
 
 const moreLinks = [
@@ -50,6 +48,18 @@ const moreLinks = [
 export default function Header() {
   const { user, profile, isAuthenticated, loading: authLoading, savedJobs, signOut } = useAuth();
   const location = useLocation();
+  const role = profile?.role;
+  const primaryNavLinks = [
+    ...navLinks,
+    {
+      label: role === "recruiter" ? "Recruiter" : "My Jobs",
+      path: role === "recruiter" ? "/recruiter" : "/my-jobs",
+      icon: role === "recruiter" ? Briefcase : Bookmark,
+    },
+    ...(role === "admin"
+      ? [{ label: "Admin Reports", path: "/admin-reports?tab=reports", icon: Shield }]
+      : []),
+  ];
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -175,7 +185,7 @@ export default function Header() {
   const isActive = (path: string) =>
     path === "/"
       ? location.pathname === "/"
-      : location.pathname.startsWith(path);
+      : location.pathname.startsWith(path.split("?")[0]);
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -224,7 +234,7 @@ export default function Header() {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map(({ label, path }) => (
+            {primaryNavLinks.map(({ label, path }) => (
               <Link
                 key={path}
                 to={path}
@@ -446,7 +456,7 @@ export default function Header() {
       {mobileOpen && (
         <div className="md:hidden max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-t border-gray-100 bg-white">
           <div className="px-3 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-1">
-            {[...navLinks, ...moreLinks].map(({ label, path }) => (
+            {[...primaryNavLinks, ...moreLinks].map(({ label, path }) => (
               <Link
                 key={path}
                 to={path}

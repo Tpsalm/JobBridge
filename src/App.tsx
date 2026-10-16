@@ -111,6 +111,14 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/admin-reports"
+                element={
+                  <ProtectedRoute>
+                    <EmailLogsAdmin />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/profile-visibility" element={<ProfileVisibility />} />
               <Route path="/job-preferences" element={<JobPreferences />} />
               <Route path="/following" element={<Following />} />

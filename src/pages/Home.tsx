@@ -11,6 +11,7 @@ import HeroSlides from '../components/HeroSlides';
 import { pexel, advertImage } from '../lib/media';
 import { fetchPublicAdvertisements, incrementAdvertisementViews, incrementAdvertisementClicks, fetchJobs } from '../lib/supabaseQueries';
 import type { Advertisement } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const stats = [
   { label: 'Active Jobs', value: '24,500+', icon: Briefcase, color: 'bg-blue-50 text-blue-700' },
@@ -58,6 +59,13 @@ function CarouselImg({ images, className }: { images: string[]; className?: stri
 
 export default function Home() {
   const navigate = useNavigate();
+  const { isAuthenticated, profile } = useAuth();
+  const accountDestination = isAuthenticated
+    ? profile?.role === 'recruiter' ? '/recruiter' : '/my-jobs'
+    : '/login';
+  const accountActionLabel = !isAuthenticated
+    ? 'Sign in'
+    : profile?.role === 'recruiter' ? 'Recruiter' : 'My Jobs';
 
   // ── Featured Jobs (from database) ────────────────────────────────────────
   // Fetch all jobs from the database and display them on the homepage.
@@ -463,8 +471,8 @@ export default function Home() {
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Ready to find your next opportunity?</h2>
             <p className="text-blue-100 mb-7 max-w-lg mx-auto">Join over 2 million professionals already using JobBridge to advance their careers.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link to="/payment" className="bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:shadow-xl">
-                Go to Payment
+              <Link to={accountDestination} className="bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:shadow-xl">
+                {accountActionLabel}
               </Link>
               <Link
                 to="/pricing"

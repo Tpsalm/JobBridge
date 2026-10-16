@@ -153,85 +153,157 @@ export async function persistKoraCardToken(
   if (!mapped) return { skipped: true };
 
   const now = new Date();
+  const { data: planRow, error: planError } = await supabase
+    .from("plans")
+    .select("duration_days, product_line")
+    .eq("key", mapped.plan_key)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (planError || !planRow) {
+    const message = planError?.message || `Plan ${mapped.plan_key} is unavailable`;
+    console.error("[korapay-recurring] could not load subscription plan:", message);
+    return { error: message };
+  }
 
-  const [{ data: planRow }, { data: existing }] = await Promise.all([
+  const [{ data: activeSubscription, error: activeError }, { data: samePlan, error: samePlanError }] = await Promise.all([
     supabase
-      .from("plans")
-      .select("duration_days, product_line")
-      .eq("key", mapped.plan_key)
+      .from("subscriptions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("product_line", mapped.product_line)
+      .in("status", ["active", "trialing", "past_due"])
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle(),
     supabase
       .from("subscriptions")
       .select("id")
       .eq("user_id", userId)
       .eq("plan_key", mapped.plan_key)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ]);
+  if (activeError || samePlanError) {
+    const message = activeError?.message || samePlanError?.message || "Could not read the current subscription";
+    console.error("[korapay-recurring] subscription lookup failed:", message);
+    return { error: message };
+  }
 
-  const durationDays = planRow?.duration_days || 30;
-  const productLine = planRow?.product_line || mapped.product_line;
+  const existing = activeSubscription || samePlan;
+  const durationDays = planRow.duration_days;
+  const productLine = planRow.product_line;
   const periodEnd = new Date(now.getTime() + durationDays * 86400000).toISOString();
-  const base = {
+  const initialStatus = trial ? "trialing" : "active";
+  const subscriptionValues = {
+    plan_key: mapped.plan_key,
+    product_line: productLine,
+    status: initialStatus,
+    current_period_start: now.toISOString(),
+    current_period_end: periodEnd,
     kora_card_token_key: token,
     auto_renew: true,
+    launch_free_period: false,
+    failed_retries: 0,
+    next_attempt_at: null,
+    grace_ends_at: null,
+    canceled_at: null,
+    cancel_reason: null,
+    metadata: { source: trial ? "kora_trial" : "kora_checkout" },
     updated_at: now.toISOString(),
   };
 
+  let subscriptionId: string;
+  let created = false;
   if (existing) {
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from("subscriptions")
-      .update(base)
+      .update(subscriptionValues)
       .eq("id", existing.id);
-    if (error) {
-      console.warn("[korapay-recurring] subscription update failed:", error.message);
-      return { error: error.message };
+    if (updateError) {
+      console.error("[korapay-recurring] subscription update failed:", updateError.message);
+      return { error: updateError.message };
     }
-    return { id: existing.id, created: false };
-  }
-
-  const { plan_key } = mapped;
-  const initialStatus = trial ? "trialing" : "active";
-  const { data: inserted, error } = await supabase
-    .from("subscriptions")
-    .insert({
+    subscriptionId = existing.id;
+  } else {
+    const { data: inserted, error: insertError } = await supabase
+      .from("subscriptions")
+      .insert({
       user_id: userId,
-      plan_key,
-      product_line: productLine,
-      status: initialStatus,
-      current_period_start: now.toISOString(),
-      current_period_end: periodEnd,
-      kora_card_token_key: token,
-      auto_renew: true,
-      launch_free_period: false,
-      metadata: { source: trial ? "kora_trial" : "kora_checkout" },
+      ...subscriptionValues,
     })
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    console.warn("[korapay-recurring] subscription insert failed:", error.message);
-    return { error: error.message };
+      .select("id")
+      .maybeSingle();
+    if (insertError || !inserted) {
+      const message = insertError?.message || "Subscription insert returned no row";
+      console.error("[korapay-recurring] subscription insert failed:", message);
+      return { error: message };
+    }
+    subscriptionId = inserted.id;
+    created = true;
   }
 
-  if (productLine === "service" && inserted?.id) {
-    await Promise.all([
-      supabase
-        .from("profiles")
-        .update({
-          visibility_until: periodEnd,
-          is_active: true,
-          service_subscription_id: inserted.id,
-          updated_at: now.toISOString(),
-        })
-        .eq("id", userId),
-      supabase
-        .from("service_providers")
-        .update({ is_active: true, updated_at: now.toISOString() })
-        .eq("profile_id", userId),
-    ]).catch((e) => {
-      console.warn("[korapay-recurring] could not open provider visibility:", e);
-    });
+  if (productLine === "service") {
+    const isVerified = paymentPlan !== "service_monthly";
+    const isFeatured = paymentPlan === "service_featured";
+    const { data: profile, error: profileLookupError } = await supabase
+      .from("profiles")
+      .select("specialty, service_category")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profileLookupError || !profile) {
+      const message = profileLookupError?.message || "Provider profile was not found";
+      console.error("[korapay-recurring] provider profile lookup failed:", message);
+      return { error: message };
+    }
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        role: "provider",
+        is_premium: true,
+        subscription_tier: paymentPlan,
+        subscription_expires_at: periodEnd,
+        trial_start_date: trial ? now.toISOString() : null,
+        trial_end_date: trial ? periodEnd : null,
+        trial_plan: paymentPlan,
+        visibility_until: periodEnd,
+        is_verified: isVerified,
+        is_featured: isFeatured,
+        is_active: true,
+        service_subscription_id: subscriptionId,
+        updated_at: now.toISOString(),
+      })
+      .eq("id", userId);
+    if (profileError) {
+      console.error("[korapay-recurring] provider profile activation failed:", profileError.message);
+      return { error: profileError.message };
+    }
+
+    const { data: provider, error: providerLookupError } = await supabase
+      .from("service_providers")
+      .select("id")
+      .eq("profile_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (providerLookupError) {
+      console.error("[korapay-recurring] provider listing lookup failed:", providerLookupError.message);
+      return { error: providerLookupError.message };
+    }
+
+    const listing = {
+      specialty: profile.specialty || profile.service_category || "Service Professional",
+      is_verified: isVerified,
+      is_active: true,
+      updated_at: now.toISOString(),
+    };
+    const { error: providerError } = provider
+      ? await supabase.from("service_providers").update(listing).eq("id", provider.id)
+      : await supabase.from("service_providers").insert({ profile_id: userId, ...listing });
+    if (providerError) {
+      console.error("[korapay-recurring] provider listing activation failed:", providerError.message);
+      return { error: providerError.message };
+    }
   }
 
-  return { id: inserted?.id, created: true };
+  return { id: subscriptionId, created };
 }

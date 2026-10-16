@@ -3,10 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import JobBridgeLogo from "../components/JobBridgeLogo";
 import { CheckCircle, XCircle } from "lucide-react";
-import {
-  activateServiceTrialForUser,
-  takePendingTrial,
-} from "../lib/trial";
 
 const MAX_WAIT_MS = 8000; // 8 seconds max before fallback to /login
 
@@ -105,23 +101,12 @@ export default function AuthCallback() {
           setProgress(100);
           setStatus("success");
 
-          // If this provider created an account during signup with a saved
-          // card token (email-confirmation flow), activate the 30-day trial
-          // now that they've confirmed their email.
-          const email =
-            typeof session.user.email === "string" ? session.user.email : "";
-          const pendingData = takePendingTrial(email);
           const metaPlan = session.user?.user_metadata?.trial_plan;
-          const effectivePlan = pendingData?.planKey || metaPlan || "service_verified";
-          const cardToken = pendingData?.token || session.user?.user_metadata?.card_token || "";
-
-          if (session.user?.user_metadata?.role === "provider" || pendingData) {
-            void activateServiceTrialForUser(
-              session.user.id,
-              effectivePlan,
-              cardToken,
-            );
-          }
+          const supportedProviderPlans = ["service_monthly", "service_verified", "service_featured"];
+          const providerPlan = supportedProviderPlans.includes(metaPlan)
+            ? metaPlan
+            : "service_verified";
+          const isProvider = session.user?.user_metadata?.role === "provider";
 
           setTimeout(() => {
             if (!cancelled) {
@@ -145,7 +130,12 @@ export default function AuthCallback() {
                     },
                   }),
                 );
-                navigate("/profile", { replace: true });
+                navigate(
+                  isProvider
+                    ? `/payment?plan=${encodeURIComponent(providerPlan)}`
+                    : "/profile",
+                  { replace: true },
+                );
               }
             }
           }, 1500);

@@ -1406,8 +1406,8 @@ export async function streamAnswer(
     const knowledgeContext = trimContext(sections);
 
     await runAgenticLoop(messages, pageState, conversationId, cb, knowledgeContext);
-  } catch (err: any) {
-    const msg = err?.message || "";
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "";
     if (msg.includes("401")) {
       onError(
         `Authentication failed. Please verify your DEEPSEEK_API_KEY environment variable in Supabase secrets.`,

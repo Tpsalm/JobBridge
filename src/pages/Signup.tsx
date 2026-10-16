@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth, UserRole } from "../contexts/AuthContext";
 import {
@@ -16,29 +16,18 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
-  CreditCard,
   Zap,
   CheckCircle2,
   Star,
   Sparkles,
   TrendingUp,
   Award,
-  Calendar,
   Layers,
 } from "lucide-react";
 import JobBridgeLogo from "../components/JobBridgeLogo";
 import { checkRateLimit } from "../lib/security";
 import { PROVIDER_CATEGORIES } from "../lib/providerCategories";
 import {
-  activateServiceTrialForUser,
-  detectCardBrand,
-  formatCardNumber,
-  formatCardExpiry,
-  formatCardCvv,
-  validateCardDetails,
-  generateSecureCardToken,
-  savePendingTrial,
-  getTrialBillingStartDate,
   SERVICE_PROVIDER_PLANS,
   type ServiceProviderPlanConfig,
 } from "../lib/trial";
@@ -69,7 +58,7 @@ export default function Signup() {
   const [step, setStep] = useState<"role" | "form">("role");
   const [selectedRole, setSelectedRole] = useState<UserRole>(null);
 
-  // Provider 3-step wizard (1 = Profile details, 2 = Plans & benefits, 3 = Spotify Billing checkout)
+  // Provider 3-step wizard (profile details, plan selection, secure checkout)
   const [providerStep, setProviderStep] = useState<1 | 2 | 3>(1);
 
   const [formData, setFormData] = useState({
@@ -84,22 +73,6 @@ export default function Signup() {
     selectedPlan: "service_verified" as "service_monthly" | "service_verified" | "service_featured",
     agreeToTerms: false,
   });
-
-  // Service Provider debit card state
-  const [cardData, setCardData] = useState({
-    cardNumber: "",
-    expiry: "",
-    cvv: "",
-    cardHolder: "",
-    saveCard: true,
-  });
-  const [cardErrors, setCardErrors] = useState<{
-    cardNumber?: string;
-    expiry?: string;
-    cvv?: string;
-    cardHolder?: string;
-    general?: string;
-  }>({});
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,8 +97,6 @@ export default function Signup() {
   };
 
   const strength = getPasswordStrength(formData.password);
-  const cardBrand = detectCardBrand(cardData.cardNumber);
-  const trialBillingInfo = useMemo(() => getTrialBillingStartDate(30), []);
   const currentPlan: ServiceProviderPlanConfig =
     SERVICE_PROVIDER_PLANS[formData.selectedPlan] || SERVICE_PROVIDER_PLANS.service_verified;
 
@@ -240,7 +211,6 @@ export default function Signup() {
     setError(null);
     setNameError("");
     setEmailError("");
-    setCardErrors({});
 
     if (!checkRateLimit("signup", 5, 60000)) {
       setError("Too many attempts. Try again later.");
@@ -264,25 +234,6 @@ export default function Signup() {
       return;
     }
 
-    // Service Providers MUST provide debit card details before starting their 30-day free trial
-    let cardToken = "";
-    if (isProvider) {
-      const activeCardHolder = cardData.cardHolder.trim() || formData.name.trim();
-      const cardToValidate = { ...cardData, cardHolder: activeCardHolder };
-      const cardValidation = validateCardDetails(cardToValidate);
-
-      if (!cardValidation.valid) {
-        if (cardValidation.field) {
-          setCardErrors({ [cardValidation.field]: cardValidation.error });
-        } else {
-          setCardErrors({ general: cardValidation.error || "Please check your debit card details." });
-        }
-        return;
-      }
-
-      cardToken = generateSecureCardToken(cardToValidate);
-    }
-
     setLoading(true);
     try {
       const { error: signupErr, session: newSession, emailWarning } = await signUp(
@@ -298,7 +249,6 @@ export default function Signup() {
               phone: formData.phone,
               location: formData.location,
               trialPlan: formData.selectedPlan,
-              cardToken,
             }
           : undefined,
       );
@@ -329,18 +279,12 @@ export default function Signup() {
       if (newSession) {
         setLoading(false);
         if (isProvider) {
-          // Immediately activate the 30-day free trial with the selected plan and card token
-          void activateServiceTrialForUser(
-            newSession.user.id,
-            formData.selectedPlan,
-            cardToken,
-          );
-          navigate("/profile?trial=started");
+          navigate(`/payment?plan=${encodeURIComponent(formData.selectedPlan)}`);
           window.dispatchEvent(
             new CustomEvent("jobbridge:toast", {
               detail: {
-                message: `🎉 Welcome! Your 30-day free trial for ${currentPlan.name} is active.`,
-                type: "success",
+                message: `Account created. Continue to KoraPay to securely start your ${currentPlan.name} trial.`,
+                type: "info",
               },
             }),
           );
@@ -357,12 +301,6 @@ export default function Signup() {
         }
       } else {
         // Email confirmation required flow
-        if (isProvider && cardToken) {
-          savePendingTrial(cardToken, formData.email, formData.selectedPlan, {
-            specialty: formData.skill,
-            serviceCategory: formData.serviceCategory,
-          });
-        }
         setEmailSent(true);
         setLoading(false);
         startCooldown();
@@ -370,7 +308,7 @@ export default function Signup() {
           new CustomEvent("jobbridge:toast", {
             detail: {
               message: isProvider
-                ? `Account created! Check your email to confirm and activate your 30-day free trial (${currentPlan.name}).`
+                ? `Account created! Confirm your email, then complete secure KoraPay checkout to start your ${currentPlan.name} trial.`
                 : "Account created! Check your email for the confirmation link.",
               type: "success",
             },
@@ -407,7 +345,6 @@ export default function Signup() {
     setEmailError("");
     setSkillError("");
     setCategoryError("");
-    setCardErrors({});
     setEmailStatusMessage(null);
   };
 
@@ -608,7 +545,7 @@ export default function Signup() {
                   <span className="font-bold">3.</span>
                   <span>
                     {isProvider
-                      ? `Your 30-day free trial (${currentPlan.name}) starts instantly, and your card is safely saved for post-trial renewal!`
+                      ? `After confirming, sign in and complete KoraPay checkout to start your 30-day ${currentPlan.name} trial.`
                       : "Return here and sign in to get started"}
                   </span>
                 </li>
@@ -718,7 +655,7 @@ export default function Signup() {
                           ? "Service Provider Profile"
                           : providerStep === 2
                             ? "Service Provider Listing Plans"
-                            : "Billing & Free Trial Confirmation"
+                            : "Secure Checkout"
                         : "Create Job Seeker Account"}
                   </h2>
                   <p className="text-xs sm:text-sm text-gray-500">
@@ -727,7 +664,7 @@ export default function Signup() {
                         ? "Step 1 of 3: Fill in your profile and skills"
                         : providerStep === 2
                           ? "Step 2 of 3: Choose your subscription listing plan"
-                          : "Step 3 of 3: Add your debit card to start 30-day free trial"
+                          : "Step 3 of 3: Review your plan and continue securely with KoraPay"
                       : "Fill in your details to get started"}
                   </p>
                 </div>
@@ -788,7 +725,7 @@ export default function Signup() {
                     >
                       3
                     </span>
-                    <span className="text-xs font-semibold hidden sm:inline">3. Billing & Trial</span>
+                    <span className="text-xs font-semibold hidden sm:inline">3. Secure checkout</span>
                   </div>
                 </div>
               )}
@@ -818,9 +755,6 @@ export default function Signup() {
                       const nextName = e.target.value;
                       setFormData({ ...formData, name: nextName });
                       if (nextName.trim().length >= 2) setNameError("");
-                      if (!cardData.cardHolder || cardData.cardHolder === formData.name) {
-                        setCardData((prev) => ({ ...prev, cardHolder: nextName }));
-                      }
                     }}
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition ${
                       nameError ? "border-red-400 bg-red-50" : "border-gray-300"
@@ -1369,7 +1303,7 @@ export default function Signup() {
                       <div className="w-4 h-4 rounded-full bg-gray-400 ring-4 ring-gray-100 shrink-0 mt-0.5 z-10" />
                       <div>
                         <p className="text-sm font-bold text-gray-900">
-                          Starting {trialBillingInfo.formatted}: NGN {currentPlan.price.toLocaleString()}.00/month
+                          After the 30-day trial: NGN {currentPlan.price.toLocaleString()}.00/month
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           • We'll remind you 7 days before you're charged directly in your Gmail.
@@ -1392,158 +1326,11 @@ export default function Signup() {
                   </div>
                 </div>
 
-                {/* ── Payment Method Section ── */}
-                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-bold text-gray-900 text-sm sm:text-base flex items-center gap-2">
-                      <span>Payment method</span>
-                    </h4>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                        {cardBrand !== "generic" ? (
-                          <span className="text-emerald-700 font-bold uppercase">{cardBrand}</span>
-                        ) : (
-                          "Visa / Mastercard / Verve"
-                        )}
-                      </span>
-                      <Lock className="w-3.5 h-3.5 text-gray-400" />
-                    </div>
-                  </div>
-
-                  <p className="text-xs font-medium text-gray-600 mb-3">Credit or debit card</p>
-
-                  {cardErrors.general && (
-                    <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{cardErrors.general}</span>
-                    </div>
-                  )}
-
-                  <div className="space-y-3.5">
-                    {/* Cardholder Name */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Cardholder Name *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={cardData.cardHolder || formData.name}
-                        onChange={(e) => {
-                          setCardData({ ...cardData, cardHolder: e.target.value });
-                          if (cardErrors.cardHolder) setCardErrors((prev) => ({ ...prev, cardHolder: undefined }));
-                        }}
-                        className={`w-full px-3.5 py-2.5 bg-white text-sm border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition ${
-                          cardErrors.cardHolder ? "border-red-400 bg-red-50/50" : "border-gray-300"
-                        }`}
-                        placeholder="Name on card"
-                      />
-                      {cardErrors.cardHolder && (
-                        <p className="mt-1 text-xs text-red-600">{cardErrors.cardHolder}</p>
-                      )}
-                    </div>
-
-                    {/* Card Number */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Card Number *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          required
-                          value={cardData.cardNumber}
-                          onChange={(e) => {
-                            const formatted = formatCardNumber(e.target.value);
-                            setCardData({ ...cardData, cardNumber: formatted });
-                            if (cardErrors.cardNumber) setCardErrors((prev) => ({ ...prev, cardNumber: undefined }));
-                          }}
-                          maxLength={23}
-                          className={`w-full px-3.5 py-2.5 bg-white text-sm font-mono tracking-wider border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition ${
-                            cardErrors.cardNumber ? "border-red-400 bg-red-50/50" : "border-gray-300"
-                          }`}
-                          placeholder="0000 0000 0000 0000"
-                        />
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                          <CreditCard className="w-4 h-4" />
-                        </div>
-                      </div>
-                      {cardErrors.cardNumber && (
-                        <p className="mt-1 text-xs text-red-600">{cardErrors.cardNumber}</p>
-                      )}
-                    </div>
-
-                    {/* Expiry Date and Security Code */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Expiry Date (MM/YY) *
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          required
-                          value={cardData.expiry}
-                          onChange={(e) => {
-                            const formatted = formatCardExpiry(e.target.value);
-                            setCardData({ ...cardData, expiry: formatted });
-                            if (cardErrors.expiry) setCardErrors((prev) => ({ ...prev, expiry: undefined }));
-                          }}
-                          maxLength={5}
-                          className={`w-full px-3.5 py-2.5 bg-white text-sm font-mono tracking-wider border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition ${
-                            cardErrors.expiry ? "border-red-400 bg-red-50/50" : "border-gray-300"
-                          }`}
-                          placeholder="MM/YY"
-                        />
-                        {cardErrors.expiry && (
-                          <p className="mt-1 text-xs text-red-600">{cardErrors.expiry}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="block text-xs font-medium text-gray-700">
-                            Security Code (CVV) *
-                          </label>
-                          <span className="text-[10px] text-gray-400">3-4 digits</span>
-                        </div>
-                        <input
-                          type="password"
-                          inputMode="numeric"
-                          required
-                          value={cardData.cvv}
-                          onChange={(e) => {
-                            const formatted = formatCardCvv(e.target.value);
-                            setCardData({ ...cardData, cvv: formatted });
-                            if (cardErrors.cvv) setCardErrors((prev) => ({ ...prev, cvv: undefined }));
-                          }}
-                          maxLength={4}
-                          className={`w-full px-3.5 py-2.5 bg-white text-sm font-mono tracking-wider border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition ${
-                            cardErrors.cvv ? "border-red-400 bg-red-50/50" : "border-gray-300"
-                          }`}
-                          placeholder="123"
-                        />
-                        {cardErrors.cvv && (
-                          <p className="mt-1 text-xs text-red-600">{cardErrors.cvv}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Save card for renewal checkbox */}
-                    <div className="pt-2 flex items-start gap-2.5">
-                      <input
-                        type="checkbox"
-                        id="save-card-toggle"
-                        checked={cardData.saveCard}
-                        onChange={(e) => setCardData({ ...cardData, saveCard: e.target.checked })}
-                        className="w-4 h-4 mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                      />
-                      <label htmlFor="save-card-toggle" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
-                        <strong className="text-gray-900">Save card for post-trial auto-renewal.</strong> This won't affect anything today (₦0 charged). Your subscription of NGN {currentPlan.price.toLocaleString()}/month will be auto-billed after 30 days.
-                      </label>
-                    </div>
-                  </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+                  <h4 className="font-semibold text-blue-950">Secure payment with KoraPay</h4>
+                  <p className="mt-2 text-sm text-blue-800">
+                    Create your account first. KoraPay will collect and tokenize your card during secure checkout; JobBridge does not receive or store card numbers, expiry dates, or CVV.
+                  </p>
                 </div>
 
                 {/* ── Summary Box ── */}
@@ -1554,7 +1341,7 @@ export default function Signup() {
                     <span>NGN 0.00</span>
                   </div>
                   <div className="flex justify-between items-center text-xs text-gray-500">
-                    <span>Starting {trialBillingInfo.formatted}</span>
+                    <span>Then, after the 30-day trial</span>
                     <span>NGN {currentPlan.price.toLocaleString()}.00/month</span>
                   </div>
                   <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-base font-bold text-gray-900">
@@ -1563,9 +1350,8 @@ export default function Signup() {
                   </div>
                 </div>
 
-                {/* Legal terms disclaimer matching Spotify reference */}
                 <p className="text-[11px] text-gray-500 leading-relaxed">
-                  If you don't cancel your subscription before the trial ends on <strong>{trialBillingInfo.formatted}</strong>, you agree that you will automatically be charged the subscription fee (<strong>NGN {currentPlan.price.toLocaleString()}.00</strong>) every month until you cancel. If you cancel during your trial period, you will keep access to your provider benefits until the end of the trial period. Full terms are available in our{" "}
+                  Your card will be collected by KoraPay during checkout. If you do not cancel before the 30-day trial ends, KoraPay will charge <strong>NGN {currentPlan.price.toLocaleString()}.00/month</strong>. Canceling immediately removes your provider listing. Full terms are available in our{" "}
                   <Link to="/privacy" target="_blank" className="underline text-blue-700">
                     Terms of Service
                   </Link>.
@@ -1587,12 +1373,12 @@ export default function Signup() {
                   {loading ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Activating Your 30-Day Free Trial...
+                      Creating Your Account...
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5" />
-                      Start 30-Day Free Trial (₦0 Today)
+                      Create Account and Continue to KoraPay
                     </>
                   )}
                 </button>

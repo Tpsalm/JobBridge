@@ -5,8 +5,7 @@ import AppLayout from '../components/AppLayout';
 import CompanyLogo from '../components/CompanyLogo';
 import PageHero from '../components/PageHero';
 import { HERO_CAROUSELS, IMG } from '../lib/media';
-import { Bookmark, Briefcase, Calendar, Clock, MapPin, ChevronRight, Search, Archive, X, FileText, XCircle, Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { Bookmark, Briefcase, Calendar, Clock, ChevronRight, Search, Archive, X } from 'lucide-react';
 import { fetchJobs, fetchUserApplications, withdrawApplication } from '../lib/supabaseQueries';
 
 type Tab = 'saved' | 'applied' | 'interviews' | 'archived';
@@ -34,29 +33,49 @@ interface ApplicationItem {
 }
 
 export default function MyJobs() {
-  const { savedJobs, appliedJobs, toggleSaveJob, isAuthenticated, user } = useAuth();
+  const { savedJobs, toggleSaveJob, isAuthenticated, user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('saved');
   const [allJobs, setAllJobs] = useState<JobItem[]>([]);
   const [myApplications, setMyApplications] = useState<ApplicationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [jobsError, setJobsError] = useState(false);
+  const [applicationsError, setApplicationsError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
-      try {
-        const [jobsData, appsData] = await Promise.all([
-          fetchJobs(),
-          isAuthenticated ? fetchUserApplications(user?.id).catch(() => []) : Promise.resolve([]),
-        ]);
-        setAllJobs(jobsData);
-        setMyApplications(appsData);
-      } catch {
-        // silently fail
+      setJobsError(false);
+      setApplicationsError(false);
+      const [jobsResult, applicationsResult] = await Promise.allSettled([
+        fetchJobs(),
+        isAuthenticated && user?.id ? fetchUserApplications(user.id) : Promise.resolve([]),
+      ]);
+      if (cancelled) return;
+
+      if (jobsResult.status === 'fulfilled') {
+        setAllJobs(jobsResult.value);
+      } else {
+        console.error('[MyJobs] Failed to load jobs:', jobsResult.reason);
+        setAllJobs([]);
+        setJobsError(true);
+      }
+
+      if (applicationsResult.status === 'fulfilled') {
+        setMyApplications(applicationsResult.value);
+      } else {
+        console.error('[MyJobs] Failed to load applications:', applicationsResult.reason);
+        setMyApplications([]);
+        setApplicationsError(true);
       }
       setLoading(false);
     })();
-  }, [isAuthenticated, user?.id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user?.id, loadAttempt]);
 
   const savedJobItems = allJobs.filter(j => savedJobs.includes(j.id));
   const appliedJobItems = myApplications.map(app => ({
@@ -88,7 +107,7 @@ export default function MyJobs() {
     : currentItems;
 
   const emptyMessages: Record<Tab, { title: string; desc: string; icon: typeof Bookmark }> = {
-    saved: { title: 'No jobs saved yet', desc: 'Jobs you save appear here.', icon: Bookmark },
+    saved: { title: 'You have not saved any jobs yet.', desc: '', icon: Bookmark },
     applied: { title: 'No applications yet', desc: 'Jobs you apply to appear here.', icon: Briefcase },
     interviews: { title: 'No interviews scheduled', desc: 'Upcoming interviews will show here.', icon: Calendar },
     archived: { title: 'No archived jobs', desc: 'Jobs you archive appear here.', icon: Archive },
@@ -160,6 +179,20 @@ export default function MyJobs() {
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : (activeTab === 'applied' && applicationsError) || (activeTab === 'saved' && jobsError) ? (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-5 py-8 text-center">
+            <p className="font-semibold text-red-800">
+              {activeTab === 'applied' ? 'Your applications could not be loaded.' : 'Jobs could not be loaded.'}
+            </p>
+            <p className="mt-1 text-sm text-red-700">Please check your connection and try again.</p>
+            <button
+              type="button"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+              className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
+            >
+              Retry
+            </button>
+          </div>
         ) : filteredItems.length === 0 ? (
           /* Empty State */
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -167,22 +200,16 @@ export default function MyJobs() {
             <h3 className="text-xl font-semibold text-gray-800 mb-2">
               {emptyMessages[activeTab].title}
             </h3>
-            <p className="text-gray-500 mb-6 max-w-sm">
-              {emptyMessages[activeTab].desc}
-            </p>
-            {activeTab === 'saved' && (
-              <div className="space-y-2 text-sm">
-                <p className="text-gray-400">
-                  Not seeing a job?{' '}
-                  <Link to="/jobs" className="text-blue-600 hover:underline">Browse all jobs</Link>
-                </p>
-              </div>
+            {emptyMessages[activeTab].desc && (
+              <p className="text-gray-500 mb-6 max-w-sm">
+                {emptyMessages[activeTab].desc}
+              </p>
             )}
             <Link
               to="/jobs"
               className="mt-4 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-colors"
             >
-              Find Jobs <ChevronRight className="w-4 h-4" />
+              {activeTab === 'saved' ? 'View Jobs' : 'Find Jobs'} <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
         ) : (
@@ -208,7 +235,6 @@ export default function MyJobs() {
 
                       {/* Meta */}
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500">
-                        <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{job.location}</span>
                         <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{job.type}</span>
                         {job.salary_range && (
                           <span className="flex items-center gap-1 text-green-600 font-medium"><span className="text-sm font-bold">₦</span>{job.salary_range}</span>

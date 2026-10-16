@@ -330,18 +330,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (actualRole === "provider") {
         const plan = extra?.trialPlan || meta.trial_plan || "service_verified";
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        payload.is_premium = true;
-        payload.subscription_tier = plan;
+        payload.is_premium = false;
+        payload.subscription_tier = null;
         payload.trial_plan = plan;
-        payload.trial_start_date = now.toISOString();
-        payload.trial_end_date = expiresAt;
-        payload.subscription_expires_at = expiresAt;
-        payload.visibility_until = expiresAt;
-        payload.is_active = true;
-        payload.is_verified = plan === "service_verified" || plan === "service_featured";
-        payload.is_featured = plan === "service_featured";
+        payload.trial_start_date = null;
+        payload.trial_end_date = null;
+        payload.subscription_expires_at = null;
+        payload.visibility_until = null;
+        payload.is_active = false;
+        payload.is_verified = false;
+        payload.is_featured = false;
       }
 
       try {
@@ -364,7 +362,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               {
                 profile_id: authUser.id,
                 specialty: specialty || svcCat || "Service Professional",
-                is_verified: payload.is_verified || false,
+                is_verified: false,
+                is_active: false,
                 updated_at: new Date().toISOString(),
               },
               { onConflict: "profile_id" },
@@ -638,7 +637,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (extra?.phone) metadata.phone = extra.phone;
       if (extra?.location) metadata.location = extra.location;
       if (extra?.trialPlan) metadata.trial_plan = extra.trialPlan;
-      if (extra?.cardToken) metadata.card_token = extra.cardToken;
 
       const { data, error } = await supabase.auth.signUp({
         email,

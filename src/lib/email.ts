@@ -27,7 +27,11 @@ export function resolveFromEmail(rawFrom?: string | null): string {
   }
 
   const normalized = value.toLowerCase();
-  if (normalized.includes('@jobbridge.com.ng') || normalized.includes('@www.jobbridge.com.ng')) {
+  if (
+    normalized.includes('support') ||
+    normalized.includes('@jobbridge.com.ng') ||
+    normalized.includes('@www.jobbridge.com.ng')
+  ) {
     return FALLBACK_FROM_EMAIL;
   }
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getSupabaseFunctionsUrl } from '../lib/supabaseHelpers';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,11 +26,43 @@ type EmailQueueItem = {
   created_at?: string;
 };
 
+type ContentReport = {
+  id: string;
+  reporter_id?: string | null;
+  content_type?: string | null;
+  content_id?: string | null;
+  reason?: string | null;
+  details?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+};
+
+type AdminSubscription = {
+  id: string;
+  user_id: string;
+  plan_key: string;
+  product_line: string;
+  status: string;
+  current_period_end: string;
+  auto_renew: boolean;
+  canceled_at?: string | null;
+  created_at?: string;
+};
+
 export default function EmailLogsAdmin() {
   const { profile, isAuthenticated } = useAuth();
-  const [tab, setTab] = useState<'logs' | 'queue'>('logs');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<'logs' | 'queue' | 'reports' | 'subscriptions'>(() =>
+    searchParams.get('tab') === 'reports'
+      ? 'reports'
+      : searchParams.get('tab') === 'subscriptions'
+        ? 'subscriptions'
+        : 'logs',
+  );
   const [logs, setLogs] = useState<EmailLog[]>([]);
   const [queue, setQueue] = useState<EmailQueueItem[]>([]);
+  const [reports, setReports] = useState<ContentReport[]>([]);
+  const [subscriptions, setSubscriptions] = useState<AdminSubscription[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
@@ -46,8 +79,12 @@ export default function EmailLogsAdmin() {
     setAdminError(null);
     if (tab === 'logs') {
       loadLogs();
-    } else {
+    } else if (tab === 'queue') {
       loadQueue();
+    } else if (tab === 'reports') {
+      loadReports();
+    } else {
+      loadSubscriptions();
     }
   }, [isAuthenticated, profile, tab]);
 
@@ -82,6 +119,42 @@ export default function EmailLogsAdmin() {
       setQueue((data || []) as EmailQueueItem[]);
     } catch (e: any) {
       setQueueError(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadReports() {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('content_reports')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      setReports((data || []) as ContentReport[]);
+    } catch (e: any) {
+      setError(e.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadSubscriptions() {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('id, user_id, plan_key, product_line, status, current_period_end, auto_renew, canceled_at, created_at')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      setSubscriptions((data || []) as AdminSubscription[]);
+    } catch (e: any) {
+      setError(e.message || String(e));
     } finally {
       setLoading(false);
     }
@@ -172,7 +245,21 @@ export default function EmailLogsAdmin() {
         >
           Queue
         </button>
-        <button type="button" onClick={() => (tab === 'logs' ? loadLogs() : loadQueue())} className="px-3 py-2 bg-gray-100 rounded">
+        <button
+          type="button"
+          onClick={() => setTab('reports')}
+          className={`px-3 py-2 rounded ${tab === 'reports' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+        >
+          Reports
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('subscriptions')}
+          className={`px-3 py-2 rounded ${tab === 'subscriptions' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+        >
+          Subscriptions
+        </button>
+        <button type="button" onClick={() => (tab === 'logs' ? loadLogs() : tab === 'queue' ? loadQueue() : tab === 'reports' ? loadReports() : loadSubscriptions())} className="px-3 py-2 bg-gray-100 rounded">
           Refresh
         </button>
         <button type="button" onClick={() => handleProcessQueue()} className="px-3 py-2 bg-gray-100 rounded">
@@ -183,8 +270,70 @@ export default function EmailLogsAdmin() {
       {loading && <div className="text-sm text-gray-500 mb-4">Loading…</div>}
       {tab === 'logs' && error && <div className="text-red-600 mb-4">Error: {error}</div>}
       {tab === 'queue' && queueError && <div className="text-red-600 mb-4">Error: {queueError}</div>}
+      {tab === 'reports' && error && <div className="text-red-600 mb-4">Error: {error}</div>}
+      {tab === 'subscriptions' && error && <div className="text-red-600 mb-4">Error: {error}</div>}
 
-      {tab === 'logs' ? (
+      {tab === 'subscriptions' ? (
+        <div className="overflow-auto border rounded">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-2 text-left">User ID</th>
+                <th className="p-2 text-left">Product</th>
+                <th className="p-2 text-left">Plan</th>
+                <th className="p-2 text-left">Status</th>
+                <th className="p-2 text-left">Next charge / period end</th>
+                <th className="p-2 text-left">Auto-renew</th>
+                <th className="p-2 text-left">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subscriptions.length === 0 ? (
+                <tr><td colSpan={7} className="p-4 text-gray-500">No subscriptions yet.</td></tr>
+              ) : subscriptions.map((item) => (
+                <tr key={item.id} className="border-t">
+                  <td className="p-2 align-top font-mono text-xs">{item.user_id}</td>
+                  <td className="p-2 align-top capitalize">{item.product_line}</td>
+                  <td className="p-2 align-top">{item.plan_key.replace(/_/g, ' ')}</td>
+                  <td className="p-2 align-top capitalize">{item.status.replace(/_/g, ' ')}</td>
+                  <td className="p-2 align-top">{item.current_period_end ? new Date(item.current_period_end).toLocaleString() : '—'}</td>
+                  <td className="p-2 align-top">{item.auto_renew ? 'Yes' : 'No'}</td>
+                  <td className="p-2 align-top">{item.created_at ? new Date(item.created_at).toLocaleString() : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : tab === 'reports' ? (
+        <div className="overflow-auto border rounded">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-2 text-left">ID</th>
+                <th className="p-2 text-left">Content Type</th>
+                <th className="p-2 text-left">Reason</th>
+                <th className="p-2 text-left">Status</th>
+                <th className="p-2 text-left">Details</th>
+                <th className="p-2 text-left">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reports.length === 0 ? (
+                <tr><td colSpan={6} className="p-4 text-gray-500">No reports yet.</td></tr>
+              ) : reports.map((report) => (
+                <tr key={report.id} className="border-t">
+                  <td className="p-2 align-top">{report.id.slice(0, 8)}</td>
+                  <td className="p-2 align-top">{report.content_type || 'n/a'}</td>
+                  <td className="p-2 align-top">{report.reason || '—'}</td>
+                  <td className="p-2 align-top"><span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">{report.status || 'pending'}</span></td>
+                  <td className="p-2 align-top max-w-md whitespace-pre-wrap">{report.details || '—'}</td>
+                  <td className="p-2 align-top">{report.created_at ? new Date(report.created_at).toLocaleString() : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : tab === 'logs' ? (
         <div className="overflow-auto border rounded">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">

@@ -494,22 +494,13 @@ export default function Providers() {
                 Join thousands of professionals offering services on JobBridge. Get clients, build your reputation, and grow your business.
               </p>
               <div className="flex flex-wrap gap-3 mb-6">
-                <div className="bg-white/10 backdrop-blur rounded-xl px-5 py-4 flex-1 min-w-[200px]">
+                <div className="bg-white/10 backdrop-blur rounded-xl px-5 py-4 flex-1 min-w-[220px]">
                   <div className="font-semibold text-white mb-1">Monthly Listing</div>
                   <div className="text-emerald-200 text-sm mb-2">FREE at launch</div>
                   <ul className="text-xs text-emerald-200 space-y-1">
                     <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Profile on JobBridge</li>
                     <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Contact information</li>
                     <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Receive inquiries</li>
-                  </ul>
-                </div>
-                <div className="bg-white/10 backdrop-blur rounded-xl px-5 py-4 flex-1 min-w-[200px]">
-                  <div className="font-semibold text-white mb-1">Featured Professional</div>
-                  <div className="text-emerald-200 text-sm mb-2">₦5,000/month</div>
-                  <ul className="text-xs text-emerald-200 space-y-1">
-                    <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Top of search results</li>
-                    <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Featured badge</li>
-                    <li className="flex items-center gap-1.5"><span className="text-emerald-300">•</span> Priority support</li>
                   </ul>
                 </div>
               </div>

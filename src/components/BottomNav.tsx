@@ -1,16 +1,22 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Briefcase, Users, BarChart3, CreditCard } from 'lucide-react';
-
-const tabs = [
-  { label: 'Home', path: '/', icon: Home },
-  { label: 'Jobs', path: '/jobs', icon: Briefcase },
-  { label: 'Providers', path: '/providers', icon: Users },
-  { label: 'Business', path: '/business', icon: BarChart3 },
-  { label: 'Payment', path: '/payment', icon: CreditCard },
-];
+import { Home, Briefcase, Users, BarChart3, CreditCard, Bookmark } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function BottomNav() {
   const location = useLocation();
+  const { profile } = useAuth();
+  const role = profile?.role;
+  const tabs = [
+    { label: 'Home', path: '/', icon: Home },
+    { label: 'Jobs', path: '/jobs', icon: Briefcase },
+    { label: 'Providers', path: '/providers', icon: Users },
+    { label: 'Business', path: '/business', icon: BarChart3 },
+    {
+      label: role === 'recruiter' ? 'Recruiter' : 'My Jobs',
+      path: role === 'recruiter' ? '/recruiter' : '/my-jobs',
+      icon: role === 'recruiter' ? Briefcase : Bookmark,
+    },
+  ];
 
   const isActive = (path: string) =>
     path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
