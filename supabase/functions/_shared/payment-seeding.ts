@@ -30,13 +30,34 @@ export function normalizeSeedUserId(value: unknown): string {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
+export function isLocalTestOverrideEnabled(
+  environment: string | undefined,
+  flag: string | undefined,
+  supabaseUrl: string | undefined,
+): boolean {
+  if (environment?.trim().toLowerCase() !== 'test' || flag?.trim().toLowerCase() !== 'true') {
+    return false;
+  }
+  try {
+    return ['localhost', '127.0.0.1', '[::1]', 'kong'].includes(new URL(supabaseUrl || '').hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function shouldAutoSeedPayment(payload: Record<string, unknown>): boolean {
   const event = String((payload as Record<string, unknown>).event || '').toLowerCase();
-  const data = (payload as Record<string, unknown>).data as Record<string, unknown> | undefined;
+  const rawData = payload.data;
+  const data = rawData && typeof rawData === 'object'
+    ? rawData as Record<string, unknown>
+    : undefined;
   if (event !== 'charge.success') return false;
 
+  const metadata = data?.metadata && typeof data.metadata === 'object'
+    ? data.metadata as Record<string, unknown>
+    : undefined;
   const simulateVerification = Boolean(
-    data?.simulate_verification || data?.test_mode || data?.metadata?.test_mode,
+    data?.simulate_verification || data?.test_mode || metadata?.test_mode,
   );
   return simulateVerification;
 }

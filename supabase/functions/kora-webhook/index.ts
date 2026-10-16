@@ -1,23 +1,34 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
-import { buildSeedPaymentPayload, buildSeedProfilePayload, normalizeSeedUserId, shouldAutoSeedPayment } from "../_shared/payment-seeding.ts";
+import {
+  buildSeedPaymentPayload,
+  buildSeedProfilePayload,
+  isLocalTestOverrideEnabled,
+  normalizeSeedUserId,
+  shouldAutoSeedPayment,
+} from "../_shared/payment-seeding.ts";
 import { cardTokenFromVerification, persistKoraCardToken } from "../_shared/korapay-recurring.ts";
 
-const KORA_SECRET_KEY =
-  Deno.env.get("KORA_SECRET_KEY") || Deno.env.get("VITE_KORA_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const KORA_SECRET_KEY = Deno.env.get("KORA_SECRET_KEY") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const KORA_API_BASE = "https://api.korapay.com/merchant/api/v1";
-const KORA_ALLOW_SIMULATED_VERIFICATION =
-  (Deno.env.get("KORA_ALLOW_SIMULATED_VERIFICATION") || "").toLowerCase() ===
-    "true";
-// When set to 'true' the function will skip HMAC signature verification.
-// Use only for testing in a controlled environment and remove afterwards.
-const SKIP_KORA_SIGNATURE_CHECK =
-  (Deno.env.get("SKIP_KORA_SIGNATURE_CHECK") || "").toLowerCase() === "true";
-const KORA_DEBUG_RESPONSE =
-  (Deno.env.get("KORA_DEBUG_RESPONSE") || "").toLowerCase() === "true";
+const KORA_ALLOW_SIMULATED_VERIFICATION = isLocalTestOverrideEnabled(
+  Deno.env.get("JOBBRIDGE_ENV"),
+  Deno.env.get("KORA_ALLOW_SIMULATED_VERIFICATION"),
+  SUPABASE_URL,
+);
+const SKIP_KORA_SIGNATURE_CHECK = isLocalTestOverrideEnabled(
+  Deno.env.get("JOBBRIDGE_ENV"),
+  Deno.env.get("SKIP_KORA_SIGNATURE_CHECK"),
+  SUPABASE_URL,
+);
+const KORA_DEBUG_RESPONSE = isLocalTestOverrideEnabled(
+  Deno.env.get("JOBBRIDGE_ENV"),
+  Deno.env.get("KORA_DEBUG_RESPONSE"),
+  SUPABASE_URL,
+);
 
 const ALLOWED_EVENTS = new Set(["charge.success", "charge.failed"]);
 
@@ -639,7 +650,7 @@ serve(async (req: Request) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    if (shouldAutoSeedPayment(payload)) {
+    if (KORA_ALLOW_SIMULATED_VERIFICATION && shouldAutoSeedPayment(payload)) {
       const ensureRes = await ensureSeedUser(supabase, payload);
       const resolvedUserId = ensureRes?.id || '';
       let seedPayment = buildSeedPaymentPayload(payload);

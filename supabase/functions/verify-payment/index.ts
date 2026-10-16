@@ -2,10 +2,15 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildReferenceCandidates, isChargeNotFoundError } from "../_shared/reference-normalization.ts";
 import { cardTokenFromVerification, persistKoraCardToken } from "../_shared/korapay-recurring.ts";
+import { isLocalTestOverrideEnabled } from "../_shared/payment-seeding.ts";
 
-const KORA_SECRET_KEY = Deno.env.get("KORA_SECRET_KEY") || Deno.env.get("VITE_KORA_SECRET_KEY") || "";
-const KORA_ALLOW_SIMULATED_VERIFICATION = Boolean(Deno.env.get("KORA_ALLOW_SIMULATED_VERIFICATION"));
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const KORA_SECRET_KEY = Deno.env.get("KORA_SECRET_KEY") || "";
+const KORA_ALLOW_SIMULATED_VERIFICATION = isLocalTestOverrideEnabled(
+  Deno.env.get("JOBBRIDGE_ENV"),
+  Deno.env.get("KORA_ALLOW_SIMULATED_VERIFICATION"),
+  SUPABASE_URL,
+);
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const KORA_API_BASE = "https://api.korapay.com/merchant/api/v1";
@@ -322,9 +327,10 @@ serve(async (req: Request) => {
       paymentMetadata = paymentRow.metadata;
     }
     const seededByKora = paymentMetadata && (paymentMetadata.seeded_by === 'kora-webhook' || paymentMetadata.source === 'simulated_webhook_seed');
-    // Auto-detect: always simulate for seeded test payments or known test refs (JB-SIM*)
+    // Simulated records and references are accepted only by local test deployments.
     const isTestReference = candidateRefs.some((r) => typeof r === 'string' && r.startsWith('JB-SIM'));
-    const shouldSimulate = seededByKora || isTestReference || (KORA_ALLOW_SIMULATED_VERIFICATION && explicitSimulate);
+    const shouldSimulate = KORA_ALLOW_SIMULATED_VERIFICATION
+      && (seededByKora || isTestReference || explicitSimulate);
 
     if (shouldSimulate) {
       console.log('[verify-payment] Simulating verification for', candidateRefs[0]);
@@ -528,17 +534,6 @@ serve(async (req: Request) => {
         }
       } catch (advertError) {
         console.error('[verify-payment] business advert fallback failed:', advertError);
-      }
-    }
-
-    // Optionally return updated profile for debugging / simulated flows
-    if (shouldSimulate || explicitSimulate || (requestBody && requestBody.debug)) {
-      try {
-        const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('id', paymentRow.user_id).maybeSingle();
-        return new Response(JSON.stringify({ verified: true, profile: updatedProfile }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      } catch (e) {
-        console.warn('[verify-payment] failed to fetch updated profile for debug response', e);
-        return new Response(JSON.stringify({ verified: true }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 

@@ -142,6 +142,7 @@ Before beginning the deployment, fill out the release owner notes and perform in
 - [ ] **6.3 Verify Secrets presence for `admin-create-user`:** Check that the function has access to:
   - [ ] `SUPABASE_URL`
   - [ ] `SUPABASE_SERVICE_ROLE_KEY`
+- [ ] **6.4 Keep KoraPay verification safe:** Set `KORA_SECRET_KEY` only as a Supabase Edge Function secret. In production, keep `KORA_ALLOW_SIMULATED_VERIFICATION`, `SKIP_KORA_SIGNATURE_CHECK`, and `KORA_DEBUG_RESPONSE` set to `false` (or unset). Payment simulation, signature bypass, and verbose signature diagnostics are restricted to local test deployments.
 
 ---
 
