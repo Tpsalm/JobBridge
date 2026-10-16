@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import handler from '../admin-broadcast';
-import processBroadcasts from '../process-broadcasts';
-import { estimateSmsSegments, isSmsGatewayConfigured, isValidPushEndpoint, normalizedPhone } from '../_lib/broadcast';
+import broadcastHandler from '../broadcast.js';
+import handler from '../_lib/admin-broadcast-handler.js';
+import processBroadcasts from '../_lib/process-broadcasts-handler.js';
+import { estimateSmsSegments, isSmsGatewayConfigured, isValidPushEndpoint, normalizedPhone } from '../_lib/broadcast.js';
 
 function createResponse() {
   const result: { status: number; body: unknown } = { status: 0, body: null };
@@ -78,6 +79,22 @@ describe('broadcast API security', () => {
     expect(result.status).toBe(403);
     expect(result.body).toEqual({ error: 'Administrator access required.' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('routes the retired direct-push API to a 410 response', () => {
+    const { result, response } = createResponse();
+    const request = {
+      method: 'POST',
+      headers: {},
+      query: { endpoint: 'send-push' },
+    } as unknown as VercelRequest;
+
+    broadcastHandler(request, response);
+
+    expect(result.status).toBe(410);
+    expect(result.body).toEqual({
+      error: 'Direct push sending is retired. Use the authenticated notification campaign worker.',
+    });
   });
 });
 

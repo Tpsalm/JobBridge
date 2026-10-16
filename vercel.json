@@ -1,6 +1,22 @@
 {
   "rewrites": [
     {
+      "source": "/api/admin-broadcast",
+      "destination": "/api/broadcast?endpoint=admin"
+    },
+    {
+      "source": "/api/process-broadcasts",
+      "destination": "/api/broadcast?endpoint=process"
+    },
+    {
+      "source": "/api/broadcast-sms-receipt",
+      "destination": "/api/broadcast?endpoint=sms-receipt"
+    },
+    {
+      "source": "/api/send-push",
+      "destination": "/api/broadcast?endpoint=send-push"
+    },
+    {
       "source": "/admin",
       "destination": "/admin.html"
     },
