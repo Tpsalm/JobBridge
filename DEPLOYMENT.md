@@ -44,14 +44,14 @@ Expose the service at `https://ws.jobbridge.com.ng` with WebSocket upgrade suppo
 
 | Variable | Value |
 |---|---|
-| `VITE_SUPABASE_URL` | `https://gtstcstmezfiepzlvndt.supabase.co` |
+| `VITE_SUPABASE_URL` | `https://ppramomuckkjzssrfghi.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key (already in `.env`) |
 | `VITE_PAYSTACK_PUBLIC_KEY` | (Optional) Paystack public key for payments |
 | `VITE_WS_URL` | `wss://ws.jobbridge.com.ng/ws/notifications` |
 | `NOTIFICATION_WS_URL` | `https://ws.jobbridge.com.ng` |
 | `JOBBRIDGE_WS_ADMIN_KEY` | The same admin key configured on the WebSocket service |
 
-**Important:** Do NOT add OpenAI API key to Vercel environment variables. Instead, set it as a Supabase secret. See [AI_SETUP.md](./AI_SETUP.md) for details.
+**Important:** Never expose an OpenAI API key to browser code or use a `VITE_` prefix. Set `OPENAI_API_KEY` as a Supabase secret for Edge Functions, or as a server-only Vercel environment variable only when the Vercel AI fallback needs embeddings. See [AI_SETUP.md](./AI_SETUP.md) for details.
 
 8. Deploy and redeploy after changing any environment variable.
 
