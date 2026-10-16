@@ -4,7 +4,11 @@ Broadcast campaigns use the existing Supabase Auth accounts, profiles, notificat
 
 ## Database setup
 
-Apply `supabase/migrations/20261017_001_admin_broadcast_campaigns.sql` to the Supabase project before enabling the campaign tab. It creates admin-protected campaign and per-recipient delivery ledgers, queue-claim and aggregate-statistics RPCs, an idempotent in-app notification reference, and SMS consent/verification fields. The migration has not been applied by this change.
+`supabase/migrations/20261017_001_admin_broadcast_campaigns.sql` has been applied to the linked Supabase project. The campaign and per-recipient delivery ledgers, queue and statistics RPCs, retry/cancel RPCs, in-app notification linkage, and SMS consent/verification safeguards are present. No notification campaign was sent.
+
+The migration also repairs the missing provider-signup column and auth-user trigger from `20260929_001_provision_provider_accounts.sql`, because those effects were absent in the linked schema. Do not mark migration `20260929` as applied until those effects have actually been applied and verified.
+
+The `20260929` and `20261017` migration versions were recorded as applied after verifying their schema effects. The linked migration ledger still has older local migrations missing from remote history. Do not use `--include-all` as a shortcut: reconcile and verify each historical migration before applying or repairing its history entry. This remaining ledger issue does not undo the broadcast schema already applied.
 
 Phone verification defaults to false and is protected against client-side changes. This repository does not currently provide a trusted phone-verification workflow; therefore SMS recipients remain ineligible until a trusted verification process is configured. SMS consent defaults to false and must only be enabled by explicit user opt-in. SMS delivery is never reported as delivered until an authenticated provider receipt confirms it.
 
