@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSupabaseConfig, isValidPushEndpoint, supabaseRequest } from './_lib/broadcast';
+import { getSupabaseConfig, isValidPushEndpoint, supabaseRequest } from './_lib/broadcast.js';
 
 type PushSubscriptionInput = {
   endpoint?: unknown;

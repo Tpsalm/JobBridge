@@ -8,7 +8,7 @@ import {
   requireAdmin,
   setSameOriginHeaders,
   supabaseRequest,
-} from './_lib/broadcast';
+} from './_lib/broadcast.js';
 
 type Audience = { type: 'all' } | { type: 'role'; role: string } | { type: 'selected'; userIds: string[] };
 type ProfileRecipient = {

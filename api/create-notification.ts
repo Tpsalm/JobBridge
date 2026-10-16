@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { requireUser, setSameOriginHeaders, supabaseRequest } from './_lib/broadcast';
+import { requireUser, setSameOriginHeaders, supabaseRequest } from './_lib/broadcast.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const NOTIFICATION_WS_URL = process.env.NOTIFICATION_WS_URL || (isProduction ? '' : 'http://localhost:3001');

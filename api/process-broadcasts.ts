@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import webpush from 'web-push';
 import { timingSafeEqual } from 'node:crypto';
-import { getSupabaseConfig, isSmsGatewayConfigured, isValidPushEndpoint, normalizedPhone, supabaseRequest } from './_lib/broadcast';
+import { getSupabaseConfig, isSmsGatewayConfigured, isValidPushEndpoint, normalizedPhone, supabaseRequest } from './_lib/broadcast.js';
 
 type ClaimedDelivery = {
   delivery_id: string;

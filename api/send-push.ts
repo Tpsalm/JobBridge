@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { setSameOriginHeaders } from './_lib/broadcast';
+import { setSameOriginHeaders } from './_lib/broadcast.js';
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
   setSameOriginHeaders(req, res);

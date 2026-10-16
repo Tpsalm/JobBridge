@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSupabaseConfig, requireUser, setSameOriginHeaders, supabaseRequest } from './_lib/broadcast';
+import { getSupabaseConfig, requireUser, setSameOriginHeaders, supabaseRequest } from './_lib/broadcast.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setSameOriginHeaders(req, res);
