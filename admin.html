@@ -555,6 +555,27 @@
                 return json;
             }
 
+            async function callBroadcastCampaignApi({ method = "GET", action, ...payload } = {}) {
+                const accessToken = await getAccessToken();
+                if (!accessToken) throw new Error("Admin session expired");
+                const isGet = method === "GET";
+                const url = isGet
+                    ? `/api/admin-broadcast?${new URLSearchParams({ action, ...payload })}`
+                    : "/api/admin-broadcast";
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: "Bearer " + accessToken,
+                    },
+                    ...(isGet ? {} : { body: JSON.stringify({ action, ...payload }) }),
+                });
+                const text = await response.text();
+                const json = text ? JSON.parse(text) : {};
+                if (!response.ok) throw new Error(json.error || `HTTP ${response.status}`);
+                return json;
+            }
+
             // ═══════════════════════════════════════════════════════════════
             //  STATE MANAGEMENT
             // ═══════════════════════════════════════════════════════════════
@@ -567,6 +588,20 @@
                 providers: [],
                 convs: [],
                 notifs: [],
+                broadcastCampaigns: [],
+                broadcastConfig: { pushConfigured: false, smsConfigured: false },
+                broadcastPreview: null,
+                broadcastPreviewKey: null,
+                broadcastUserResults: [],
+                broadcastSelectedUsers: [],
+                broadcastSearch: "",
+                broadcastUserQuery: "",
+                broadcastAudience: "all",
+                broadcastChannels: ["in_app"],
+                broadcastTestMode: false,
+                broadcastIdempotencyKey: null,
+                broadcastForm: { title: "", content: "", scheduledAt: "", actionUrl: "" },
+                broadcastBusy: false,
                 ads: [],
                 payments: [],
                 subs: [],
@@ -1377,8 +1412,8 @@
                   <h2 class="text-base font-extrabold text-slate-900 tracking-tight">${pageTitle()}</h2>
                 </div>
                 <div class="flex-1"></div>
-                <button onclick="showQuickBroadcastModal()" class="btn btn-primary text-xs shadow-sm bg-gradient-to-r from-blue-600 to-indigo-600">
-                  <span>📡 Send Live Broadcast</span>
+                <button onclick="switchTab('broadcasts')" class="btn btn-primary text-xs shadow-sm bg-gradient-to-r from-blue-600 to-indigo-600">
+                  <span>🔔 Notification Campaigns</span>
                 </button>
                 ${refreshBtn()}
                 <div class="flex items-center gap-2 pl-2 border-l border-slate-200 text-xs text-slate-500">
@@ -1678,7 +1713,7 @@
                     <div class="text-[11px] text-slate-500 font-normal">Execute raw SQL, truncate tables, alter schema</div>
                   </div>
                 </button>
-                <button onclick="showQuickBroadcastModal()" class="btn btn-ghost text-xs justify-start bg-slate-50 hover:bg-slate-100 p-3 rounded-xl border border-slate-200">
+                <button onclick="switchTab('broadcasts')" class="btn btn-ghost text-xs justify-start bg-slate-50 hover:bg-slate-100 p-3 rounded-xl border border-slate-200">
                   <span class="text-base">📡</span>
                   <div class="text-left">
                     <div class="font-bold text-slate-900">Post Live Broadcast</div>
@@ -4016,63 +4051,350 @@
             // ═══════════════════════════════════════════════════════════════
             //  TAB 12: REALTIME LIVE BROADCASTS & NOTIFICATIONS
             // ═══════════════════════════════════════════════════════════════
-            function broadcastsHtml(notifs) {
-                return `
-          <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <div>
-              <h3 class="text-base font-extrabold text-slate-900 tracking-tight">Live Broadcasts & Announcement Center</h3>
-              <p class="text-xs text-slate-500 mt-0.5">Broadcast instant popup banners, alerts, and notifications across jobbridge.com.ng in real-time.</p>
-            </div>
-            <div class="flex items-center gap-2 flex-wrap">
-              <button class="btn btn-ghost text-xs font-bold border border-slate-200 bg-white text-slate-700" onclick="triggerWebSocketTestBroadcast()">🔎 Test WS Fan-Out</button>
-              <button class="btn btn-primary text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600" onclick="showQuickBroadcastModal()">+ New Live Broadcast</button>
-            </div>
-          </div>
-
-          <div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-6 shadow-xl space-y-3 mb-6">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-xl">📡</div>
-              <div>
-                <h4 class="text-sm font-bold text-white">Instant Realtime Push Architecture</h4>
-                <p class="text-xs text-slate-300 mt-0.5">When you send a broadcast from this Super Admin Console, it is dispatched through Supabase Realtime channels and renders immediately across all active browser windows on jobbridge.com.ng without requiring any refresh.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <span class="text-xs font-bold text-slate-700">Broadcast & Notification History</span>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <tr><th>Recipient</th><th>Type</th><th>Title</th><th>Message Content</th><th>Status</th><th>Date</th><th>Actions</th></tr>
-                ${
-                    notifs.length === 0
-                        ? '<tr><td colspan="7" class="text-center text-slate-400 py-10 text-xs">No notifications recorded</td></tr>'
-                        : notifs
-                              .slice(0, 50)
-                              .map(
-                                  (n) => `
-                    <tr>
-                      <td class="font-medium text-xs">${esc(n.user?.full_name || n.user?.email || "Global Broadcast")}</td>
-                      <td><span class="badge ${sColor(n.type === "system" ? "active" : "pending")}">${esc(n.type || "system")}</span></td>
-                      <td class="text-xs font-bold text-slate-900">${esc(n.title || "—")}</td>
-                      <td class="text-xs text-slate-600 max-w-sm truncate">${esc(n.content || "—")}</td>
-                      <td><span class="badge ${n.is_read ? "bg-slate-100 text-slate-600" : "bg-blue-100 text-blue-700"}">${n.is_read ? "Read" : "Delivered"}</span></td>
-                      <td class="text-xs text-slate-400">${fdatetime(n.created_at)}</td>
-                      <td>
-                        <button onclick="deleteNotif('${n.id}')" class="btn btn-danger text-xs py-1 px-2">Del</button>
+            function broadcastsHtml() {
+                const selectedAudience = S.broadcastAudience;
+                const form = S.broadcastForm;
+                const selectableUsers = S.broadcastUserResults.map((user) => `
+                    <label class="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 text-xs">
+                      <input type="checkbox" ${S.broadcastSelectedUsers.some((selected) => selected.id === user.id) ? "checked" : ""}
+                        onchange="toggleBroadcastUser('${esc(user.id)}',this.checked)">
+                      <span class="font-medium text-slate-800">${esc(user.full_name || "Unnamed user")}</span>
+                      <span class="text-slate-400">${esc(user.role || "account")}</span>
+                    </label>
+                `).join("");
+                const channels = S.broadcastPreview?.channelEstimates;
+                const campaignRows = (S.broadcastCampaigns || []).map((campaign) => {
+                    const stats = campaign.stats || {};
+                    const totals = Object.entries(stats).map(([channel, states]) => {
+                        const sent = states.sent || 0;
+                        const delivered = states.delivered || 0;
+                        const failed = states.failed || 0;
+                        const skipped = states.skipped || 0;
+                        return `<span class="mr-3">${esc(channel)}: ${sent} accepted, ${delivered} delivered, ${failed} failed, ${skipped} skipped</span>`;
+                    }).join("");
+                    const failureDetails = (campaign.failures || []).map((failure) =>
+                        `<span class="mr-2">${esc(failure.channel)} ${esc(failure.code)} × ${Number(failure.count)}</span>`,
+                    ).join("");
+                    return `<tr>
+                      <td><div class="font-bold text-slate-900">${esc(campaign.title)} ${campaign.is_test ? '<span class="badge bg-amber-100 text-amber-700">Test</span>' : ""}</div><div class="text-[10px] text-slate-400">${esc(campaign.channels.join(", "))} · ${campaign.recipient_count} audience</div></td>
+                      <td><span class="badge ${sColor(campaign.status === "completed" ? "active" : campaign.status === "failed" ? "rejected" : "pending")}">${esc(campaign.status)}</span></td>
+                      <td class="text-xs text-slate-600">${fdatetime(campaign.scheduled_at)}<div class="mt-1">${totals || "No delivery attempts yet"}</div>${failureDetails ? `<div class="mt-1 text-rose-700">Failures: ${failureDetails}</div>` : ""}</td>
+                      <td class="space-x-1">
+                        ${campaign.status === "failed" || campaign.status === "partial" ? `<button onclick="retryBroadcastCampaign('${esc(campaign.id)}')" class="btn btn-ghost text-xs py-1 px-2">Retry failed</button>` : ""}
+                        ${["scheduled", "queued"].includes(campaign.status) ? `<button onclick="cancelBroadcastCampaign('${esc(campaign.id)}')" class="btn btn-danger text-xs py-1 px-2">Cancel</button>` : ""}
                       </td>
-                    </tr>
-                  `,
-                              )
-                              .join("")
-                }
-              </table>
-            </div>
+                    </tr>`;
+                }).join("");
+                return `
+          <div class="mb-5">
+            <h3 class="text-base font-extrabold text-slate-900 tracking-tight">Notification campaigns</h3>
+            <p class="text-xs text-slate-500 mt-1">Create a previewable in-app or browser push campaign. Recipients' phone numbers are never shown here.</p>
           </div>
-        `;
+          <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <label class="text-xs font-bold text-slate-700">Message title
+                <input id="broadcast-title" maxlength="120" value="${esc(form.title)}" oninput="updateBroadcastForm('title',this.value)" class="form-input mt-1 w-full" placeholder="A clear notification title">
+              </label>
+              <label class="text-xs font-bold text-slate-700">Audience
+                <select id="broadcast-audience" class="form-input mt-1 w-full" onchange="broadcastAudienceChanged(this.value)">
+                  <option value="all" ${selectedAudience === "all" ? "selected" : ""}>All eligible users (admin accounts excluded)</option>
+                  <option value="role:job_seeker" ${selectedAudience === "role:job_seeker" ? "selected" : ""}>Job seekers</option>
+                  <option value="role:provider" ${selectedAudience === "role:provider" ? "selected" : ""}>Service providers</option>
+                  <option value="role:recruiter" ${selectedAudience === "role:recruiter" ? "selected" : ""}>Recruiters</option>
+                  <option value="selected" ${selectedAudience === "selected" ? "selected" : ""}>Selected users</option>
+                </select>
+              </label>
+              ${selectedAudience === "selected" ? `
+                <div class="lg:col-span-2">
+                  <label class="text-xs font-bold text-slate-700">Find registered users (name only)
+                    <input id="broadcast-user-search" value="${esc(S.broadcastUserQuery)}" class="form-input mt-1 w-full" placeholder="Type at least two characters" oninput="searchBroadcastUsers(this.value)">
+                  </label>
+                  <div class="mt-2 max-h-40 overflow-y-auto rounded-lg border border-slate-100">${selectableUsers || '<p class="p-3 text-xs text-slate-400">Search to choose recipients.</p>'}</div>
+                  <p class="mt-1 text-xs text-slate-500">${S.broadcastSelectedUsers.length} selected</p>
+                </div>` : ""}
+              <fieldset class="lg:col-span-2">
+                <legend class="text-xs font-bold text-slate-700 mb-2">Channels</legend>
+                <div class="flex gap-5 flex-wrap text-xs">
+                  <label><input type="checkbox" name="broadcastChannel" value="in_app" ${S.broadcastChannels.includes("in_app") ? "checked" : ""} onchange="toggleBroadcastChannel(this.value,this.checked)"> In-app notification</label>
+                  <label class="${S.broadcastConfig.pushConfigured ? "" : "text-slate-400"}"><input type="checkbox" name="broadcastChannel" value="push" ${S.broadcastChannels.includes("push") ? "checked" : ""} ${S.broadcastConfig.pushConfigured ? "" : "disabled"} onchange="toggleBroadcastChannel(this.value,this.checked)"> Web push${S.broadcastConfig.pushConfigured ? "" : " (VAPID not configured)"}</label>
+                  <label class="${S.broadcastConfig.smsConfigured ? "" : "text-slate-400"}"><input type="checkbox" name="broadcastChannel" value="sms" ${S.broadcastChannels.includes("sms") ? "checked" : ""} ${S.broadcastConfig.smsConfigured ? "" : "disabled"} onchange="toggleBroadcastChannel(this.value,this.checked)"> SMS${S.broadcastConfig.smsConfigured ? "" : " (gateway unavailable)"}</label>
+                </div>
+                ${S.broadcastConfig.smsUnavailableReason ? `<p class="text-[11px] text-amber-700 mt-2">${esc(S.broadcastConfig.smsUnavailableReason)}</p>` : ""}
+              </fieldset>
+              <label class="lg:col-span-2 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                <input id="broadcast-test-mode" type="checkbox" ${S.broadcastTestMode ? "checked" : ""} onchange="setBroadcastTestMode(this.checked)">
+                <span><strong>Test campaign</strong> — required before an all-user broadcast; targets selected users only (maximum five).</span>
+              </label>
+              <label class="text-xs font-bold text-slate-700">Send at (local time; leave blank for now)
+                <input id="broadcast-schedule" type="datetime-local" value="${esc(form.scheduledAt)}" oninput="updateBroadcastForm('scheduledAt',this.value)" class="form-input mt-1 w-full">
+              </label>
+              <label class="text-xs font-bold text-slate-700">Action link (optional, site-relative)
+                <input id="broadcast-action-url" value="${esc(form.actionUrl)}" oninput="updateBroadcastForm('actionUrl',this.value)" class="form-input mt-1 w-full" placeholder="/jobs">
+              </label>
+              <label class="lg:col-span-2 text-xs font-bold text-slate-700">Message
+                <textarea id="broadcast-content" rows="4" maxlength="4000" oninput="updateBroadcastForm('content',this.value)" class="form-input mt-1 w-full" placeholder="Write a concise message...">${esc(form.content)}</textarea>
+              </label>
+              <div class="lg:col-span-2 flex flex-wrap items-center gap-3">
+                <button class="btn btn-ghost border border-slate-200" onclick="previewBroadcast()">Preview audience and message</button>
+                <button class="btn btn-primary" onclick="createBroadcastCampaign()" ${S.broadcastBusy ? "disabled" : ""}>${S.broadcastBusy ? "Creating..." : "Schedule / send campaign"}</button>
+              </div>
+              ${S.broadcastPreview ? `<div class="lg:col-span-2 rounded-xl bg-slate-50 border border-slate-200 p-4 text-xs">
+                <div class="font-extrabold text-slate-900 mb-1">Preview: ${esc(S.broadcastPreview.title)}</div>
+                <p class="whitespace-pre-wrap text-slate-600 mb-3">${esc(S.broadcastPreview.content)}</p>
+                <div class="font-bold">Audience: ${S.broadcastPreview.recipientCount} account(s)</div>
+                <div class="mt-1 text-slate-600">In-app: ${channels?.in_app || 0} · Push subscriptions: ${channels?.push || 0} (${channels?.pushSkipped || 0} without push) · SMS: ${channels?.sms || 0} (${channels?.smsSkipped || 0} not verified/opted in)</div>
+                ${S.broadcastPreview.channels.includes("sms") ? `<p class="mt-1 text-slate-600">SMS segments: ${channels.smsSegments} · Estimated cost: ₦${Number(channels.smsCostNgn).toLocaleString()}</p>` : ""}
+                ${S.broadcastPreview.testCampaignRequired ? '<p class="mt-2 font-bold text-amber-700">A successful test campaign on each selected channel is required before an all-user send.</p>' : ""}
+                <div class="mt-3"><button class="btn btn-ghost text-xs border border-slate-200" onclick="clearBroadcastPreview()">Clear preview</button></div>
+              </div>` : ""}
+            </div>
+          </section>
+          <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+              <div><h4 class="text-xs font-extrabold text-slate-800">Campaign history</h4><p class="text-[11px] text-slate-500 mt-1">Acceptance is not proof of delivery; push/SMS are marked delivered only when a provider confirms it.</p></div>
+              <div class="flex gap-2"><input id="broadcast-history-search" value="${esc(S.broadcastSearch)}" class="form-input text-xs" placeholder="Search campaign title"><button onclick="searchBroadcastCampaigns()" class="btn btn-ghost text-xs border border-slate-200">Search</button><button onclick="loadBroadcastCampaigns()" class="btn btn-ghost text-xs border border-slate-200">Refresh</button></div>
+            </div>
+            <div class="table-wrap"><table><tr><th>Campaign</th><th>Status</th><th>Schedule / delivery statistics</th><th>Actions</th></tr>
+              ${campaignRows || '<tr><td colspan="4" class="text-center text-slate-400 py-10 text-xs">No campaigns recorded. Create a small test-audience campaign before any all-user send.</td></tr>'}
+            </table></div>
+          </section>`;
             }
+
+            let broadcastUserSearchTimer = null;
+
+            window.updateBroadcastForm = (field, value) => {
+                if (Object.prototype.hasOwnProperty.call(S.broadcastForm, field)) {
+                    S.broadcastForm[field] = value;
+                    S.broadcastPreview = null;
+                    S.broadcastPreviewKey = null;
+                    S.broadcastIdempotencyKey = null;
+                }
+            };
+
+            window.broadcastAudienceChanged = (value) => {
+                S.broadcastAudience = value;
+                S.broadcastPreview = null;
+                S.broadcastPreviewKey = null;
+                S.broadcastIdempotencyKey = null;
+                if (value !== "selected") S.broadcastTestMode = false;
+                if (value !== "selected") {
+                    S.broadcastSelectedUsers = [];
+                    S.broadcastUserResults = [];
+                    S.broadcastUserQuery = "";
+                }
+                render();
+            };
+
+            window.setBroadcastTestMode = (enabled) => {
+                S.broadcastTestMode = Boolean(enabled);
+                if (enabled && S.broadcastAudience !== "selected") {
+                    S.broadcastAudience = "selected";
+                    render();
+                }
+                S.broadcastPreview = null;
+                S.broadcastPreviewKey = null;
+                S.broadcastIdempotencyKey = null;
+            };
+
+            window.toggleBroadcastChannel = (channel, selected) => {
+                if (selected && !S.broadcastChannels.includes(channel)) S.broadcastChannels.push(channel);
+                if (!selected) S.broadcastChannels = S.broadcastChannels.filter((value) => value !== channel);
+                S.broadcastPreview = null;
+                S.broadcastPreviewKey = null;
+                S.broadcastIdempotencyKey = null;
+            };
+
+            window.toggleBroadcastUser = (id, selected) => {
+                const user = S.broadcastUserResults.find((candidate) => candidate.id === id);
+                if (selected && user && !S.broadcastSelectedUsers.some((candidate) => candidate.id === id)) {
+                    S.broadcastSelectedUsers.push(user);
+                } else if (!selected) {
+                    S.broadcastSelectedUsers = S.broadcastSelectedUsers.filter((candidate) => candidate.id !== id);
+                }
+                S.broadcastPreview = null;
+                S.broadcastPreviewKey = null;
+                S.broadcastIdempotencyKey = null;
+                render();
+            };
+
+            window.searchBroadcastUsers = (query) => {
+                S.broadcastUserQuery = query;
+                if (broadcastUserSearchTimer) clearTimeout(broadcastUserSearchTimer);
+                if (query.trim().length < 2) {
+                    S.broadcastUserResults = [];
+                    render();
+                    $("#broadcast-user-search")?.focus();
+                    return;
+                }
+                broadcastUserSearchTimer = setTimeout(async () => {
+                    try {
+                        const result = await callBroadcastCampaignApi({ action: "users", q: query.trim() });
+                        S.broadcastUserResults = result.users || [];
+                        render();
+                        const input = $("#broadcast-user-search");
+                        if (input) {
+                            input.value = query;
+                            input.focus();
+                            input.setSelectionRange(query.length, query.length);
+                        }
+                    } catch (error) {
+                        notify(error.message || "Could not search users.", "error");
+                    }
+                }, 300);
+            };
+
+            function getBroadcastFormPayload() {
+                const audience = S.broadcastAudience === "all"
+                    ? { type: "all" }
+                    : S.broadcastAudience.startsWith("role:")
+                      ? { type: "role", role: S.broadcastAudience.slice(5) }
+                      : { type: "selected", userIds: S.broadcastSelectedUsers.map((user) => user.id) };
+                const scheduledAt = S.broadcastForm.scheduledAt
+                    ? new Date(S.broadcastForm.scheduledAt).toISOString()
+                    : null;
+                return {
+                    title: S.broadcastForm.title,
+                    content: S.broadcastForm.content,
+                    audience,
+                    channels: [...S.broadcastChannels],
+                    scheduledAt,
+                    actionUrl: S.broadcastForm.actionUrl,
+                    actionLabel: "",
+                    testMode: S.broadcastTestMode,
+                    broadcastType: S.broadcastTestMode ? "test" : "announcement",
+                };
+            }
+
+            window.clearBroadcastPreview = () => {
+                S.broadcastPreview = null;
+                S.broadcastPreviewKey = null;
+                render();
+            };
+
+            window.previewBroadcast = async () => {
+                try {
+                    const payload = getBroadcastFormPayload();
+                    const result = await callBroadcastCampaignApi({
+                        method: "POST",
+                        action: "preview",
+                        ...payload,
+                    });
+                    S.broadcastPreview = result;
+                    S.broadcastPreviewKey = JSON.stringify(payload);
+                    render();
+                } catch (error) {
+                    notify(error.message || "Could not preview campaign.", "error");
+                }
+            };
+
+            window.createBroadcastCampaign = async () => {
+                if (S.broadcastBusy) return;
+                S.broadcastBusy = true;
+                render();
+                try {
+                    const payload = getBroadcastFormPayload();
+                    const previewKey = JSON.stringify(payload);
+                    if (!S.broadcastPreview || S.broadcastPreviewKey !== previewKey) {
+                        S.broadcastPreview = await callBroadcastCampaignApi({ method: "POST", action: "preview", ...payload });
+                        S.broadcastPreviewKey = previewKey;
+                        render();
+                        notify("Review the recipient count and message preview before creating the campaign.", "warn");
+                        return;
+                    }
+                    const preview = await callBroadcastCampaignApi({ method: "POST", action: "preview", ...payload });
+                    const previewSnapshot = (value) => JSON.stringify({
+                        title: value.title,
+                        content: value.content,
+                        recipientCount: value.recipientCount,
+                        channelEstimates: value.channelEstimates,
+                        testCampaignRequired: value.testCampaignRequired,
+                    });
+                    if (previewSnapshot(preview) !== previewSnapshot(S.broadcastPreview)) {
+                        S.broadcastPreview = preview;
+                        S.broadcastPreviewKey = previewKey;
+                        render();
+                        notify("The audience changed. Review the updated preview before creating the campaign.", "warn");
+                        return;
+                    }
+                    S.broadcastPreview = preview;
+                    if (preview.testCampaignRequired) {
+                        render();
+                        notify("Complete a successful small test campaign on each channel first.", "error");
+                        return;
+                    }
+                    if (payload.audience.type === "all" && !window.confirm(
+                        `You are about to schedule a message for ${preview.recipientCount} users. Confirm this all-user campaign?`,
+                    )) {
+                        render();
+                        return;
+                    }
+                    const result = await callBroadcastCampaignApi({
+                        method: "POST",
+                        action: "create",
+                        ...payload,
+                        confirmAll: payload.audience.type === "all",
+                        previewToken: preview.previewToken,
+                        idempotencyKey: S.broadcastIdempotencyKey || (S.broadcastIdempotencyKey = crypto.randomUUID()),
+                    });
+                    notify(result.duplicate ? "This campaign was already created." : "Campaign created and queued for delivery.", "success");
+                    S.broadcastPreview = null;
+                    S.broadcastPreviewKey = null;
+                    S.broadcastForm = { title: "", content: "", scheduledAt: "", actionUrl: "" };
+                    S.broadcastTestMode = false;
+                    S.broadcastAudience = "all";
+                    S.broadcastChannels = ["in_app"];
+                    S.broadcastIdempotencyKey = null;
+                    S.broadcastSelectedUsers = [];
+                    await window.loadBroadcastCampaigns();
+                } catch (error) {
+                    notify(error.message || "Could not create campaign.", "error");
+                } finally {
+                    S.broadcastBusy = false;
+                    render();
+                }
+            };
+
+            window.loadBroadcastCampaigns = async (search = S.broadcastSearch || "") => {
+                try {
+                    const [config, history] = await Promise.all([
+                        callBroadcastCampaignApi({ action: "config" }),
+                        callBroadcastCampaignApi({ action: "campaigns", search }),
+                    ]);
+                    S.broadcastConfig = config;
+                    S.broadcastCampaigns = history.campaigns || [];
+                    S.broadcastSearch = search;
+                    if (S.tab === "broadcasts") render();
+                } catch (error) {
+                    notify(error.message || "Could not load notification campaigns.", "error");
+                }
+            };
+
+            window.searchBroadcastCampaigns = () => {
+                S.broadcastSearch = $("#broadcast-history-search")?.value || "";
+                window.loadBroadcastCampaigns(S.broadcastSearch);
+            };
+
+            window.retryBroadcastCampaign = async (campaignId) => {
+                if (!window.confirm("Queue eligible failed deliveries for retry?")) return;
+                try {
+                    const result = await callBroadcastCampaignApi({ method: "POST", action: "retry", campaignId });
+                    notify(`${result.queuedForRetry} failed delivery(s) queued for retry.`, "success");
+                    await window.loadBroadcastCampaigns();
+                } catch (error) {
+                    notify(error.message || "Could not retry failed deliveries.", "error");
+                }
+            };
+
+            window.cancelBroadcastCampaign = async (campaignId) => {
+                if (!window.confirm("Cancel this campaign and skip its queued deliveries?")) return;
+                try {
+                    await callBroadcastCampaignApi({ method: "POST", action: "cancel", campaignId });
+                    notify("Campaign cancellation requested.", "success");
+                    await window.loadBroadcastCampaigns();
+                } catch (error) {
+                    notify(error.message || "Could not cancel campaign.", "error");
+                }
+            };
 
             window.triggerWebSocketTestBroadcast = async () => {
                 const testTitle = "WebSocket fan-out test";
@@ -4585,6 +4907,7 @@
                     selectTable(S.activeTable || "profiles");
                 }
                 render();
+                if (t === "broadcasts") window.loadBroadcastCampaigns();
             };
 
             window.logout = async () => {

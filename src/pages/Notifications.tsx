@@ -114,6 +114,38 @@ export default function Notifications() {
   const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
   const [pushSupported, setPushSupported] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [smsBroadcastOptIn, setSmsBroadcastOptIn] = useState(false);
+  const [smsPhoneVerified, setSmsPhoneVerified] = useState(false);
+  const [smsConsentLoading, setSmsConsentLoading] = useState(false);
+  const [smsConsentError, setSmsConsentError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    if (!user?.id) {
+      setSmsBroadcastOptIn(false);
+      setSmsPhoneVerified(false);
+      return () => { active = false; };
+    }
+    void supabase
+      .from("profiles")
+      .select("sms_broadcast_opt_in,phone_verified")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setSmsConsentError("SMS preferences are unavailable right now.");
+          return;
+        }
+        setSmsBroadcastOptIn(Boolean(data?.sms_broadcast_opt_in));
+        setSmsPhoneVerified(Boolean(data?.phone_verified));
+      }, (error: unknown) => {
+        if (!active) return;
+        console.error("[Notifications] Failed to load SMS preferences:", error);
+        setSmsConsentError("SMS preferences are unavailable right now.");
+      });
+    return () => { active = false; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -164,6 +196,27 @@ export default function Notifications() {
           "Could not unsubscribe: " + (e instanceof Error ? e.message : String(e)),
         type: "error",
       });
+    }
+  };
+
+  const handleSmsBroadcastConsent = async (enabled: boolean) => {
+    if (!user?.id || !smsPhoneVerified || smsConsentLoading) return;
+    const previous = smsBroadcastOptIn;
+    setSmsBroadcastOptIn(enabled);
+    setSmsConsentLoading(true);
+    setSmsConsentError("");
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ sms_broadcast_opt_in: enabled })
+        .eq("id", user.id);
+      if (error) throw error;
+    } catch (error) {
+      console.error("[Notifications] Failed to update SMS consent:", error);
+      setSmsBroadcastOptIn(previous);
+      setSmsConsentError("We could not update SMS consent. Please try again.");
+    } finally {
+      setSmsConsentLoading(false);
     }
   };
 
@@ -458,7 +511,7 @@ export default function Notifications() {
               Notification Settings
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Control browser push notifications and job alerts in one place
+              Control browser push notifications, SMS announcements and job alerts in one place
             </p>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 p-4">
@@ -488,6 +541,29 @@ export default function Notifications() {
                   Enable
                 </button>
               )}
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 p-4 mt-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">SMS announcements</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {smsPhoneVerified
+                      ? "Opt in to occasional Jobbridge service announcements by SMS. Carrier charges may apply; turn this off any time."
+                      : "SMS consent is unavailable until your phone number has been verified."}
+                  </p>
+                  {smsConsentError && <p className="text-xs text-red-600 mt-1">{smsConsentError}</p>}
+                </div>
+                <label className="shrink-0 flex items-center gap-2 text-xs font-medium text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={smsBroadcastOptIn}
+                    disabled={!smsPhoneVerified || smsConsentLoading || !isAuthenticated}
+                    onChange={(event) => void handleSmsBroadcastConsent(event.target.checked)}
+                    aria-label="Consent to Jobbridge SMS announcements"
+                  />
+                  {smsConsentLoading ? "Saving..." : smsBroadcastOptIn ? "Opted in" : "Opt in"}
+                </label>
+              </div>
             </div>
           </div>
         </div>

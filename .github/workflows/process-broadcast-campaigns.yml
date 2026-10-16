@@ -1,0 +1,32 @@
+name: Process notification campaigns
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: process-broadcast-campaigns
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process one bounded broadcast batch
+        env:
+          BROADCAST_WORKER_URL: ${{ secrets.BROADCAST_WORKER_URL }}
+          BROADCAST_CRON_SECRET: ${{ secrets.BROADCAST_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BROADCAST_WORKER_URL" ] || [ -z "$BROADCAST_CRON_SECRET" ]; then
+            echo "::error::Configure BROADCAST_WORKER_URL and BROADCAST_CRON_SECRET to enable the broadcast worker."
+            exit 1
+          fi
+          curl --fail --silent --show-error --request POST "$BROADCAST_WORKER_URL" \
+            --header "Authorization: Bearer $BROADCAST_CRON_SECRET" \
+            --header "Content-Type: application/json" \
+            --data '{}' | jq .

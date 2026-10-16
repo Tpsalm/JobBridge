@@ -661,12 +661,20 @@ export async function createConversationMessage(params: {
   if (!senderId || !recipientId || senderId === recipientId) {
     throw new Error('Invalid message recipients');
   }
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token || session.user.id !== senderId) {
+    throw new Error('Sign in to send a message.');
+  }
+  const authorizationHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${session.access_token}`,
+  };
 
-  // Try the API endpoint first (uses service role key, bypasses RLS)
+  // Try the authenticated API endpoint first.
   try {
     const resp = await fetch('/api/send-message', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authorizationHeaders,
       body: JSON.stringify({
         senderId,
         senderName,
@@ -770,21 +778,23 @@ export async function createConversationMessage(params: {
 
   try {
     // Call server endpoint to create notifications with service role key
-    await fetch('/api/create-notification', {
+    const response = await fetch('/api/create-notification', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authorizationHeaders,
       body: JSON.stringify(recipientNotification),
     });
+    if (!response.ok) console.warn('[createConversationMessage] recipient notification was not accepted:', response.status);
   } catch (e) {
     console.warn('[createConversationMessage] failed to create recipient notification via API:', e);
   }
 
   try {
-    await fetch('/api/create-notification', {
+    const response = await fetch('/api/create-notification', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authorizationHeaders,
       body: JSON.stringify(senderNotification),
     });
+    if (!response.ok) console.warn('[createConversationMessage] sender notification was not accepted:', response.status);
   } catch (e) {
     console.warn('[createConversationMessage] failed to create sender notification via API:', e);
   }

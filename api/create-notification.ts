@@ -1,30 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import webpush from 'web-push';
+import { requireUser, setSameOriginHeaders, supabaseRequest } from './_lib/broadcast';
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
-const RESEND_FROM = process.env.RESEND_FROM || 'JobBridge <onboarding@resend.dev>';
-const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || process.env.VITE_VAPID_PRIVATE_KEY;
 const isProduction = process.env.NODE_ENV === 'production';
 const NOTIFICATION_WS_URL = process.env.NOTIFICATION_WS_URL || (isProduction ? '' : 'http://localhost:3001');
 const JOBBRIDGE_WS_ADMIN_KEY = process.env.JOBBRIDGE_WS_ADMIN_KEY || (isProduction ? '' : 'jobbridge-local-dev');
 
-if (VAPID_PUBLIC && VAPID_PRIVATE) {
-  webpush.setVapidDetails('mailto:jobbridgesupport@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE);
-}
-
-type Recipient = { id: string; email?: string | null; phone?: string | null; full_name?: string | null };
-
-type BroadcastTarget = {
-  audience?: string;
-  userId?: string;
-  role?: string;
-};
-
-function normalizeChannels(value: unknown): Set<string> {
-  if (!Array.isArray(value)) return new Set(['in_app', 'email', 'push']);
-  return new Set(value.filter((channel): channel is string => typeof channel === 'string'));
-}
+type BroadcastTarget = { audience?: string; userId?: string };
 
 async function notifySocketClients(target: BroadcastTarget, payload: Record<string, unknown>) {
   if (!NOTIFICATION_WS_URL || !JOBBRIDGE_WS_ADMIN_KEY) {
@@ -64,193 +45,80 @@ async function notifySocketClients(target: BroadcastTarget, payload: Record<stri
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ error: 'Server not configured: missing Supabase URL or service-role key' });
-  }
+  setSameOriginHeaders(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
   try {
-    const payload = req.body;
-
+    const payload = req.body as {
+      broadcast?: boolean;
+      user_id?: unknown;
+      type?: unknown;
+      title?: unknown;
+      content?: unknown;
+      data?: Record<string, unknown>;
+    } | undefined;
     if (payload?.broadcast) {
-      const accessToken = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-      const userResponse = await fetch(`${SUPABASE_URL.replace(/\/+$/, '')}/auth/v1/user`, {
-        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${accessToken}` },
-      });
-      if (!userResponse.ok) return res.status(403).json({ error: 'Admin access required' });
-      const user = await userResponse.json();
-      const profileResponse = await fetch(`${SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/profiles?select=role&id=eq.${encodeURIComponent(user.id)}&limit=1`, {
-        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-      });
-      const profiles = await profileResponse.json();
-      if (profiles[0]?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
-
-      if (payload.websocket_test === true) {
-        const socketResult = await notifySocketClients(
-          { audience: 'broadcast' },
-          {
-            id: `ws-test-${Date.now()}`,
-            title: payload.title || 'WebSocket fan-out test',
-            content: payload.content || 'JobBridge WebSocket fan-out test',
-            audience: 'broadcast',
-            type: 'announcement',
-            priority: 'high',
-            payload: { source: 'admin_ws_test', test: true },
-          },
-        );
-        return res.status(200).json({
-          success: true,
-          recipients: 0,
-          notificationsSent: 0,
-          emailsSent: 0,
-          pushesSent: 0,
-          websocketDelivered: socketResult.delivered,
-          websocketConfigured: socketResult.configured,
-          websocketError: socketResult.error || null,
-        });
-      }
-
-      const targetAudience = payload.audience || 'broadcast';
-      const role = payload.audience === 'recruiters' ? 'recruiter' : payload.audience === 'job_seekers' ? 'job_seeker' : payload.audience === 'providers' ? 'provider' : null;
-      const userId = String(payload.audience || '').startsWith('user:') ? String(payload.audience).slice(5) : null;
-      const filter = userId ? `&id=eq.${encodeURIComponent(userId)}` : role ? `&role=eq.${role}` : '';
-      const recipientsResponse = await fetch(`${SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/profiles?select=id,email,phone,full_name${filter}`, {
-        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-      });
-      if (!recipientsResponse.ok) return res.status(502).json({ error: 'Could not load broadcast recipients' });
-      const recipients = await recipientsResponse.json() as Recipient[];
-      const channels = normalizeChannels(payload.channels);
-      const unsupportedChannels = [...channels].filter((channel) => !['in_app', 'email', 'push'].includes(channel));
-      if (unsupportedChannels.length) {
-        return res.status(400).json({ error: `Unsupported broadcast channel(s): ${unsupportedChannels.join(', ')}` });
-      }
-      if (!channels.size) return res.status(400).json({ error: 'Select at least one supported broadcast channel' });
-      const notificationRows = channels.has('in_app') ? recipients.map((recipient) => ({
-        user_id: recipient.id,
-        type: 'system',
-        title: payload.title,
-        content: payload.content,
-        data: { source: 'admin_broadcast', audience: targetAudience, broadcast_type: payload.broadcast_type },
-      })) : [];
-
-      if (notificationRows.length) {
-        const notificationResponse = await fetch(`${SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/notifications`, {
-          method: 'POST',
-          headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-          body: JSON.stringify(notificationRows),
-        });
-        if (!notificationResponse.ok) return res.status(502).json({ error: 'Could not create broadcast notifications' });
-      }
-
-      const socketResult = await notifySocketClients(
-        { audience: targetAudience, userId: userId || undefined, role: role || undefined },
-        {
-          id: payload.id || `ws-${Date.now()}`,
-          title: payload.title,
-          content: payload.content,
-          audience: targetAudience,
-          type: payload.broadcast_type || 'announcement',
-          actionUrl: payload.action_url || null,
-          actionLabel: payload.action_label || null,
-          priority: 'high',
-          payload: {
-            source: 'admin_broadcast',
-            broadcast: true,
-          },
-        },
-      );
-
-      const emailResults = channels.has('email') && RESEND_API_KEY ? await Promise.all(recipients.filter((recipient) => recipient.email).map(async (recipient) => {
-        const response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from: RESEND_FROM, to: recipient.email, subject: payload.title, html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>${payload.title}</h2><p>${String(payload.content).replace(/\n/g, '<br />')}</p><p>JobBridge</p></div>` }),
-        });
-        return response.ok;
-      })) : [];
-
-      let pushesSent = 0;
-      if (channels.has('push') && VAPID_PUBLIC && VAPID_PRIVATE && recipients.length) {
-        const ids = recipients.map((recipient) => recipient.id).join(',');
-        const subscriptionsResponse = await fetch(`${SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/push_subscriptions?select=user_id,subscription&user_id=in.(${ids})`, {
-          headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-        });
-        const subscriptions = subscriptionsResponse.ok ? await subscriptionsResponse.json() as Array<{ subscription: webpush.PushSubscription }> : [];
-        const results = await Promise.allSettled(subscriptions.map(({ subscription }) => webpush.sendNotification(subscription, JSON.stringify({ title: payload.title, body: payload.content, data: { url: '/' } }))));
-        pushesSent = results.filter((result) => result.status === 'fulfilled').length;
-      }
-
-      return res.status(200).json({
-        success: true,
-        recipients: recipients.length,
-        notificationsSent: notificationRows.length,
-        emailsSent: emailResults.filter(Boolean).length,
-        emailConfigured: Boolean(RESEND_API_KEY),
-        pushesSent,
-        pushConfigured: Boolean(VAPID_PUBLIC && VAPID_PRIVATE),
-        websocketDelivered: socketResult.delivered,
-        websocketConfigured: socketResult.configured,
-        websocketError: socketResult.error || null,
-      });
+      return res.status(410).json({ error: 'The legacy broadcast endpoint is retired. Use the authenticated campaign dashboard.' });
+    }
+    const user = await requireUser(req);
+    if (!payload || typeof payload.user_id !== 'string' || payload.type !== 'message') {
+      return res.status(400).json({ error: 'Only message notifications are supported.' });
     }
 
-    if (!payload || !payload.user_id) {
-      return res.status(400).json({ error: 'Invalid payload: user_id required' });
+    const conversationId = typeof payload.data?.conversation_id === 'string' ? payload.data.conversation_id : '';
+    const senderId = typeof payload.data?.sender_id === 'string' ? payload.data.sender_id : '';
+    const recipientId = typeof payload.data?.recipient_id === 'string' ? payload.data.recipient_id : '';
+    if (!/^[0-9a-f-]{36}$/i.test(conversationId) || senderId !== user.id
+      || !/^[0-9a-f-]{36}$/i.test(recipientId) || recipientId === senderId
+      || ![senderId, recipientId].includes(payload.user_id)) {
+      return res.status(403).json({ error: 'You can only create a notification for a message you sent.' });
     }
 
-    const baseUrl = SUPABASE_URL.replace(/\/+$/, '');
-    const url = `${baseUrl}/rest/v1/notifications`;
+    const messages = await supabaseRequest<Array<{ id: string }>>(
+      `messages?${new URLSearchParams({
+        select: 'id',
+        conversation_id: `eq.${conversationId}`,
+        sender_id: `eq.${senderId}`,
+        recipient_id: `eq.${recipientId}`,
+        limit: '1',
+      })}`,
+    );
+    if (!messages.length) return res.status(403).json({ error: 'No matching sent message was found.' });
 
-    const resp = await fetch(url, {
+    const direction = payload.user_id === senderId ? 'outgoing' : 'incoming';
+    const safeData = {
+      conversation_id: conversationId,
+      sender_id: senderId,
+      recipient_id: recipientId,
+      direction,
+      related_id: direction === 'incoming' ? senderId : recipientId,
+    };
+    const title = typeof payload.title === 'string' ? payload.title.trim().slice(0, 120) : '';
+    const content = typeof payload.content === 'string' ? payload.content.trim().slice(0, 500) : '';
+    if (!title || !content) return res.status(400).json({ error: 'A message notification title and content are required.' });
+
+    const rows = await supabaseRequest<Array<{ id: string }>>('notifications', {
       method: 'POST',
-      headers: {
-        'apikey': SUPABASE_SERVICE_ROLE_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
+      headers: { Prefer: 'return=representation' },
       body: JSON.stringify([{
         user_id: payload.user_id,
-        type: payload.type || 'message',
-        title: payload.title || '',
-        content: payload.content || '',
-        data: payload.data || {},
+        type: 'message',
+        title,
+        content,
+        data: safeData,
         is_read: false,
       }]),
     });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => '');
-      console.warn('[api/create-notification] upstream error:', resp.status, text);
-      return res.status(502).json({ error: 'Upstream Supabase error', details: text });
-    }
-
-    const json = await resp.json();
     await notifySocketClients(
       { audience: 'user', userId: payload.user_id },
-      {
-        id: payload.id || `ws-user-${Date.now()}`,
-        title: payload.title || 'New notification',
-        content: payload.content || '',
-        audience: 'user',
-        userId: payload.user_id,
-        type: payload.type || 'message',
-        priority: 'normal',
-        payload: payload.data || {},
-      },
+      { id: rows[0]?.id, title, content, audience: 'user', userId: payload.user_id, type: 'message', payload: safeData },
     );
-
-    return res.status(200).json(json[0] || json);
-  } catch (err: any) {
-    console.error('[api/create-notification] error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(200).json(rows[0]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unexpected error.';
+    const status = message === 'Authentication required.' ? 401 : 500;
+    if (status === 500) console.error('[api/create-notification] request failed:', error);
+    return res.status(status).json({ error: status === 401 ? message : 'Could not create notification.' });
   }
 }

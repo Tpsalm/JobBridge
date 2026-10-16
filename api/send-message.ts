@@ -1,36 +1,44 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getSupabaseConfig, requireUser, setSameOriginHeaders, supabaseRequest } from './_lib/broadcast';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ error: 'Server not configured: missing Supabase URL or service-role key' });
-  }
+  setSameOriginHeaders(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
   try {
-    const { senderId, senderName, recipientId, recipientName, recipientEmail, message } = req.body;
+    const authenticatedUser = await requireUser(req);
+    const payload = req.body as {
+      senderId?: unknown;
+      recipientId?: unknown;
+      message?: unknown;
+    } | undefined;
+    const senderId = typeof payload?.senderId === 'string' ? payload.senderId : '';
+    const recipientId = typeof payload?.recipientId === 'string' ? payload.recipientId : '';
+    const message = typeof payload?.message === 'string' ? payload.message.trim() : '';
 
-    if (!senderId || !recipientId || !message) {
+    if (!senderId || !recipientId || !message || message.length > 10000
+      || !/^[0-9a-f-]{36}$/i.test(senderId) || !/^[0-9a-f-]{36}$/i.test(recipientId)) {
       return res.status(400).json({ error: 'Missing required fields: senderId, recipientId, message' });
     }
 
     if (senderId === recipientId) {
       return res.status(400).json({ error: 'Cannot message yourself' });
     }
+    if (senderId !== authenticatedUser.id) {
+      return res.status(403).json({ error: 'You can only send messages as the signed-in account.' });
+    }
 
-    const baseUrl = SUPABASE_URL.replace(/\/+$/, '');
-    const headers = {
-      'apikey': SUPABASE_SERVICE_ROLE_KEY,
-      'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-    };
+    const { url: baseUrl, serviceKey } = getSupabaseConfig();
+    const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
+    const profiles = await supabaseRequest<Array<{ id: string; full_name: string | null }>>(
+      `profiles?${new URLSearchParams({ select: 'id,full_name', id: `in.(${senderId},${recipientId})` })}`,
+    );
+    const senderProfile = profiles.find((profile) => profile.id === senderId);
+    const recipientProfile = profiles.find((profile) => profile.id === recipientId);
+    if (!senderProfile || !recipientProfile) return res.status(404).json({ error: 'Message recipient was not found.' });
+    const senderName = senderProfile.full_name || 'JobBridge user';
+    const recipientName = recipientProfile.full_name || 'JobBridge user';
 
     // ── 1) Find or create conversation ──────────────────────────────────────
     // The DB has a UNIQUE index on LEAST/GREATEST(participant1_id,
@@ -90,9 +98,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify([{
         conversation_id: conversationId,
         sender_id: senderId,
-        sender_name: senderName || 'Unknown',
+        sender_name: senderName,
         recipient_id: recipientId,
-        recipient_name: recipientName || 'Unknown',
+        recipient_name: recipientName,
         content: message,
         is_read: false,
       }]),
@@ -112,8 +120,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const recipientNotification = {
       user_id: recipientId,
       type: 'message',
-      title: `New message from ${senderName || 'Someone'}`,
-      content: `${senderName || 'Someone'} sent you a message on JobBridge. Open Messages to read and reply.`,
+      title: `New message from ${senderName}`,
+      content: `${senderName} sent you a message on JobBridge. Open Messages to read and reply.`,
       data: {
         conversation_id: conversationId,
         sender_id: senderId,
@@ -128,8 +136,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const senderNotification = {
       user_id: senderId,
       type: 'message',
-      title: `Message sent to ${recipientName || 'Someone'}`,
-      content: `Your message to ${recipientName || 'someone'} was sent successfully. Open Messages to continue the conversation.`,
+      title: `Message sent to ${recipientName}`,
+      content: `Your message to ${recipientName} was sent successfully. Open Messages to continue the conversation.`,
       data: {
         conversation_id: conversationId,
         sender_id: senderId,
@@ -159,7 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       success: true,
       conversationId,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[api/send-message] error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }

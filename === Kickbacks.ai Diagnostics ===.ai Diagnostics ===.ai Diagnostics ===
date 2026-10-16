@@ -1,0 +1,23 @@
+=== Kickbacks.ai Diagnostics ===
+extension version: 2.6.6
+build: build 2026-09-02T06:08:53Z (14d ago)  (BUILD_TS=2026-09-02T06:08:53Z)
+debug enabled: true
+debug log: C:\Users\Owoyemi Samuel Tobi\.kickbacks\debug.log
+
+--- Claude Code ---
+target: C:\__vibe_ads_no_target__
+target exists: false
+CC version: unknown
+PREFLIGHT compatible: false
+preflight reason: target not found
+patch live (isPatched): false
+backup: exists=false hasArray=false hasBlock=false
+live: hasArray=false bareVerbPresent=false
+
+VERDICT: Claude Code not found at the target path. Is the Claude Code extension installed? (Nothing to fix in Kickbacks.ai.)
+
+--- Codex ---
+Codex (openai.chatgpt) not found on this machine.
+
+--- Cursor (in-composer overlay) ---
+Cursor not found on this machine.

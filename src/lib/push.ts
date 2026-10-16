@@ -1,3 +1,5 @@
+import { supabase } from "./supabase";
+
 // Client helper for subscribing to Web Push and registering service worker
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if ('serviceWorker' in navigator) {
@@ -28,6 +30,10 @@ export async function urlBase64ToUint8Array(base64String: string) {
 
 export async function subscribeToPush(vapidPublicKey: string, userId?: string) {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token || (userId && userId !== session.user.id)) {
+      throw new Error("Sign in to enable browser notifications.");
+    }
     const reg = await registerServiceWorker();
     if (!reg) throw new Error('No service worker registration');
     if (!('PushManager' in window)) throw new Error('PushManager not supported');
@@ -38,11 +44,12 @@ export async function subscribeToPush(vapidPublicKey: string, userId?: string) {
     });
 
     // send subscription to server
-    await fetch('/api/register-push', {
+    const response = await fetch('/api/register-push', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscription: sub, user_id: userId || null }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
     });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Could not save your browser subscription.");
 
     return sub;
   } catch (e) {
@@ -52,15 +59,18 @@ export async function subscribeToPush(vapidPublicKey: string, userId?: string) {
 }
 
 export async function unsubscribeFromPush() {
-  try {
-    const reg = await registerServiceWorker();
-    if (!reg) return;
-    const sub = await reg.pushManager.getSubscription();
-    if (sub) {
-      await fetch('/api/register-push', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub }) });
-      await sub.unsubscribe();
-    }
-  } catch (e) {
-    console.error('[push] unsubscribe error', e);
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Sign in to manage browser notifications.");
+  const reg = await registerServiceWorker();
+  if (!reg) throw new Error("Could not open the browser notification service.");
+  const sub = await reg.pushManager.getSubscription();
+  if (sub) {
+    const response = await fetch('/api/register-push', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Could not remove your browser subscription.");
+    await sub.unsubscribe();
   }
 }

@@ -10,6 +10,7 @@ self.addEventListener('push', function (event) {
       badge: payload.badge || new URL('images/jobbridge-logo.jpeg', appBaseUrl).href,
       data: payload.data || {},
       renotify: payload.renotify || false,
+      tag: payload.tag || undefined,
     };
     event.waitUntil(self.registration.showNotification(title, options));
   } catch (e) {
