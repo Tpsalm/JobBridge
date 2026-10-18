@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import JobBridgeLogo from '../components/JobBridgeLogo';
-import { Briefcase, Search, Users, Star, TrendingUp, ArrowRight, Zap, Shield, Globe, ChevronRight, Building, ExternalLink, MapPin, Loader2 } from 'lucide-react';
+import { Briefcase, Search, Users, Star, ArrowRight, Zap, Shield, Globe, ChevronRight, Building, ExternalLink, MapPin, Loader2 } from 'lucide-react';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 import FloatingDecorations from '../components/FloatingDecorations';
@@ -12,25 +12,6 @@ import { pexel, advertImage } from '../lib/media';
 import { fetchPublicAdvertisements, incrementAdvertisementViews, incrementAdvertisementClicks, fetchJobs } from '../lib/supabaseQueries';
 import type { Advertisement } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-
-const stats = [
-  { label: 'Active Jobs', value: '24,500+', icon: Briefcase, color: 'bg-blue-50 text-blue-700' },
-  { label: 'Companies', value: '3,200+', icon: Users, color: 'bg-emerald-50 text-emerald-700' },
-  { label: 'Placements', value: '18,900+', icon: Star, color: 'bg-amber-50 text-amber-700' },
-  { label: 'Success Rate', value: '94%', icon: TrendingUp, color: 'bg-rose-50 text-rose-700' },
-];
-
-const testimonials = [
-  { name: 'Sarah K.', role: 'Software Engineer', company: 'Google', quote: 'Found my dream job in 3 weeks. The AI matching is incredible — every suggestion felt tailor-made.', avatar: pexel(774909, 100, 100) },
-  { name: 'Marcus T.', role: 'Recruiter', company: 'Stripe', quote: 'We filled 12 senior positions in a month. The talent quality here is unmatched.', avatar: pexel(220453, 100, 100) },
-  { name: 'Priya M.', role: 'Designer', company: 'Figma', quote: 'The platform understood my portfolio and connected me with exactly the right companies.', avatar: pexel(415829, 100, 100) },
-];
-
-const profileCards = [
-  { name: 'Uthman Busari Olamide', role: 'Social Media Manager', img: '/images/social-media-manager.jpeg', color: 'bg-blue-600' },
-  { name: 'Akinnirun Timilehin', role: 'Project Manager', img: '/images/project-manager.jpeg', color: 'bg-emerald-600' },
-  { name: 'Makinde David Ayomidotun', role: 'Digital Marketing Manager', img: '/images/team-profile.jpeg', color: 'bg-purple-600' },
-];
 
 function CarouselImg({ images, className }: { images: string[]; className?: string }) {
   const [idx, setIdx] = useState(0);
@@ -140,7 +121,7 @@ export default function Home() {
       <Header />
 
       {/* Hero — Professional Video Background */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 min-h-[560px]" style={{ perspective: '1000px' }}>
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-green-900 to-emerald-950 min-h-[560px]" style={{ perspective: '1000px' }}>
         <FloatingDecorations className="opacity-70" />
         {/* Professional background video */}
         <div className="absolute inset-0 bg-black z-0">
@@ -166,7 +147,7 @@ export default function Home() {
         </div>
 
         {/* Gradient overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/75 via-blue-800/50 to-blue-900/75 pointer-events-none z-10" />
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/80 via-green-900/55 to-emerald-950/80 pointer-events-none z-10" />
         <div className="absolute inset-0 opacity-10 pointer-events-none z-10">
           <div className="absolute top-10 left-10 w-72 h-72 rounded-full bg-white blur-3xl" />
           <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-blue-300 blur-3xl" />
@@ -175,21 +156,21 @@ export default function Home() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-28 z-20">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-sm text-blue-100 mb-6 animate-float">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                24,500+ jobs actively hiring now
+              <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-sm text-emerald-100 mb-6 animate-float">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                Opportunities across Nigeria and Africa
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6 preserve-3d" style={{ transform: 'translateZ(40px)' }}>
-                Your career bridge to what's <span className="text-blue-300">next</span>
+                Your career bridge to what's <span className="text-amber-300">next</span>
               </h1>
-              <p className="text-lg text-blue-100 mb-8 max-w-xl leading-relaxed preserve-3d" style={{ transform: 'translateZ(20px)' }}>
-                AI-powered job matching, verified employers, and real-time talent search — all in one professional network.
+              <p className="text-lg text-emerald-100 mb-8 max-w-xl leading-relaxed preserve-3d" style={{ transform: 'translateZ(20px)' }}>
+                Job listings, service-provider profiles, and career tools in one place. Explore what is available and confirm details with each poster.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 preserve-3d" style={{ transform: 'translateZ(30px)' }}>
                 <Link to="/jobs" className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:shadow-xl shadow-lg">
                   <Search className="w-4 h-4" /> Find Jobs
                 </Link>
-                <Link to="/providers" className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:shadow-xl border border-blue-500">
+                <Link to="/providers" className="inline-flex items-center justify-center gap-2 bg-amber-500 text-emerald-950 font-semibold px-6 py-3 rounded-xl hover:bg-amber-400 transition-all hover:shadow-xl border border-amber-400">
                   <Users className="w-4 h-4" /> Hire Talent
                 </Link>
                 <Link to="/ai-resume" className="inline-flex items-center justify-center gap-2 bg-transparent text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/10 transition-all hover:shadow-xl border border-white/30">
@@ -279,34 +260,17 @@ export default function Home() {
         </section>
       )}
 
-      {/* Stats */}
-      <AnimatedSection className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children stagger-visible">
-          {stats.map(({ label, value, icon: Icon, color }) => (
-            <Card3D key={label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4" strength={5}>
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color}`}>
-                <Icon className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xl font-bold text-gray-900">{value}</div>
-                <div className="text-xs text-gray-500 mt-0.5">{label}</div>
-              </div>
-            </Card3D>
-          ))}
-        </div>
-      </AnimatedSection>
-
       {/* Features */}
       <AnimatedSection className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
         <div className="text-center mb-10">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Why professionals choose JobBridge</h2>
-          <p className="text-gray-500 mt-2">Built for the modern workforce</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">What you can do on JobBridge</h2>
+          <p className="text-gray-500 mt-2">Tools for job seekers, recruiters and service providers</p>
         </div>
         <div className="grid md:grid-cols-3 gap-6 stagger-children stagger-visible">
           {[
-            { icon: Zap, title: 'AI-Powered Matching', desc: 'Smart algorithms match you with the perfect opportunities based on skills, experience, and preferences.', imgs: [pexel(7176027, 400, 250), pexel(8386440, 400, 250), pexel(5466785, 400, 250)] },
-            { icon: Shield, title: 'Verified Employers', desc: 'Every company on our platform is verified and vetted to ensure legitimate opportunities only.', imgs: [pexel(3952020, 400, 250), pexel(5668855, 400, 250), pexel(3771111, 400, 250)] },
-            { icon: Globe, title: 'Remote & Global', desc: 'Find opportunities worldwide — remote, hybrid, or on-site across every industry and timezone.', imgs: [pexel(7575322, 400, 250), pexel(3194519, 400, 250), pexel(927022, 400, 250)] },
+            { icon: Zap, title: 'Career tools', desc: 'Use Joba and AI Resume tools to explore career questions and work on application materials.', imgs: [pexel(7176027, 400, 250), pexel(8386440, 400, 250), pexel(5466785, 400, 250)] },
+            { icon: Shield, title: 'Review each listing', desc: 'Explore the details shared by the poster and confirm role requirements directly before applying.', imgs: [pexel(3952020, 400, 250), pexel(5668855, 400, 250), pexel(3771111, 400, 250)] },
+            { icon: Globe, title: 'Choose how you work', desc: 'Browse listings with on-site, hybrid, or remote arrangements and check the location details.', imgs: [pexel(7575322, 400, 250), pexel(3194519, 400, 250), pexel(927022, 400, 250)] },
           ].map(({ icon: Icon, title, desc, imgs }) => (
             <Card3D key={title} className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md overflow-hidden" strength={6}>
               <CarouselImg images={imgs} className="w-full h-40" />
@@ -327,7 +291,7 @@ export default function Home() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Featured Jobs</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Latest opportunities from top employers</p>
+            <p className="text-sm text-gray-500 mt-0.5">Recent listings posted on JobBridge</p>
           </div>
           <Link to="/jobs" className="text-sm font-medium text-blue-700 hover:text-blue-800 flex items-center gap-1">
             View all <ChevronRight className="w-4 h-4" />
@@ -399,63 +363,24 @@ export default function Home() {
         )}
       </AnimatedSection>
 
-      {/* Profile Cards Section */}
-      <AnimatedSection className="py-14 bg-amber-50" direction="scale">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Professionals who found their path</h2>
-            <p className="text-gray-500 mt-2">Join thousands of professionals who landed their dream roles</p>
+      <AnimatedSection className="border-y border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-amber-50 py-14" delay={150}>
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 md:grid-cols-[1.2fr_1fr] md:items-center">
+          <div>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-medium text-emerald-900">
+              <MapPin className="h-4 w-4" /> Rooted in Nigeria. Open to Africa.
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">Find opportunities that fit your next step</h2>
+            <p className="mt-3 max-w-2xl leading-relaxed text-gray-600">
+              Browse job and service listings, connect with recruiters or professionals, and use career tools to prepare your next move.
+              Listings are posted by users, so confirm important details with the poster before making decisions.
+            </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center stagger-children stagger-visible">
-            {profileCards.map(({ name, role, img, color }) => (
-              <Card3D key={name} className="bg-white rounded-2xl shadow-lg overflow-hidden w-64" strength={8}>
-                {img ? (
-                  <img src={img} alt={name} loading="lazy" decoding="async" className="w-full h-64 object-cover" />
-                ) : (
-                  <div className={`w-full h-64 ${color} flex items-center justify-center`}>
-                    <span className="text-5xl font-bold text-white">{name.split(' ').map(n => n[0]).slice(0, 2).join('')}</span>
-                  </div>
-                )}
-                <div className="p-4 text-center">
-                  <h3 className="font-bold text-gray-900 text-lg">{name}</h3>
-                  <p className="text-sm text-blue-700 font-medium">{role}</p>
-                  <div className="flex items-center justify-center gap-1 mt-2">
-                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                    <span className="text-xs text-gray-500">Hired via JobBridge</span>
-                  </div>
-                </div>
-              </Card3D>
-            ))}
-          </div>
-        </div>
-      </AnimatedSection>
-
-
-
-      {/* Testimonials */}
-      <AnimatedSection className="bg-white border-y border-gray-100 py-14" delay={150}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl font-bold text-gray-900">Trusted by top talent & teams</h2>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6 stagger-children stagger-visible">
-            {testimonials.map(({ name, role, company, quote, avatar }) => (
-              <Card3D key={name} className="bg-gray-50 rounded-2xl p-6 border border-gray-100" strength={4}>
-                <div className="flex gap-0.5 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
-                  ))}
-                </div>
-                <p className="text-sm text-gray-700 leading-relaxed mb-4">"{quote}"</p>
-                <div className="flex items-center gap-3">
-                  <img src={avatar} alt={name} loading="lazy" decoding="async" className="w-10 h-10 rounded-full object-cover border-2 border-blue-100" />
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">{name}</div>
-                    <div className="text-xs text-gray-500">{role} at {company}</div>
-                  </div>
-                </div>
-              </Card3D>
-            ))}
+          <div className="rounded-2xl border border-emerald-100 bg-white/80 p-5 shadow-sm">
+            <p className="text-sm font-semibold text-gray-800">Try searching by location</p>
+            <p className="mt-2 text-sm leading-relaxed text-gray-600">
+              Lagos · Abuja · Ibadan · Port Harcourt · Kano · Accra · Remote
+            </p>
+            <p className="mt-3 text-xs text-gray-500">Examples only; available listings change as people post on JobBridge.</p>
           </div>
         </div>
       </AnimatedSection>
@@ -469,7 +394,7 @@ export default function Home() {
           </div>
           <div className="relative preserve-3d" style={{ transform: 'translateZ(20px)' }}>
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Ready to find your next opportunity?</h2>
-            <p className="text-blue-100 mb-7 max-w-lg mx-auto">Join over 2 million professionals already using JobBridge to advance their careers.</p>
+            <p className="text-blue-100 mb-7 max-w-lg mx-auto">Explore jobs, professional services and career tools for opportunities in Nigeria and across Africa.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link to={accountDestination} className="bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:shadow-xl">
                 {accountActionLabel}

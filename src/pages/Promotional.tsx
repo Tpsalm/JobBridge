@@ -5,22 +5,22 @@ import { ArrowRight, Search, Users, Zap } from 'lucide-react';
 
 const slides = [
   {
-    title: 'Discover verified employers hiring now',
-    subtitle: 'Explore thousands of active roles across top companies with trusted employer verification and real-time openings.',
+    title: 'Explore opportunities across Nigeria and Africa',
+    subtitle: 'Browse job listings by role, skills, location, or work arrangement. Confirm details directly with the poster.',
     primary: { label: 'Find Jobs', href: '/jobs' },
-    secondary: { label: 'See Employer Trust', href: '/providers' },
+    secondary: { label: 'Explore Providers', href: '/providers' },
     image: pexel(5668855, 1400, 700),
   },
   {
-    title: 'Hire talent with AI-powered matching',
-    subtitle: 'Connect to vetted professionals instantly and scale your team with our intelligent talent search engine.',
+    title: 'Find professionals for your work',
+    subtitle: 'Browse service-provider profiles, review their details, and message professionals through JobBridge.',
     primary: { label: 'Hire Talent', href: '/providers' },
     secondary: { label: 'Talent Search', href: '/talent-search' },
     image: pexel(3771111, 1400, 700),
   },
   {
-    title: 'Build an AI-optimized career profile',
-    subtitle: 'Create a resume and profile that stands out to recruiters using JobBridge AI insights and tailored recommendations.',
+    title: 'Prepare your next application',
+    subtitle: 'Use career tools to draft a resume and get ready to apply for roles that interest you.',
     primary: { label: 'AI Resume', href: '/ai-resume' },
     secondary: { label: 'Complete Profile', href: '/profile' },
     image: pexel(8456191, 1400, 700),
@@ -28,11 +28,11 @@ const slides = [
 ];
 
 const tickerItems = [
-  '24,500+ jobs actively hiring now',
-  'Average placement time: 24 days',
-  '500+ new talent connections daily',
-  'AI career matches updated every minute',
-  'Verified recruiters trust JobBridge for talent sourcing',
+  'Browse jobs and services posted on JobBridge',
+  'Explore opportunities by role and location',
+  'Prepare your resume with career tools',
+  'Connect with recruiters and service professionals',
+  'Made for opportunity across Nigeria and Africa',
 ];
 
 export default function Promotional() {
@@ -174,7 +174,7 @@ export default function Promotional() {
       <section className="overflow-hidden border-t border-slate-800 bg-slate-950/95 py-5">
         <div className="relative mx-auto flex max-w-7xl items-center gap-6 overflow-hidden px-4 sm:px-6">
           <div className="shrink-0 rounded-full bg-slate-900/90 px-4 py-2 text-xs uppercase tracking-[0.32em] text-emerald-300 ring-1 ring-emerald-300/20">
-            Live updates
+            Explore JobBridge
           </div>
           <div className="flex-1 overflow-hidden">
             <div className="animate-marquee whitespace-nowrap text-sm font-medium text-slate-100/90" style={{ animationDuration: '24s' }}>
@@ -192,19 +192,19 @@ export default function Promotional() {
       <section className="relative overflow-hidden bg-slate-900/95 py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto grid gap-8 lg:grid-cols-3">
           <div className="rounded-[2rem] border border-white/10 bg-slate-950/90 p-8 shadow-2xl shadow-slate-950/30">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Verified employers</p>
-            <h3 className="mt-4 text-2xl font-bold text-white">Trusted by hiring teams</h3>
-            <p className="mt-4 text-slate-300 leading-7">Every employer is vetted so you can apply with confidence. Our platform highlights verified postings from real companies.</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Job listings</p>
+            <h3 className="mt-4 text-2xl font-bold text-white">Explore roles and requirements</h3>
+            <p className="mt-4 text-slate-300 leading-7">Browse listings shared on JobBridge and review the role, location, and application details before you apply.</p>
           </div>
           <div className="rounded-[2rem] border border-white/10 bg-slate-950/90 p-8 shadow-2xl shadow-slate-950/30">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Career acceleration</p>
-            <h3 className="mt-4 text-2xl font-bold text-white">AI-driven match intelligence</h3>
-            <p className="mt-4 text-slate-300 leading-7">JobBridge uses AI to surface roles that fit your profile, speed up hiring, and help your resume rise above the noise.</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Career tools</p>
+            <h3 className="mt-4 text-2xl font-bold text-white">Get ready for your next move</h3>
+            <p className="mt-4 text-slate-300 leading-7">Use Joba and the AI Resume tools to work on career questions, resume drafts, and application materials.</p>
           </div>
           <div className="rounded-[2rem] border border-white/10 bg-slate-950/90 p-8 shadow-2xl shadow-slate-950/30">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Real-time talent</p>
-            <h3 className="mt-4 text-2xl font-bold text-white">Search top candidates instantly</h3>
-            <p className="mt-4 text-slate-300 leading-7">Employers can filter, shortlist, and message talent in real time — making hiring faster and more precise.</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-emerald-300">Service professionals</p>
+            <h3 className="mt-4 text-2xl font-bold text-white">Find people offering services</h3>
+            <p className="mt-4 text-slate-300 leading-7">Explore professional profiles and contact providers to discuss their services and availability.</p>
           </div>
         </div>
       </section>

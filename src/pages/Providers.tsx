@@ -456,7 +456,7 @@ export default function Providers() {
             <div className="max-w-2xl">
               <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Become a Service Provider</h2>
               <p className="text-emerald-100 text-sm sm:text-base mb-6">
-                Join thousands of professionals offering services on JobBridge. Get clients, build your reputation, and grow your business.
+                Create a service profile on JobBridge so people can learn about your work and contact you about availability.
               </p>
               <div className="flex flex-wrap gap-3 mb-6">
                 <div className="bg-white/10 backdrop-blur rounded-xl px-5 py-4 flex-1 min-w-[220px]">

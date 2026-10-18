@@ -201,7 +201,7 @@ const Jobs = () => {
         <PageHero
           compact
           title="Find your next role"
-          subtitle="Browse thousands of verified jobs from top employers across Nigeria and beyond"
+          subtitle="Browse job listings across Nigeria and beyond. Review each post and confirm details with the employer."
           images={HERO_CAROUSELS.jobs}
           imageAlt="Professional searching for jobs on laptop"
         />

@@ -447,11 +447,11 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
 
 function NotificationsModal({ onClose }: { onClose: () => void }) {
   const notifications = [
-    { icon: 'visibility', color: 'bg-secondary-container text-secondary', text: 'Google Recruitment Team viewed your profile', time: '2h ago', unread: true },
-    { icon: 'work', color: 'bg-primary-fixed text-primary', text: 'New job match: Staff Product Designer at TechStream', time: '4h ago', unread: true },
-    { icon: 'calendar_today', color: 'bg-tertiary-fixed text-tertiary', text: 'Interview scheduled with Stripe for Oct 15', time: '1d ago', unread: false },
+    { icon: 'visibility', color: 'bg-secondary-container text-secondary', text: 'Example: A recruiter viewed your profile', time: '2h ago', unread: true },
+    { icon: 'work', color: 'bg-primary-fixed text-primary', text: 'Example: A new job listing matches your interests', time: '4h ago', unread: true },
+    { icon: 'calendar_today', color: 'bg-tertiary-fixed text-tertiary', text: 'Example: You received an interview invitation', time: '1d ago', unread: false },
     { icon: 'person_add', color: 'bg-surface-container-high text-on-surface-variant', text: 'Amara Okeke accepted your connection request', time: '2d ago', unread: false },
-    { icon: 'trending_up', color: 'bg-green-100 text-green-700', text: 'Your profile is in the top 10% this week', time: '3d ago', unread: false },
+    { icon: 'trending_up', color: 'bg-green-100 text-green-700', text: 'Example: Your profile details were updated', time: '3d ago', unread: false },
   ];
 
   return (

@@ -28,9 +28,9 @@ const variant = typeof window !== 'undefined' ? resolveVariant() : 'A';
 const DEFAULT_INTERVAL = variant === 'B' ? 4000 : 5000;
 
 const slides = [
-  { id: 'discover', imageId: 3194519, w: 1280, h: 800, title: "Your career bridge to what's next", subtitle: 'AI-powered job matching, verified employers, and real-time talent search.', ctas: [{ to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> }, { to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> }, { to: '/ai-resume', label: 'AI Resume', icon: <Zap className="w-4 h-4" /> }] },
-  { id: 'growth', imageId: 7176027, w: 1280, h: 800, title: 'Professional Growth', subtitle: 'Connect with top employers and discover opportunities that match your skills.', ctas: [{ to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> }, { to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> }] },
-  { id: 'insights', imageId: 8386440, w: 1280, h: 800, title: 'Live career insights', subtitle: 'Real-time hiring data and career guidance to accelerate your next move.', ctas: [{ to: '/blog', label: 'Read Insights', icon: <Search className="w-4 h-4" /> }] },
+  { id: 'discover', imageId: 3194519, w: 1280, h: 800, title: "Your career bridge to what's next", subtitle: 'Explore job listings, discover service professionals, and prepare for your next career step.', ctas: [{ to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> }, { to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> }, { to: '/ai-resume', label: 'AI Resume', icon: <Zap className="w-4 h-4" /> }] },
+  { id: 'growth', imageId: 7176027, w: 1280, h: 800, title: 'Work opportunities across Africa', subtitle: 'Browse available listings by role, skills, location, or work arrangement.', ctas: [{ to: '/providers', label: 'Hire Talent', icon: <Users className="w-4 h-4" /> }, { to: '/jobs', label: 'Find Jobs', icon: <Search className="w-4 h-4" /> }] },
+  { id: 'insights', imageId: 8386440, w: 1280, h: 800, title: 'Take your next career step', subtitle: 'Explore career guidance and tools to help prepare your next application.', ctas: [{ to: '/blog', label: 'Read Insights', icon: <Search className="w-4 h-4" /> }] },
 ];
 
 function srcFor(id: number, w: number, h: number) {
@@ -157,14 +157,14 @@ export default function HeroSlides() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl overflow-hidden bg-blue-50 border border-blue-100 py-2">
+      <div className="mt-4 rounded-xl overflow-hidden bg-emerald-50 border border-emerald-100 py-2">
         <div className="marquee whitespace-nowrap">
           <div className="marquee-track inline-flex items-center gap-12 px-4">
-            <div className="text-sm text-blue-700 font-semibold">24,500+ jobs actively hiring now</div>
-            <div className="text-sm text-blue-700 font-semibold">Average placement time: 24 days</div>
-            <div className="text-sm text-blue-700 font-semibold">500+ new talent connections daily</div>
-            <div className="text-sm text-blue-700 font-semibold">94% placement success rate</div>
-            <div className="text-sm text-blue-700 font-semibold">AI-powered matches updated every minute</div>
+            <div className="text-sm font-semibold text-emerald-800">Browse jobs and services</div>
+            <div className="text-sm font-semibold text-emerald-800">Search by role, skill, or location</div>
+            <div className="text-sm font-semibold text-emerald-800">Prepare with career tools</div>
+            <div className="text-sm font-semibold text-emerald-800">Connect directly through JobBridge</div>
+            <div className="text-sm font-semibold text-emerald-800">Explore opportunities across Nigeria and Africa</div>
           </div>
         </div>
       </div>

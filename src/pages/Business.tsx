@@ -776,7 +776,7 @@ export default function Business() {
 
       <PageHero
         title="Business Advertisements"
-        subtitle="Promote your business to thousands of JobBridge users across Nigeria"
+        subtitle="Showcase your business to people browsing JobBridge listings across Nigeria"
         images={HERO_CAROUSELS.business}
         imageAlt="Small business owner promoting their brand"
         compact

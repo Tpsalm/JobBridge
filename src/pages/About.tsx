@@ -45,7 +45,7 @@ export default function About() {
     {
       title: 'Professional Services Marketplace',
       description:
-        'Connect with vetted professionals across development, design, marketing, finance, and legal services.',
+        'Browse service-provider profiles across areas such as development, design, marketing, finance, and legal services. Confirm experience and availability directly with each provider.',
     },
     {
       title: 'Business Advertising',

@@ -18,7 +18,7 @@ const KB: KnowledgeSection[] = [
     pages: ['/', '/about'],
     keywords: ['what is jobbridge', 'about jobbridge', 'platform overview', 'what does jobbridge do', 'jobbridge features', 'introduction', 'jobbridge platform', 'professional network', 'what is this', 'jobbridge explained', 'tell me about jobbridge', 'job bridge', 'job bridge platform', 'overview', 'features of jobbridge', 'what can i do on jobbridge', 'platform capabilities', 'what jobbridge offers', 'key features'],
     content: `### What is JobBridge?
-JobBridge is Nigeria's number one professional network connecting job seekers, recruiters, and service providers on one unified platform. Founded in 2021, JobBridge today serves over 2 million users across 50+ countries, with ₦12 million in funding. Owoyemi Samuel Tobi is JobBridge's Chief Technology Officer.
+JobBridge is a Nigeria-focused careers and services platform connecting job seekers, recruiters, and service providers. People can browse and post job listings, explore service-provider profiles, manage applications, and use career tools. Listing availability and details are provided by users and can change; confirm important information directly with the poster.
 
 ### Who can use JobBridge?
 - **Job Seekers** — Browse and apply to jobs, use AI resume tools, track applications, save jobs
@@ -45,7 +45,7 @@ For more details, visit the home page at / or the About page at /about.`,
     title: 'Company Mission & History',
     tags: ['general', 'company', 'about'],
     pages: ['/', '/about', '/ceo'],
-    keywords: ['mission', 'vision', 'company history', 'founder', 'cto', 'chief technology officer', 'owoyemi samuel tobi', 'founded', 'history', 'funding', 'company story', 'founding story', 'who founded', 'who created', 'when was', 'founded in', 'company values', 'core values', '2 million users', 'million users', '50 countries', 'series a'],
+    keywords: ['mission', 'vision', 'company history', 'platform overview', 'company story', 'company values', 'core values', 'who is jobbridge', 'what is jobbridge'],
     content: `### Founding & History
 JobBridge was founded in 2021 to address the challenges of finding quality career opportunities in Nigeria and across Africa. **Owoyemi Samuel Tobi** serves as Chief Technology Officer and leads the platform's technology vision.
 
