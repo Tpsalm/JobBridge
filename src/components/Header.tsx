@@ -47,6 +47,17 @@ const moreLinks = [
   { label: "CEO Vision", path: "/ceo" },
 ];
 
+const homepageLinkedPaths = new Set([
+  "/jobs",
+  "/providers",
+  "/business",
+  "/pricing",
+  "/ai-resume",
+  "/support",
+  "/blog",
+  "/about",
+]);
+
 export default function Header() {
   const { user, profile, isAuthenticated, loading: authLoading, savedJobs, signOut } = useAuth();
   const location = useLocation();
@@ -62,6 +73,11 @@ export default function Header() {
       ? [{ label: "Admin Reports", path: "/admin-reports?tab=reports", icon: Shield }]
       : []),
   ];
+  const mobileMenuLinks = [...primaryNavLinks, ...moreLinks].filter(
+    (link, index, links) =>
+      !homepageLinkedPaths.has(link.path) &&
+      links.findIndex((candidate) => candidate.path === link.path) === index,
+  );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -458,7 +474,7 @@ export default function Header() {
       {mobileOpen && (
         <div className="md:hidden max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-t border-gray-100 bg-white">
           <div className="px-3 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-1">
-            {[...primaryNavLinks, ...moreLinks].map(({ label, path }) => (
+            {mobileMenuLinks.map(({ label, path }) => (
               <Link
                 key={path}
                 to={path}
@@ -472,31 +488,6 @@ export default function Header() {
                 {label}
               </Link>
             ))}
-
-            {/* Mobile: My Jobs, Messages, Notifications */}
-            <div className="pt-2 border-t border-gray-100 mt-2 space-y-1">
-              <Link
-                to="/my-jobs"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
-              >
-                <Bookmark className="w-4 h-4" /> My Jobs
-              </Link>
-              <Link
-                to="/messages"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
-              >
-                <MessageSquare className="w-4 h-4" /> Messages
-              </Link>
-              <Link
-                to="/notifications"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50"
-              >
-                <Bell className="w-4 h-4" /> Notifications
-              </Link>
-            </div>
 
             {/* Mobile: Profile or Login */}
             <div className="pt-2 border-t border-gray-100 mt-2">
