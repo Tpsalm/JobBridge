@@ -32,6 +32,12 @@ interface ApplicationItem {
   job: JobItem | null;
 }
 
+interface AppliedJobItem extends JobItem {
+  application_id: string;
+  application_status: string;
+  applied_at: string;
+}
+
 export default function MyJobs() {
   const { savedJobs, toggleSaveJob, isAuthenticated, user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('saved');
@@ -42,6 +48,8 @@ export default function MyJobs() {
   const [applicationsError, setApplicationsError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [withdrawingApplicationId, setWithdrawingApplicationId] = useState<string | null>(null);
+  const [withdrawError, setWithdrawError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -78,11 +86,21 @@ export default function MyJobs() {
   }, [isAuthenticated, user?.id, loadAttempt]);
 
   const savedJobItems = allJobs.filter(j => savedJobs.includes(j.id));
-  const appliedJobItems = myApplications.map(app => ({
-    ...app.job,
-    application_status: app.status,
+  const appliedJobItems: AppliedJobItem[] = myApplications.map(app => ({
+    id: app.job?.id || app.job_id,
+    title: app.job?.title || 'Job no longer available',
+    company: app.job?.company || 'Employer not available',
+    location: app.job?.location || '',
+    type: app.job?.type || '',
+    salary_range: app.job?.salary_range,
+    benefits: app.job?.benefits,
+    category: app.job?.category,
+    description: app.job?.description,
+    created_at: app.job?.created_at,
+    application_id: app.id,
+    application_status: app.status || 'applied',
     applied_at: app.created_at,
-  } as any)).filter(Boolean);
+  }));
   // Interviews / Archived are empty for now (feature hooks)
   const interviewItems: JobItem[] = [];
   const archivedItems: JobItem[] = [];
@@ -102,9 +120,24 @@ export default function MyJobs() {
 
   const filteredItems = searchTerm
     ? currentItems.filter(j =>
-        j.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        j.company.toLowerCase().includes(searchTerm.toLowerCase()))
+        (j.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (j.company || '').toLowerCase().includes(searchTerm.toLowerCase()))
     : currentItems;
+
+  const handleWithdrawApplication = async (applicationId: string) => {
+    if (!window.confirm('Are you sure you want to withdraw your application?')) return;
+    setWithdrawingApplicationId(applicationId);
+    setWithdrawError('');
+    try {
+      await withdrawApplication(applicationId);
+      setMyApplications((previous) => previous.filter((application) => application.id !== applicationId));
+    } catch (error) {
+      console.error('[MyJobs] Failed to withdraw application:', error);
+      setWithdrawError('Your application could not be withdrawn. Please try again.');
+    } finally {
+      setWithdrawingApplicationId(null);
+    }
+  };
 
   const emptyMessages: Record<Tab, { title: string; desc: string; icon: typeof Bookmark }> = {
     saved: { title: 'You have not saved any jobs yet.', desc: '', icon: Bookmark },
@@ -257,8 +290,8 @@ export default function MyJobs() {
                       )}
 
                       {/* Application date for applied tab */}
-                      {activeTab === 'applied' && (job as any).applied_at && (
-                        <p className="text-xs text-gray-400 mt-2">Applied on {new Date((job as any).applied_at).toLocaleDateString()}</p>
+                      {activeTab === 'applied' && (job as AppliedJobItem).applied_at && (
+                        <p className="text-xs text-gray-400 mt-2">Applied on {new Date((job as AppliedJobItem).applied_at).toLocaleDateString()}</p>
                       )}
                     </div>
 
@@ -276,26 +309,21 @@ export default function MyJobs() {
                       {activeTab === 'applied' && (
                         <>
                           <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                            (job as any).application_status === 'shortlisted' ? 'bg-green-50 text-green-700' :
-                            (job as any).application_status === 'reviewed' ? 'bg-blue-50 text-blue-700' :
-                            (job as any).application_status === 'rejected' ? 'bg-red-50 text-red-700' :
-                            (job as any).application_status === 'hired' ? 'bg-emerald-50 text-emerald-700' :
+                            (job as AppliedJobItem).application_status === 'shortlisted' ? 'bg-green-50 text-green-700' :
+                            (job as AppliedJobItem).application_status === 'reviewed' ? 'bg-blue-50 text-blue-700' :
+                            (job as AppliedJobItem).application_status === 'rejected' ? 'bg-red-50 text-red-700' :
+                            (job as AppliedJobItem).application_status === 'hired' ? 'bg-emerald-50 text-emerald-700' :
                             'bg-amber-50 text-amber-700'
                           }`}>
-                            {(job as any).application_status || 'Applied'}
+                            {(job as AppliedJobItem).application_status}
                           </span>
-                          {(job as any).application_status !== 'rejected' && (job as any).application_status !== 'hired' && (
+                          {(job as AppliedJobItem).application_status !== 'rejected' && (job as AppliedJobItem).application_status !== 'hired' && (job as AppliedJobItem).application_status !== 'withdrawn' && (
                             <button
-                              onClick={() => {
-                                if (confirm('Are you sure you want to withdraw your application?')) {
-                                  withdrawApplication((job as any).id).then(() => {
-                                    setMyApplications(prev => prev.filter(a => a.job_id !== job.id));
-                                  });
-                                }
-                              }}
-                              className="text-xs text-red-600 hover:text-red-700 font-medium underline"
+                              onClick={() => void handleWithdrawApplication((job as AppliedJobItem).application_id)}
+                              disabled={withdrawingApplicationId === (job as AppliedJobItem).application_id}
+                              className="text-xs text-red-600 hover:text-red-700 font-medium underline disabled:cursor-wait disabled:opacity-60"
                             >
-                              Withdraw
+                              {withdrawingApplicationId === (job as AppliedJobItem).application_id ? 'Withdrawing…' : 'Withdraw'}
                             </button>
                           )}
                         </>
@@ -312,6 +340,10 @@ export default function MyJobs() {
               );
             })}
           </div>
+        )}
+
+        {activeTab === 'applied' && withdrawError && (
+          <p role="alert" className="mt-4 text-center text-sm text-red-700">{withdrawError}</p>
         )}
 
         {/* Help footer */}

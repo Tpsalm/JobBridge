@@ -1,5 +1,5 @@
 import KB, { type KnowledgeSection } from "./jobbridgeKnowledge";
-import { aiChat, aiChatStream, aiEmbed } from "./aiBackend";
+import { aiChatStream, aiChatWithTools } from "./aiBackend";
 
 // ══════════════════════════════════════════════════════════════════
 //  MODEL CONFIGURATION
@@ -934,10 +934,13 @@ async function streamLLM(
 ): Promise<string> {
   // Call the backend AI service (which handles OpenAI/DeepSeek internally)
   const messageList = messages
-    .filter((m) => m.role === "user" || m.role === "system" || m.role === "assistant")
+    .filter((m) => m.role === "user" || m.role === "system" || m.role === "assistant" || m.role === "tool")
     .map((m) => ({
       role: m.role,
       content: m.content || "",
+      ...(m.name ? { name: m.name } : {}),
+      ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+      ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
     }));
 
   return await aiChatStream(messageList, onToken);
@@ -964,113 +967,8 @@ async function runAgenticLoop(
   const detectedIntent = resolvedIntent.intent;
   const primaryRoute = resolvedIntent.primaryRoute;
 
-  const tools = [
-    {
-      type: "function",
-      function: {
-        name: "search_knowledge_base",
-        description:
-          "Queries the comprehensive JobBridge knowledge base for FAQs, pricing details, candidate matching metrics, and step-by-step guides for any feature across all 30+ pages.",
-        parameters: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description:
-                "The topic, FAQ question, or keyword phrase to query. Be specific.",
-            },
-            intent: {
-              type: "string",
-              description:
-                "Optional: the detected intent to narrow results (e.g., 'pricing', 'jobs', 'profile').",
-            },
-          },
-          required: ["query"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "inspect_current_page_context",
-        description:
-          "Inspects what the user is looking at right now, including visible text, page headings, form fields, loaded items, buttons, and profile details. Use to understand what the user sees.",
-        parameters: {
-          type: "object",
-          properties: {},
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "navigate_to_page",
-        description:
-          "Redirects the user to a specific JobBridge page. Use whenever the user wants to visit a feature, make a purchase, or access a tool. Detects the correct page even from vague descriptions.",
-        parameters: {
-          type: "object",
-          properties: {
-            path: {
-              type: "string",
-              description:
-                "The route path (e.g., '/pricing', '/payment', '/ai-resume', '/jobs', '/profile', '/recruiter', '/business', '/providers', '/blog', '/support', '/about', '/ceo', '/games', '/messages', '/notifications', '/signup', '/login').",
-            },
-            reason: {
-              type: "string",
-              description: "Brief explanation of why you are navigating there.",
-            },
-          },
-          required: ["path"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "resolve_and_navigate",
-        description:
-          "Intelligently resolves what the user is looking for and navigates them to the correct page. Use when the user asks where something is or expresses a need that maps to a specific page.",
-        parameters: {
-          type: "object",
-          properties: {
-            userRequest: {
-              type: "string",
-              description: "The user's request or question.",
-            },
-          },
-          required: ["userRequest"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "autofill_form_field",
-        description:
-          "Helps the user fill in fields on the active page's forms. Use when the user asks for help completing a form or entering information.",
-        parameters: {
-          type: "object",
-          properties: {
-            fieldSelector: {
-              type: "string",
-              description:
-                "The form input element's label text, name attribute, or placeholder text.",
-            },
-            value: {
-              type: "string",
-              description: "The value to input into the field.",
-            },
-          },
-          required: ["fieldSelector", "value"],
-        },
-      },
-    },
-  ];
-
-  // Build the knowledge-base context system message once so it is used both in
-  // the reasoning loop and the final streamed answer. The backend (ai-operations)
-  // does NOT support function/tool calling, so the KB content must be injected
-  // directly into the messages for the model to answer from JobBridge facts.
+  // Reuse verified knowledge in every model request; tool execution is handled
+  // by the agent loop and the server-provided function definitions.
   const knowledgeSystemMsg: HistoryMsg | null = knowledgeContext
     ? {
         role: "system",
@@ -1104,15 +1002,21 @@ ${pageState.domSummary || "No page context available."}`,
 
     // Call backend AI service which handles AI internally
     const messageList = loopMessages
-      .filter((m) => m.role === "user" || m.role === "system" || m.role === "assistant")
+      .filter((m) => m.role === "user" || m.role === "system" || m.role === "assistant" || m.role === "tool")
       .map((m) => ({
         role: m.role,
         content: m.content || "",
+        ...(m.name ? { name: m.name } : {}),
+        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
       }));
 
     try {
-      const result = await aiChat(messageList);
-      const assistantMsg: { content: string; tool_calls?: any[] } = { content: result };
+      const completion = await aiChatWithTools(messageList);
+      const assistantMsg: { content: string; tool_calls?: any[] } = {
+        content: completion.content,
+        ...(completion.toolCalls.length ? { tool_calls: completion.toolCalls } : {}),
+      };
 
       if (!assistantMsg.content && !assistantMsg.tool_calls) {
         throw new Error("Empty assistant message from API");

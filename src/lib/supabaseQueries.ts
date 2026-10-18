@@ -184,13 +184,13 @@ export async function updateApplicationStatus(id: string, status: string) {
 }
 
 export async function withdrawApplication(id: string) {
-  const { data, error } = await supabase
-    .from("applications")
-    .update({ status: "withdrawn", updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc("withdraw_my_application", {
+    p_application_id: id,
+  });
   if (error) throw error;
+  if (data !== true) {
+    throw new Error("This application can no longer be withdrawn.");
+  }
   return data;
 }
 

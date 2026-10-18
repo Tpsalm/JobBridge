@@ -135,7 +135,6 @@ export default function Business() {
     description: '',
     category: '',
     package: '',
-    featured: false,
     phone: '',
     website: '',
     email: '',
@@ -163,14 +162,14 @@ export default function Business() {
   // Advert detail viewer (public showcase + own adverts)
   const [viewAdvert, setViewAdvert] = useState<Advert | null>(null);
 
-  const paidPackage = searchParams.get('paidPackage') || '';
-  const paidPackageOption = paidPackage === 'business_weekly'
-    ? 'Weekly Ad'
-    : paidPackage === 'business_monthly'
-      ? 'Monthly Ad'
-      : paidPackage === 'business_featured'
-        ? 'Featured Business'
-        : '';
+  const paidPackage = searchParams.get('paidPackage');
+  const packageForPlan = (planKey: string | null | undefined) => {
+    if (planKey === 'business_weekly') return 'Weekly Ad';
+    if (planKey === 'business_monthly') return 'Monthly Ad';
+    if (planKey === 'business_featured') return 'Featured Business';
+    return '';
+  };
+  const paidPackageOption = packageForPlan(paidPackage) || packageForPlan(subscription.tier);
 
   const shouldOpenCreate = searchParams.get('create') === 'true';
 
@@ -183,8 +182,7 @@ export default function Business() {
       title: '',
       description: '',
       category: '',
-      package: pkg || '',
-      featured: false,
+      package: pkg || paidPackageOption || '',
       phone: '',
       website: '',
       email: '',
@@ -192,7 +190,7 @@ export default function Business() {
     });
     setImageFile(null);
     setShowCreateForm(true);
-  }, [profile?.avatar_url]);
+  }, [paidPackageOption, profile?.avatar_url]);
 
   // When the page lands with ?create=true&paidPackage=... (redirected from the
   // payment page), we must wait for the DB write to propagate before checking
@@ -395,6 +393,10 @@ export default function Business() {
 
   const handleCreateAd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (paidPackageOption && formData.package !== paidPackageOption) {
+      push({ message: `Your advert credit is for the ${paidPackageOption} package.`, type: 'error' });
+      return;
+    }
     const selectedPackage = adPackages.find(p => p.name === formData.package);
     if (!selectedPackage) return;
 
@@ -439,7 +441,7 @@ export default function Business() {
         description: formData.description,
         category: formData.category || 'Other',
         package: normalizedPackage,
-        is_featured: formData.package === 'Featured Business' || formData.featured,
+        is_featured: formData.package === 'Featured Business',
         image_url: imageUrl || null,
         phone: formData.phone || null,
         website_url: formData.website || null,
@@ -457,7 +459,7 @@ export default function Business() {
       window.dispatchEvent(new Event('adverts:updated'));
 
       setShowCreateForm(false);
-      setFormData({ businessName: '', title: '', description: '', category: '', package: '', featured: false, phone: '', website: '', email: '', imageUrl: '' });
+      setFormData({ businessName: '', title: '', description: '', category: '', package: '', phone: '', website: '', email: '', imageUrl: '' });
       setImageFile(null);
 
       push({
@@ -1023,32 +1025,27 @@ export default function Business() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Package *</label>
-                    <select
-                      required
-                      value={formData.package}
-                      onChange={(e) => setFormData({ ...formData, package: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    >
-                      <option value="">Select...</option>
-                      {adPackages.map(pkg => (
-                        <option key={pkg.name} value={pkg.name}>{pkg.name} - ₦{pkg.price.toLocaleString()}</option>
-                      ))}
-                    </select>
+                    {paidPackageOption ? (
+                      <>
+                        <div className="w-full rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2.5 font-semibold text-emerald-900">
+                          {paidPackageOption}
+                        </div>
+                        <p className="mt-1 text-xs text-gray-600">This matches the package you paid for.</p>
+                      </>
+                    ) : (
+                      <select
+                        required
+                        value={formData.package}
+                        onChange={(e) => setFormData({ ...formData, package: e.target.value })}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      >
+                        <option value="">Select...</option>
+                        {adPackages.map(pkg => (
+                          <option key={pkg.name} value={pkg.name}>{pkg.name} - ₦{pkg.price.toLocaleString()}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                  <input
-                    type="checkbox"
-                    id="featured"
-                    checked={formData.featured}
-                    onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                    className="w-5 h-5 rounded text-amber-500 focus:ring-amber-500"
-                  />
-                  <label htmlFor="featured" className="text-sm">
-                    <span className="font-medium text-gray-900">Add Featured placement (+₦1,000)</span>
-                    <br />
-                    <span className="text-gray-600">Your advert gets priority positioning</span>
-                  </label>
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button

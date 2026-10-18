@@ -178,11 +178,11 @@ export default function Pricing() {
               {[
                 {
                   name: 'Monthly Listing',
-                  price: 'FREE',
-                  note: 'at launch',
-                  priceNum: 0,
+                  price: '₦1,500',
+                  note: '/month',
+                  priceNum: 1500,
                   badge: 'Get Started',
-                  features: ['Profile on JobBridge', 'Name and contact info', 'Description of services', 'Location', 'Receive inquiries'],
+                  features: ['One month free trial', 'Profile on JobBridge', 'Name and contact info', 'Description of services', 'Location', 'Receive inquiries'],
                   tier: 'basic',
                 },
                 {

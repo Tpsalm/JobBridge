@@ -1385,55 +1385,41 @@ export default function Payment() {
           </div>
         )}
 
-        {!isServiceTrial && (
-          <button
-            onClick={handlePayWithKora}
-            disabled={paying || isProcessing || checkoutStarted || isGatewayLoading || isGatewayUnavailable}
-            className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base
+        <button
+          onClick={handlePayWithKora}
+          disabled={paying || isProcessing || checkoutStarted || isGatewayLoading || isGatewayUnavailable}
+          className="w-full py-3.5 rounded-2xl bg-[#1A4BCE] text-white font-semibold text-base
                        transition-all duration-200 hover:bg-[#1A4BCE]/90 active:scale-[0.98]
                        shadow-lg shadow-[#1A4BCE]/25 hover:shadow-xl hover:shadow-[#1A4BCE]/30
                        disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
-          >
-            {paying ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                {isProcessing ? "Verifying payment..." : "Processing..."}
-              </span>
-            ) : isCheckoutOpening ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Starting checkout...
-              </span>
-            ) : isGatewayLoading ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Loading payment gateway...
-              </span>
-            ) : isGatewayUnavailable ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Retrying gateway setup...
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-2">
-                <Lock className="w-5 h-5" />
-                Pay {formatNaira(plan.price)} securely
-              </span>
-            )}
-          </button>
-        )}
-
-        {isServiceTrial && !paying && !isProcessing && !isCheckoutOpening && (
-          <div className="space-y-2.5 mt-2">
-            <button
-              onClick={handlePayWithKora}
-              disabled={paying || checkoutStarted || isGatewayLoading || isGatewayUnavailable}
-              className="w-full py-2.5 rounded-xl border border-blue-200 bg-blue-50/50 text-blue-700 font-semibold text-xs transition-all duration-200 hover:bg-blue-100/60"
-            >
-              Continue to secure KoraPay card checkout
-            </button>
-          </div>
-        )}
+        >
+          {paying ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              {isProcessing ? "Verifying payment..." : "Processing..."}
+            </span>
+          ) : isCheckoutOpening ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Starting checkout...
+            </span>
+          ) : isGatewayLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Loading payment gateway...
+            </span>
+          ) : isGatewayUnavailable ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Retrying gateway setup...
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2">
+              <Lock className="w-5 h-5" />
+              {isServiceTrial ? "Continue to KoraPay & enter card details" : `Pay ${formatNaira(plan.price)} securely`}
+            </span>
+          )}
+        </button>
 
         {isGatewayUnavailable && !paying && !isProcessing && (
           <button
@@ -1449,7 +1435,7 @@ export default function Payment() {
 
         <p className="mt-4 text-center text-xs text-gray-400">
           {isServiceTrial
-            ? "No charge today. Your card is billed only after the 30-day trial ends."
+            ? "No charge today. KoraPay securely collects your card; billing begins only after the one-month (30-day) trial."
             : "Your plan activates after secure server-side verification"}
         </p>
       </div>

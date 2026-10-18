@@ -2,16 +2,26 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
 
 // Read keys from Supabase secret environment
-const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY') || Deno.env.get('VITE_DEEPSEEK_API_KEY') || '';
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('VITE_OPENAI_API_KEY') || '';
-const MAX_MESSAGES = 30;
+const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY') || '';
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
+const MAX_MESSAGES = 100;
 const MAX_MESSAGE_LENGTH = 12000;
 const MAX_TOTAL_MESSAGE_LENGTH = 24000;
 const MAX_INPUT_LENGTH = 24000;
 
 interface AIRequest {
   type: 'status' | 'chat' | 'embed' | 'resume' | 'cover-letter';
-  messages?: Array<{ role: string; content: string }>;
+  messages?: Array<{
+    role: string;
+    content: string;
+    name?: string;
+    tool_call_id?: string;
+    tool_calls?: Array<{
+      id: string;
+      type: 'function';
+      function: { name: string; arguments: string };
+    }>;
+  }>;
   text?: string;
   prompt?: string;
   systemPrompt?: string;
@@ -20,6 +30,7 @@ interface AIRequest {
   jobDescription?: string;
   jobTitle?: string;
   companyName?: string;
+  enableTools?: boolean;
 }
 
 interface AIResponse {
@@ -27,9 +38,60 @@ interface AIResponse {
   result?: string;
   embedding?: number[];
   error?: string;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
 }
 
-async function chat(messages: Array<{ role: string; content: string }>): Promise<string> {
+const JOBBRIDGE_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'search_knowledge_base',
+      description: 'Search verified JobBridge product information and FAQs.',
+      parameters: { type: 'object', properties: { query: { type: 'string' }, intent: { type: 'string' } }, required: ['query'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'inspect_current_page_context',
+      description: 'Inspect current page details from the supplied conversation context.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'navigate_to_page',
+      description: 'Navigate the user to a JobBridge page.',
+      parameters: { type: 'object', properties: { path: { type: 'string' }, reason: { type: 'string' } }, required: ['path'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'resolve_and_navigate',
+      description: 'Resolve a user request to the correct JobBridge page and navigate.',
+      parameters: { type: 'object', properties: { userRequest: { type: 'string' } }, required: ['userRequest'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'autofill_form_field',
+      description: 'Fill a visible form field only when the user explicitly asks you to enter a value.',
+      parameters: { type: 'object', properties: { fieldSelector: { type: 'string' }, value: { type: 'string' } }, required: ['fieldSelector', 'value'] },
+    },
+  },
+];
+
+async function chat(
+  messages: Array<Record<string, unknown>>,
+  enableTools = false,
+): Promise<{ content: string; toolCalls: AIResponse['tool_calls'] }> {
   if (!DEEPSEEK_API_KEY) {
     throw new Error('AI_NOT_CONFIGURED');
   }
@@ -45,6 +107,7 @@ async function chat(messages: Array<{ role: string; content: string }>): Promise
       messages: messages,
       max_tokens: 4000,
       temperature: 0.7,
+      ...(enableTools ? { tools: JOBBRIDGE_TOOLS, tool_choice: 'auto' } : {}),
     }),
   });
 
@@ -54,7 +117,11 @@ async function chat(messages: Array<{ role: string; content: string }>): Promise
   }
 
   const data = await response.json();
-  return data.choices[0]?.message?.content || '';
+  const message = data.choices?.[0]?.message;
+  const content = typeof message?.content === 'string' ? message.content : '';
+  const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
+  if (!content.trim() && toolCalls.length === 0) throw new Error('DeepSeek returned an empty response');
+  return { content, toolCalls };
 }
 
 async function embed(text: string): Promise<number[]> {
@@ -145,7 +212,7 @@ Requirements:
   ];
 
   const result = await chat(messages);
-  return sanitizeMarkdownOutput(result);
+  return sanitizeMarkdownOutput(result.content);
 }
 
 async function generateCoverLetter(
@@ -181,7 +248,7 @@ Please write a personalized, compelling cover letter.`;
     { role: 'user', content: userPrompt },
   ];
 
-  return await chat(messages);
+  return (await chat(messages)).content;
 }
 
 async function handleRequest(body: AIRequest): Promise<AIResponse> {
@@ -210,20 +277,44 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
         for (const message of body.messages) {
           if (
             !message ||
-            !['system', 'user', 'assistant'].includes(message.role) ||
+            !['system', 'user', 'assistant', 'tool'].includes(message.role) ||
             typeof message.content !== 'string' ||
-            !message.content.trim() ||
-            message.content.length > MAX_MESSAGE_LENGTH
+            message.content.length > MAX_MESSAGE_LENGTH ||
+            (message.role === 'tool' && (!message.name || !message.tool_call_id)) ||
+            (message.tool_calls !== undefined && (
+              message.role !== 'assistant' ||
+              !Array.isArray(message.tool_calls) ||
+              message.tool_calls.length === 0 ||
+              message.tool_calls.some((call) =>
+                !call ||
+                typeof call.id !== 'string' ||
+                call.type !== 'function' ||
+                typeof call.function?.name !== 'string' ||
+                typeof call.function?.arguments !== 'string' ||
+                call.function.arguments.length > MAX_MESSAGE_LENGTH
+              )
+            ))
           ) {
             return { ok: false, error: 'Chat contains an invalid or oversized message.' };
           }
-          totalLength += message.content.length;
+          if (message.role !== 'assistant' && !message.content.trim()) {
+            return { ok: false, error: 'Chat contains an empty message.' };
+          }
+          if (
+            message.role === 'assistant' &&
+            !message.content.trim() &&
+            !message.tool_calls?.length
+          ) {
+            return { ok: false, error: 'Chat contains an empty assistant message.' };
+          }
+          totalLength += message.content.length +
+            (message.tool_calls?.reduce((length, call) => length + call.function.arguments.length, 0) || 0);
         }
         if (totalLength > MAX_TOTAL_MESSAGE_LENGTH) {
           return { ok: false, error: 'Chat exceeds the maximum supported length.' };
         }
-        const result = await chat(body.messages);
-        return { ok: true, result };
+        const result = await chat(body.messages as Array<Record<string, unknown>>, body.enableTools !== false);
+        return { ok: true, result: result.content, ...(result.toolCalls?.length ? { tool_calls: result.toolCalls } : {}) };
       }
 
       case 'embed': {
@@ -238,10 +329,9 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
         if (
           !body.resumeText?.trim() ||
           !body.jobTitle?.trim() ||
-          !body.jobDescription?.trim() ||
           body.resumeText.length > MAX_INPUT_LENGTH ||
           body.jobTitle.length > 500 ||
-          body.jobDescription.length > MAX_INPUT_LENGTH
+          (body.jobDescription?.length ?? 0) > MAX_INPUT_LENGTH
         ) {
           return {
             ok: false,
@@ -251,7 +341,7 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
         const result = await generateResume(
           body.resumeText,
           body.jobTitle,
-          body.jobDescription
+          body.jobDescription || ''
         );
         return { ok: true, result };
       }
@@ -260,10 +350,9 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
         if (
           !body.resumeText?.trim() ||
           !body.jobTitle?.trim() ||
-          !body.jobDescription?.trim() ||
           body.resumeText.length > MAX_INPUT_LENGTH ||
           body.jobTitle.length > 500 ||
-          body.jobDescription.length > MAX_INPUT_LENGTH ||
+          (body.jobDescription?.length ?? 0) > MAX_INPUT_LENGTH ||
           (body.companyName?.length ?? 0) > 500
         ) {
           return {
@@ -314,6 +403,45 @@ serve(async (req) => {
     }
 
     const body = await req.json() as AIRequest;
+
+    if (body.type === 'resume' || body.type === 'cover-letter') {
+      const authorization = req.headers.get('Authorization') || '';
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+      const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+      const authResponse = authorization.startsWith('Bearer ') && supabaseUrl && anonKey
+        ? await fetch(`${supabaseUrl}/auth/v1/user`, {
+          headers: { apikey: anonKey, Authorization: authorization },
+        })
+        : null;
+      if (!authResponse?.ok) {
+        return new Response(JSON.stringify({ ok: false, error: 'Sign in to use AI Career Tools.' }), {
+          status: 401,
+          headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        });
+      }
+      const authenticatedUser = await authResponse.json() as { id?: string };
+      const profileResponse = authenticatedUser.id && serviceKey
+        ? await fetch(`${supabaseUrl}/rest/v1/profiles?select=subscription_tier,subscription_expires_at&id=eq.${encodeURIComponent(authenticatedUser.id)}&limit=1`, {
+          headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+        })
+        : null;
+      const profiles = profileResponse?.ok
+        ? await profileResponse.json() as Array<{ subscription_tier?: string; subscription_expires_at?: string }>
+        : [];
+      const profile = profiles[0];
+      if (
+        profile?.subscription_tier !== 'ai_tools'
+        || !profile.subscription_expires_at
+        || new Date(profile.subscription_expires_at).getTime() <= Date.now()
+      ) {
+        return new Response(JSON.stringify({ ok: false, error: 'An active AI Career Tools subscription is required.' }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const result = await handleRequest(body);
 
     return new Response(JSON.stringify(result), {

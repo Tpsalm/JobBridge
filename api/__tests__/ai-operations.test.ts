@@ -32,7 +32,32 @@ describe('Joba API validation', () => {
     await handler(request, response);
 
     expect(result.status).toBe(400);
-    expect(result.body).toEqual({ ok: false, error: 'Chat must include 1-30 messages.' });
+    expect(result.body).toEqual({ ok: false, error: 'Chat must include 1-100 messages.' });
+  });
+
+  it('rejects oversized function-call arguments before contacting the model provider', async () => {
+    const { result, response } = createResponse();
+    const request = {
+      method: 'POST',
+      headers: {},
+      body: {
+        type: 'chat',
+        messages: [{
+          role: 'assistant',
+          content: '',
+          tool_calls: [{
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'search_knowledge_base', arguments: 'x'.repeat(12_001) },
+          }],
+        }],
+      },
+    } as unknown as VercelRequest;
+
+    await handler(request, response);
+
+    expect(result.status).toBe(400);
+    expect(result.body).toEqual({ ok: false, error: 'Chat contains an invalid or oversized message.' });
   });
 
   it('rejects non-POST requests', async () => {
@@ -61,7 +86,7 @@ describe('Joba API validation', () => {
     await broadcastHandler(request, response);
 
     expect(result.status).toBe(400);
-    expect(result.body).toEqual({ ok: false, error: 'Chat must include 1-30 messages.' });
+    expect(result.body).toEqual({ ok: false, error: 'Chat must include 1-100 messages.' });
   });
 
   it('protects backend health checks from unauthenticated access', async () => {

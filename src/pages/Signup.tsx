@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Check,
   Shield,
-  Building,
   Eye,
   EyeOff,
   User,
@@ -21,8 +20,8 @@ import {
   Star,
   Sparkles,
   TrendingUp,
-  Award,
   Layers,
+  Briefcase,
 } from "lucide-react";
 import JobBridgeLogo from "../components/JobBridgeLogo";
 import { checkRateLimit } from "../lib/security";
@@ -99,6 +98,14 @@ export default function Signup() {
   const strength = getPasswordStrength(formData.password);
   const currentPlan: ServiceProviderPlanConfig =
     SERVICE_PROVIDER_PLANS[formData.selectedPlan] || SERVICE_PROVIDER_PLANS.service_verified;
+  const providerReasons = [
+    { icon: TrendingUp, title: "Reach potential clients", text: "Connect with people looking for services like yours.", color: "text-blue-600" },
+    { icon: Eye, title: "Improve visibility", text: "Make your professional profile discoverable on JobBridge.", color: "text-emerald-600" },
+    { icon: Shield, title: "Show your experience", text: "Present your skills, work history, and portfolio.", color: "text-purple-600" },
+    { icon: Sparkles, title: "Receive enquiries", text: "Give interested customers a way to contact you.", color: "text-amber-600" },
+    { icon: Star, title: "Choose your listing level", text: "Select the profile and visibility features that fit your needs.", color: "text-amber-500" },
+    { icon: Zap, title: "Grow your service business", text: "Manage your professional presence from your JobBridge account.", color: "text-emerald-600" },
+  ];
 
   // Start resend cooldown timer
   const startCooldown = useCallback(() => {
@@ -440,7 +447,7 @@ export default function Signup() {
                 >
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                      <Building className="w-6 h-6 text-white" />
+                      <Briefcase className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-gray-900 text-lg">Sign up as Recruiter</h3>
@@ -476,7 +483,7 @@ export default function Signup() {
                       <div className="flex items-center gap-2">
                         <h3 className="font-bold text-gray-900 text-lg">Service Provider</h3>
                         <span className="text-[11px] font-bold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">
-                          30-Day Free Trial
+                          One Month Free Trial
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 mt-1">Offer services, get clients, grow your business</p>
@@ -486,7 +493,7 @@ export default function Signup() {
                   <div className="mt-4 pt-4 border-t border-emerald-200">
                     <ul className="space-y-2">
                       {[
-                        "30-day free trial — ₦0 charged today",
+                        "One month free trial — ₦0 charged today",
                         "Showcase skill & talent (Photographer, etc.)",
                         "Verified professional badge & listing",
                         "Direct client inquiries & job leads",
@@ -639,7 +646,7 @@ export default function Signup() {
                   }`}
                 >
                   {selectedRole === "recruiter" ? (
-                    <Building className="w-5 h-5 text-white" />
+                    <Briefcase className="w-5 h-5 text-white" />
                   ) : selectedRole === "provider" ? (
                     <Wrench className="w-5 h-5 text-white" />
                   ) : (
@@ -1028,8 +1035,22 @@ export default function Signup() {
                     Service Provider Listing Plans
                   </h3>
                   <p className="text-sm text-gray-600 mt-1">
-                    Select the right subscription plan for your business. Start free with ₦0 charged today!
+                    Review why a provider listing may help, then choose a plan. Every provider plan includes a one-month free trial.
                   </p>
+                </div>
+
+                <div className="rounded-2xl bg-gradient-to-br from-blue-50 via-slate-50 to-emerald-50/50 border border-blue-100 p-6">
+                  <h4 className="font-bold text-gray-900 text-base sm:text-lg mb-4">
+                    Why subscribe as a Service Provider?
+                  </h4>
+                  <div className="grid sm:grid-cols-2 gap-3 text-sm text-gray-700">
+                    {providerReasons.map(({ icon: Icon, title, text, color }) => (
+                      <div key={title} className="flex items-start gap-2.5 p-3 bg-white/70 rounded-xl border border-gray-100">
+                        <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${color}`} />
+                        <div><strong className="text-gray-900">{title}</strong> — {text}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* 3 Plans Grid */}
@@ -1058,7 +1079,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          30-Day Free Trial
+                          One Month Free Trial
                         </span>
                       </div>
 
@@ -1114,7 +1135,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          30-Day Free Trial
+                          One Month Free Trial
                         </span>
                       </div>
 
@@ -1170,7 +1191,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          30-Day Free Trial
+                          One Month Free Trial
                         </span>
                       </div>
 
@@ -1203,63 +1224,6 @@ export default function Signup() {
                   </div>
                 </div>
 
-                {/* ── Value Proposition Section: Why Subscribe as a Service Provider? ── */}
-                <div className="mt-6 rounded-2xl bg-gradient-to-br from-blue-50 via-slate-50 to-emerald-50/50 border border-blue-100 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Award className="w-5 h-5 text-blue-700" />
-                    <h4 className="font-bold text-gray-900 text-base sm:text-lg">
-                      Why Subscribe as a Service Provider?
-                    </h4>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-3 text-sm text-gray-700">
-                    <div className="flex items-start gap-2.5 p-2 bg-white/70 rounded-xl border border-gray-100">
-                      <TrendingUp className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="text-gray-900">Get More Customers</strong> – Connect with people looking for your services.
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5 p-2 bg-white/70 rounded-xl border border-gray-100">
-                      <Eye className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="text-gray-900">Increase Visibility</strong> – Get discovered by more customers on Jobbridge.
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5 p-2 bg-white/70 rounded-xl border border-gray-100">
-                      <Shield className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="text-gray-900">Build Trust</strong> – Showcase your skills, experience, and portfolio.
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5 p-2 bg-white/70 rounded-xl border border-gray-100">
-                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="text-gray-900">Get More Opportunities</strong> – Receive enquiries, jobs, and new clients.
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5 p-2 bg-white/70 rounded-xl border border-gray-100">
-                      <Star className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="text-gray-900">Stand Out</strong> – Get higher visibility with Verified and Featured plans.
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5 p-2 bg-white/70 rounded-xl border border-gray-100">
-                      <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="text-gray-900">Grow Your Business</strong> – Turn your skills into more customers and income.
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-center font-bold text-blue-900 text-sm mt-4 pt-3 border-t border-blue-100">
-                    Subscribe today and get more from your skills.
-                  </p>
-                </div>
               </div>
             )}
 
@@ -1329,7 +1293,7 @@ export default function Signup() {
                 <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
                   <h4 className="font-semibold text-blue-950">Secure payment with KoraPay</h4>
                   <p className="mt-2 text-sm text-blue-800">
-                    Create your account first. KoraPay will collect and tokenize your card during secure checkout; JobBridge does not receive or store card numbers, expiry dates, or CVV.
+                    After you create your account, continue to KoraPay's secure card checkout. Enter your card details there; JobBridge does not receive or store your card number, expiry date, or CVV.
                   </p>
                 </div>
 
@@ -1378,7 +1342,7 @@ export default function Signup() {
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5" />
-                      Create Account and Continue to KoraPay
+                      Create Account & Enter Card Securely with KoraPay
                     </>
                   )}
                 </button>

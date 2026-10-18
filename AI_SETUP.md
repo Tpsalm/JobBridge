@@ -4,7 +4,7 @@
 
 **NEVER expose API keys to the frontend!** This is a critical security vulnerability.
 
-JobBridge uses the Supabase `ai-operations` Edge Function as its primary AI proxy and a same-origin Vercel API fallback when that function is unavailable. Provider API keys are stored **server-side only** and never exposed to the browser.
+JobBridge uses the same-origin Vercel `/api/ai-operations` endpoint as its primary AI proxy and the Supabase `ai-operations` Edge Function as a fallback. Provider API keys are stored **server-side only** and never exposed to the browser.
 
 ---
 
@@ -13,13 +13,14 @@ JobBridge uses the Supabase `ai-operations` Edge Function as its primary AI prox
 ```
 User Browser
    ↓
-Supabase Edge Function (ai-operations)
+Vercel /api/ai-operations
    ├─ Validates request type and size
-   ├─ Proxies to OpenAI/DeepSeek
+   ├─ Enforces AI subscription access for resume and cover-letter generation
+   ├─ Proxies Joba and resume requests to DeepSeek
    └─ Returns results to browser
 
-If the Supabase function is unavailable:
-User Browser → Vercel /api/ai-operations → DeepSeek API
+If the Vercel endpoint is unavailable:
+User Browser → Supabase Edge Function (ai-operations) → DeepSeek API
 ```
 
 ---
@@ -66,11 +67,11 @@ supabase start
 
 #### For Production:
 
-1. Confirm that the Supabase project URL used by the deployed website is the same project you select for the Edge Function deployment.
-2. Set `DEEPSEEK_API_KEY` in that Supabase project's Secrets for `ai-operations`.
-3. Set `DEEPSEEK_API_KEY` as a **server-only** variable in Vercel for the `/api/ai-operations` fallback. Do not prefix it with `VITE_`.
-4. Set `OPENAI_API_KEY` in Supabase Secrets if embedding requests are needed. Set it in Vercel only if the Vercel embedding fallback is needed.
-5. Keep browser configuration limited to public Supabase URL and anon/publishable key.
+1. Set `DEEPSEEK_API_KEY` as a **server-only** Vercel environment variable for `/api/ai-operations`. Do not prefix it with `VITE_`.
+2. Set `SUPABASE_SERVICE_ROLE_KEY` as a server-only Vercel variable. The handler also needs `SUPABASE_URL` and `SUPABASE_ANON_KEY`; it accepts the existing public `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` values when the server-only aliases are not set.
+3. For the Edge Function fallback, confirm it will be deployed to the same Supabase project configured in the live website, then set `DEEPSEEK_API_KEY` and deploy `ai-operations`.
+4. Set `OPENAI_API_KEY` as a server-side variable only if embedding requests are needed.
+5. Keep browser configuration limited to the public Supabase URL and anon/publishable key.
 
 Set Supabase secrets via CLI or dashboard:
 
@@ -129,7 +130,7 @@ curl -X POST https://your-project.supabase.co/functions/v1/ai-operations \
   }'
 ```
 
-The website uses `/api/ai-operations` as a same-origin fallback when the Supabase function returns an error. The endpoint validates request types and payload sizes and never returns provider credentials. A missing server key produces a visible setup error rather than a fake successful response.
+The website uses `/api/ai-operations` as its primary same-origin endpoint and falls back to Supabase Edge Functions when appropriate. Both backends validate request types and payload sizes, and neither returns provider credentials. Resume and cover-letter requests require an authenticated user with a currently active AI Career Tools subscription. A missing server key produces a visible setup error rather than a fake successful response.
 
 Expected response:
 ```json
