@@ -39,7 +39,7 @@ async function requestAI(
   let primaryError = "";
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch("/api/ai-operations", {
+    const response = await fetch("/api/broadcast?endpoint=ai", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

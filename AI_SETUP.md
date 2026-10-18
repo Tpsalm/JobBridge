@@ -4,7 +4,7 @@
 
 **NEVER expose API keys to the frontend!** This is a critical security vulnerability.
 
-JobBridge uses the same-origin Vercel `/api/ai-operations` endpoint as its primary AI proxy and the Supabase `ai-operations` Edge Function as a fallback. Provider API keys are stored **server-side only** and never exposed to the browser.
+JobBridge uses the same-origin Vercel `/api/broadcast?endpoint=ai` endpoint as its primary AI proxy and the Supabase `ai-operations` Edge Function as a fallback. Provider API keys are stored **server-side only** and never exposed to the browser.
 
 ---
 
@@ -13,7 +13,7 @@ JobBridge uses the same-origin Vercel `/api/ai-operations` endpoint as its prima
 ```
 User Browser
    ↓
-Vercel /api/ai-operations
+Vercel /api/broadcast?endpoint=ai
    ├─ Validates request type and size
    ├─ Enforces AI subscription access for resume and cover-letter generation
    ├─ Proxies Joba and resume requests to DeepSeek
@@ -67,7 +67,7 @@ supabase start
 
 #### For Production:
 
-1. Set `DEEPSEEK_API_KEY` as a **server-only** Vercel environment variable for `/api/ai-operations`. Do not prefix it with `VITE_`.
+1. Set `DEEPSEEK_API_KEY` as a **server-only** Vercel environment variable for the consolidated `/api/broadcast` endpoint. Do not prefix it with `VITE_`.
 2. Set `SUPABASE_SERVICE_ROLE_KEY` as a server-only Vercel variable. The handler also needs `SUPABASE_URL` and `SUPABASE_ANON_KEY`; it accepts the existing public `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` values when the server-only aliases are not set.
 3. For the Edge Function fallback, confirm it will be deployed to the same Supabase project configured in the live website, then set `DEEPSEEK_API_KEY` and deploy `ai-operations`.
 4. Set `OPENAI_API_KEY` as a server-side variable only if embedding requests are needed.
@@ -130,7 +130,7 @@ curl -X POST https://your-project.supabase.co/functions/v1/ai-operations \
   }'
 ```
 
-The website uses `/api/ai-operations` as its primary same-origin endpoint and falls back to Supabase Edge Functions when appropriate. Both backends validate request types and payload sizes, and neither returns provider credentials. Resume and cover-letter requests require an authenticated user with a currently active AI Career Tools subscription. A missing server key produces a visible setup error rather than a fake successful response.
+The website uses `/api/broadcast?endpoint=ai` as its primary same-origin endpoint and falls back to Supabase Edge Functions when appropriate. Both backends validate request types and payload sizes, and neither returns provider credentials. Resume and cover-letter requests require an authenticated user with a currently active AI Career Tools subscription. A missing server key produces a visible setup error rather than a fake successful response.
 
 Expected response:
 ```json
