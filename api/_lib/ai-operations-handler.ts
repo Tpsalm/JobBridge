@@ -322,7 +322,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? error.message
       : error instanceof SyntaxError
         ? 'Invalid JSON request.'
-        : 'Joba could not process the request.';
+        : error instanceof Error && error.message === 'Authentication required.'
+          ? 'Sign in to use AI Career Tools.'
+          : 'Joba could not process the request.';
     if (!(error instanceof AIRequestError) && !(error instanceof SyntaxError)) {
       console.error('[ai-operations] Request failed:', error);
     }

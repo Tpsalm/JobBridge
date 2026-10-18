@@ -38,11 +38,18 @@ interface AIResponse {
   result?: string;
   embedding?: number[];
   error?: string;
+  httpStatus?: number;
   tool_calls?: Array<{
     id: string;
     type: 'function';
     function: { name: string; arguments: string };
   }>;
+}
+
+class AIProviderError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+  }
 }
 
 const JOBBRIDGE_TOOLS = [
@@ -112,8 +119,13 @@ async function chat(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`DeepSeek API error (${response.status}): ${error}`);
+    console.error('DeepSeek chat request failed:', response.status);
+    throw new AIProviderError(
+      response.status === 429 ? 429 : 502,
+      response.status === 429
+        ? 'Joba is busy right now. Please try again shortly.'
+        : 'Joba could not complete the request. Please check the AI provider configuration.',
+    );
   }
 
   const data = await response.json();
@@ -142,8 +154,13 @@ async function embed(text: string): Promise<number[]> {
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Embedding API error: ${response.status} ${error}`);
+    console.error('Embedding request failed:', response.status);
+    throw new AIProviderError(
+      response.status === 429 ? 429 : 502,
+      response.status === 429
+        ? 'The AI service is busy. Please try again shortly.'
+        : 'The embedding service could not complete the request.',
+    );
   }
 
   const data = await response.json();
@@ -375,16 +392,21 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
+
+    if (error instanceof AIProviderError) {
+      return { ok: false, error: error.message, httpStatus: error.status };
+    }
+
     if (errorMessage === 'AI_NOT_CONFIGURED') {
       return {
         ok: false,
         error: 'AI service not configured. Please set DEEPSEEK_API_KEY in Supabase secrets.',
+        httpStatus: 503,
       };
     }
 
-    console.error('AI Operation Error:', errorMessage);
-    return { ok: false, error: errorMessage };
+    console.error('AI operation failed:', errorMessage);
+    return { ok: false, error: 'Joba could not process the request.', httpStatus: 400 };
   }
 }
 
@@ -443,9 +465,10 @@ serve(async (req) => {
     }
 
     const result = await handleRequest(body);
+    const { httpStatus = result.ok ? 200 : 400, ...responseBody } = result;
 
-    return new Response(JSON.stringify(result), {
-      status: result.ok ? 200 : 400,
+    return new Response(JSON.stringify(responseBody), {
+      status: httpStatus,
       headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
     });
   } catch (error) {
