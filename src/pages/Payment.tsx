@@ -1399,12 +1399,14 @@ export default function Payment() {
                 Pay for your plan with KoraPay and complete checkout securely.
               </h2>
               <p className="mt-4 max-w-2xl text-sm sm:text-base text-cyan-100/90 leading-7">
-                Use card, USSD or bank transfer and get fast verification from our secure payment gateway.
+                {plan.service
+                  ? "Pay by card to activate your provider listing. Your card is securely saved for monthly renewal."
+                  : "Use card, USSD or bank transfer and get fast verification from our secure payment gateway."}
               </p>
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
                 {[
                   { label: "Fast verification", icon: "⚡" },
-                  { label: "Card, USSD, Bank Transfer", icon: "💳" },
+                  { label: plan.service ? "Card payment only" : "Card, USSD, Bank Transfer", icon: "💳" },
                   { label: "Encrypted checkout", icon: "🔒" },
                 ].map((item) => (
                   <div
@@ -1429,7 +1431,7 @@ export default function Payment() {
           </div>
           <div className="relative max-w-7xl mx-auto px-4 py-8">
             <button
-              onClick={() => navigate("/pricing")}
+              onClick={() => navigate(plan.business ? "/pricing#business" : "/pricing")}
               className="inline-flex items-center gap-1.5 text-sm text-blue-200 hover:text-white mb-4 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
