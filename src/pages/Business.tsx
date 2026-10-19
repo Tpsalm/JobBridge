@@ -247,7 +247,7 @@ export default function Business() {
           createPollRef.current = null;
         }
         // Credits never arrived — send the user to pricing so they can subscribe.
-        navigate('/pricing', { replace: true });
+        navigate('/pricing#business', { replace: true });
       }
     }, CREATE_POLL_INTERVAL_MS);
 
@@ -406,7 +406,7 @@ export default function Business() {
         message: 'No advert credits remaining. Please purchase a plan.',
         type: 'info',
       });
-      navigate('/pricing');
+      navigate('/pricing#business');
       return;
     }
 
@@ -897,7 +897,7 @@ export default function Business() {
                 <span className="font-medium">{subscription.status === 'active' ? 'No advert credits' : 'No active plan'}</span>
                 <span className="text-xs text-amber-600">Subscribe to create adverts</span>
               </div>
-              <Link to="/pricing" className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-amber-700 transition-colors inline-flex items-center">
+              <Link to="/pricing#business" className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-amber-700 transition-colors inline-flex items-center">
                 View Plans
               </Link>
             </div>
@@ -1067,7 +1067,7 @@ export default function Business() {
                     <Link
                       to={formData.package
                         ? `/payment?plan=${formData.package === 'Weekly Ad' ? 'business_weekly' : formData.package === 'Monthly Ad' ? 'business_monthly' : 'business_featured'}`
-                        : '/pricing'}
+                        : '/pricing#business'}
                       className="flex-1 py-2.5 bg-blue-700 text-white rounded-lg font-medium text-center hover:bg-blue-800 transition-colors inline-flex items-center justify-center gap-2"
                     >
                       <Lock className="w-4 h-4" />
@@ -1112,7 +1112,7 @@ export default function Business() {
             </button>
           ) : (
             <Link
-              to="/pricing"
+              to="/pricing#business"
               className="w-full flex items-center justify-center gap-2 bg-blue-100 text-blue-500 font-semibold py-3 rounded-xl border-2 border-blue-200 hover:bg-blue-200 transition-colors"
             >
               <Lock className="w-5 h-5" />

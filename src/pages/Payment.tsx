@@ -29,18 +29,7 @@ import { sendEmail } from "../lib/email";
 import { getSupabaseFunctionsUrl } from "../lib/supabaseHelpers";
 import { recordPaymentClick } from "../lib/paymentMetrics";
 import { supabase } from "../lib/supabase";
-import {
-  activateServiceTrialForUser,
-} from "../lib/trial";
-
-declare global {
-  interface Window {
-    Korapay: {
-      initialize: (config: KoraPayConfig) => void;
-      close: () => void;
-    };
-  }
-}
+import type { KoraPayConfig } from "../lib/trial";
 
 // Safari/iOS error handling: Suppress KoraPay cleanup errors after payment success
 const isKoraScriptSource = (source?: string | null) => {
@@ -80,40 +69,6 @@ const suppressKoraPay = (message: string, source?: string | null) => {
 
   return false;
 };
-
-interface KoraPayConfig {
-  key: string;
-  reference: string;
-  amount: number;
-  currency?: string;
-  customer: { name: string; email: string };
-  notification_url?: string;
-  narration?: string;
-  channels?: string[];
-  default_channel?: string;
-  metadata?: Record<string, string>;
-  onClose?: () => void;
-  onSuccess?: (data: {
-    reference: string;
-    payment_reference?: string;
-    transaction_reference?: string;
-    amount: string;
-    status: string;
-  }) => void;
-  onFailed?: (data: {
-    reference: string;
-    payment_reference?: string;
-    transaction_reference?: string;
-    status: string;
-  }) => void;
-  onPending?: () => void;
-  onTokenized?: (data: {
-    token?: string;
-    card?: { token?: string };
-    card_token?: string;
-  }) => void;
-  merchant_bears_cost?: boolean;
-}
 
 const PLANS: Record<
   string,
@@ -230,10 +185,7 @@ export default function Payment() {
 
   const planKey = searchParams.get("plan") || "basic";
   const plan = PLANS[planKey] || PLANS.basic;
-  // Service-provider plans are free for the first 30 days. The card entered at
-  // checkout is tokenized (not charged today) and auto-debited by billing-daily
-  // once the trial elapses.
-  const isServiceTrial = Boolean(plan.service);
+  // Service plans charge for the first month and save the card for renewals.
   const loginRedirect = `/login?redirect=${encodeURIComponent(`/payment?plan=${planKey}`)}`;
 
   const [step, setStep] = useState<CheckoutStep>("kora-checkout");
@@ -301,25 +253,25 @@ export default function Payment() {
     if (plan.service) {
       if (step === "success") {
         return [
-          "🎉 Trial activated successfully",
-          "Your 30-day free trial starts now",
-          "Card saved for post-trial billing",
-          "Premium features unlocked",
+          "Subscription activated",
+          "First month payment verified",
+          "Card saved for monthly renewal",
+          "Professional listing is active",
         ];
       }
       if (step === "processing") {
         return [
-          "🔄 Verifying your card details",
-          "Setting up your 30-day free trial",
-          "Your card is being securely stored",
-          "Premium features will be activated",
+          "Verifying your payment",
+          "Setting up your monthly subscription",
+          "Saving your card securely for renewal",
+          "Your listing activates after confirmation",
         ];
       }
       return [
-        "Complete checkout to start your free trial",
-        "Your card will be securely saved",
-        "No charge during the 30-day trial period",
-        "Auto-billing starts after trial ends",
+        `Pay ${formatNaira(plan.price)} for your first month`,
+        "Your card will be securely saved for renewal",
+        "Subscription renews every 30 days",
+        "Cancel before the next renewal to avoid another charge",
       ];
     }
 
@@ -726,23 +678,19 @@ export default function Payment() {
     }
   };
 
-  // ── 30-day free trial activation (service provider plans) ───────────────
-  // No money moves today. The card is tokenized and stored; the
-  // server creates a trialing subscription and billing-daily charges it
-  // after 30 days.
-  const activateServiceTrial = async (cardToken: string): Promise<boolean> => {
-    if (!user?.id) return false;
-    return await activateServiceTrialForUser(user.id, planKey, cardToken);
-  };
-
   const onKoraSuccess = async (data: {
     reference: string;
     payment_reference?: string;
     transaction_reference?: string;
     amount: string;
     status: string;
+    token?: string;
+    card_token?: string;
+    card?: { token?: string };
   }, reference: string) => {
     koraCompletedRef.current = true;
+    savedCardTokenRef.current =
+      data?.token || data?.card?.token || data?.card_token || savedCardTokenRef.current;
     const nextReference =
       data.reference ||
       data.payment_reference ||
@@ -1037,75 +985,6 @@ export default function Payment() {
       }
     }, 6000);
 
-    // ── Service-provider 30-day free trial ─────────────────────────────────
-    // The card is tokenized only (₦0 today). The server creates a `trialing`
-    // subscription and billing-daily auto-debits the card after 30 days.
-    if (isServiceTrial) {
-      initializePaymentState();
-      setCheckoutStarted(true);
-      const finishTrial = async (token: string) => {
-        const ok = await activateServiceTrial(token);
-        if (ok) {
-          cleanupKora();
-          setPaying(false);
-          setError("");
-          setPaid(true);
-          setStep("success");
-          push({ message: "🎉 30-day free trial activated!", type: "success" });
-          fetchSubscription().catch(() => {});
-          window.location.replace("/profile?trial=started");
-        } else {
-          cleanupKora();
-          setPaying(false);
-          setStep("kora-checkout");
-          setError("We couldn't start your trial. Please try again or contact support.");
-        }
-      };
-
-      try {
-        window.Korapay.initialize({
-          key: publicKey,
-          reference,
-          amount: 0,
-          currency: "NGN",
-          notification_url: notificationUrl,
-          customer: { name: customerName, email: customerEmail },
-          metadata: { plan: planKey, user_id: user.id, trial: "true" },
-          onTokenized: (data) => {
-            const card = data?.card;
-            const token = data?.token || card?.token || data?.card_token || "";
-            savedCardTokenRef.current = token;
-            void finishTrial(token);
-          },
-          onSuccess: () => {
-            // Some gateway versions still fire success after tokenization.
-            void finishTrial(savedCardTokenRef.current || "");
-          },
-          onFailed: () => {
-            cleanupKora();
-            setPaying(false);
-            setStep("kora-checkout");
-            setError("Your card could not be verified. Please try another card.");
-          },
-          onClose: () => {
-            if (!paid) {
-              cleanupKora();
-              setPaying(false);
-              setStep("kora-checkout");
-              setError("Card entry cancelled. Please enter your card details to start your 30-day free trial.");
-            }
-          },
-        });
-      } catch (koraError) {
-        console.error("[Payment] Failed to initialize KoraPay trial:", koraError);
-        setCheckoutStarted(false);
-        setPaying(false);
-        setStep("kora-checkout");
-        setError("Failed to open the card entry form. Please enter your card above or try again.");
-      }
-      return;
-    }
-
     initializePaymentState();
 
     const paymentMetadata = buildPaymentMetadata();
@@ -1137,6 +1016,7 @@ export default function Payment() {
           plan: planKey,
           user_id: user.id,
         },
+        ...(plan.service ? { channels: ["card"], default_channel: "card" } : {}),
         onSuccess: async (data) => {
           try {
             await onKoraSuccess(data, reference);
@@ -1145,12 +1025,8 @@ export default function Payment() {
           }
         },
         onTokenized: (data) => {
-          try {
-            const card = data?.card;
-            savedCardTokenRef.current = data?.token || card?.token || data?.card_token || "";
-          } catch {
-            savedCardTokenRef.current = "";
-          }
+          const card = data?.card;
+          savedCardTokenRef.current = data?.token || card?.token || data?.card_token || "";
         },
         onFailed: (data) => {
           try {
@@ -1238,10 +1114,10 @@ export default function Payment() {
             <Wallet className="w-7 h-7 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            {isServiceTrial ? "Start your 30-day free trial" : "Pay with KoraPay"}
+            Pay with KoraPay
           </h1>
           <p className="text-sm text-gray-500 mt-1.5">
-            {isServiceTrial ? `${plan.name} — no charge today` : plan.name}
+            {plan.name}
           </p>
         </div>
 
@@ -1260,10 +1136,10 @@ export default function Payment() {
           </div>
           <div className="flex items-center justify-between pt-4">
             <span className="text-sm font-medium text-gray-700">
-              {isServiceTrial ? "Due today" : "Total"}
+              {plan.service ? "Due today" : "Total"}
             </span>
             <span className="text-xl font-bold text-[#1A4BCE]">
-              {isServiceTrial ? "₦0" : formatNaira(plan.price)}
+              {formatNaira(plan.price)}
             </span>
           </div>
         </div>
@@ -1275,11 +1151,7 @@ export default function Payment() {
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900">
-                {isProcessing
-                  ? "Server Verification in Progress"
-                  : isServiceTrial
-                    ? "Card required for post-trial billing"
-                    : "Secure Checkout"}
+                {isProcessing ? "Server Verification in Progress" : "Secure Checkout"}
               </p>
               <p className="text-xs text-gray-500">Powered by KoraPay</p>
             </div>
@@ -1291,8 +1163,8 @@ export default function Payment() {
                   "Webhook verification",
                   "Plan activates after server confirmation",
                 ]
-              : isServiceTrial
-                ? ["₦0 today", "Free for 30 days", "Auto-bills after trial"]
+              : plan.service
+                ? ["Pay by Card", "First month charged today", "Renews every 30 days"]
                 : ["Pay with Card", "USSD", "Bank Transfer"]
             ).map((method) => (
               <span
@@ -1318,9 +1190,9 @@ export default function Payment() {
           </div>
         </div>
 
-        {isServiceTrial && !isProcessing && (
+        {plan.service && !isProcessing && (
           <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-            KoraPay securely collects and tokenizes your payment card. JobBridge does not receive or store your card number, expiry date, or CVV.
+            Your first month is charged today. KoraPay securely saves your card for monthly renewal; JobBridge does not receive or store your card number, expiry date, or CVV.
           </div>
         )}
         {error && (
@@ -1416,7 +1288,7 @@ export default function Payment() {
           ) : (
             <span className="inline-flex items-center gap-2">
               <Lock className="w-5 h-5" />
-              {isServiceTrial ? "Continue to KoraPay & enter card details" : `Pay ${formatNaira(plan.price)} securely`}
+              {`Pay ${formatNaira(plan.price)} securely`}
             </span>
           )}
         </button>
@@ -1434,8 +1306,8 @@ export default function Payment() {
         )}
 
         <p className="mt-4 text-center text-xs text-gray-400">
-          {isServiceTrial
-            ? "No charge today. KoraPay securely collects your card; billing begins only after the one-month (30-day) trial."
+          {plan.service
+            ? "Your subscription activates after payment verification. Your card will renew every 30 days."
             : "Your plan activates after secure server-side verification"}
         </p>
       </div>
@@ -1450,14 +1322,10 @@ export default function Payment() {
             <CheckCircle className="w-10 h-10 text-emerald-600" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            {isServiceTrial ? "Free Trial Activated!" : "Payment Successful!"}
+            Payment Successful!
           </h1>
           <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto leading-relaxed">
-            {isServiceTrial ? (
-              <>Your 30-day free trial has started. You will only be billed after the trial ends.</>
-            ) : (
-              <>Redirecting you to your <strong className="text-gray-900">{plan.name}</strong> feature now...</>
-            )}
+            <>Redirecting you to your <strong className="text-gray-900">{plan.name}</strong> feature now...</>
           </p>
         </div>
 
@@ -1644,17 +1512,6 @@ export default function Payment() {
                       </div>
                     </div>
                     <div className="space-y-3 pt-4">
-                      {plan.service && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3">
-                          <p className="text-xs font-semibold text-emerald-900 flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4" />
-                            30-Day Free Trial Included
-                          </p>
-                          <p className="text-[11px] text-emerald-700 mt-1">
-                            Start your trial today. Card required for post-trial billing.
-                          </p>
-                        </div>
-                      )}
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Credits</span>
                         <span className="font-medium text-gray-900">
@@ -1663,10 +1520,10 @@ export default function Payment() {
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">
-                          {plan.service ? "Trial starts at" : "Subtotal"}
+                          Subtotal
                         </span>
                         <span className="font-medium text-gray-900">
-                          {plan.service ? "₦0" : formatNaira(plan.price)}
+                          {formatNaira(plan.price)}
                         </span>
                       </div>
                       <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
@@ -1674,7 +1531,7 @@ export default function Payment() {
                           {plan.service ? "Due Today" : "Total"}
                         </span>
                         <span className="text-xl font-bold text-[#1A4BCE]">
-                          {plan.service ? "₦0" : formatNaira(plan.price)}
+                          {formatNaira(plan.price)}
                         </span>
                       </div>
                     </div>

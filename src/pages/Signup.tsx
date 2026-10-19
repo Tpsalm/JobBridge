@@ -290,7 +290,7 @@ export default function Signup() {
           window.dispatchEvent(
             new CustomEvent("jobbridge:toast", {
               detail: {
-                message: `Account created. Continue to KoraPay to securely start your ${currentPlan.name} trial.`,
+                message: `Account created. Continue to KoraPay to securely subscribe to ${currentPlan.name}.`,
                 type: "info",
               },
             }),
@@ -315,7 +315,7 @@ export default function Signup() {
           new CustomEvent("jobbridge:toast", {
             detail: {
               message: isProvider
-                ? `Account created! Confirm your email, then complete secure KoraPay checkout to start your ${currentPlan.name} trial.`
+                ? `Account created! Confirm your email, then complete secure KoraPay checkout for ${currentPlan.name}.`
                 : "Account created! Check your email for the confirmation link.",
               type: "success",
             },
@@ -483,7 +483,7 @@ export default function Signup() {
                       <div className="flex items-center gap-2">
                         <h3 className="font-bold text-gray-900 text-lg">Service Provider</h3>
                         <span className="text-[11px] font-bold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">
-                          One Month Free Trial
+                          Monthly subscription
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 mt-1">Offer services, get clients, grow your business</p>
@@ -493,7 +493,7 @@ export default function Signup() {
                   <div className="mt-4 pt-4 border-t border-emerald-200">
                     <ul className="space-y-2">
                       {[
-                        "One month free trial — ₦0 charged today",
+                        "Monthly subscription, billed at checkout",
                         "Showcase skill & talent (Photographer, etc.)",
                         "Verified professional badge & listing",
                         "Direct client inquiries & job leads",
@@ -552,7 +552,7 @@ export default function Signup() {
                   <span className="font-bold">3.</span>
                   <span>
                     {isProvider
-                      ? `After confirming, sign in and complete KoraPay checkout to start your 30-day ${currentPlan.name} trial.`
+                      ? `After confirming, sign in and complete KoraPay checkout to activate your ${currentPlan.name} subscription.`
                       : "Return here and sign in to get started"}
                   </span>
                 </li>
@@ -1035,7 +1035,7 @@ export default function Signup() {
                     Service Provider Listing Plans
                   </h3>
                   <p className="text-sm text-gray-600 mt-1">
-                    Review why a provider listing may help, then choose a plan. Every provider plan includes a one-month free trial.
+                    Review the provider listing benefits, then choose a monthly plan. Payment is collected securely by KoraPay at checkout.
                   </p>
                 </div>
 
@@ -1070,7 +1070,7 @@ export default function Signup() {
                   >
                     <div>
                       <div className="inline-block bg-amber-500 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full mb-3">
-                        Get Started
+                        Subscribe Now
                       </div>
                       <h4 className="font-bold text-gray-900 text-lg">Monthly Listing</h4>
                       <div className="mt-2 mb-1">
@@ -1079,7 +1079,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          One Month Free Trial
+                          Billed today
                         </span>
                       </div>
 
@@ -1107,7 +1107,7 @@ export default function Signup() {
                       type="button"
                       className="w-full mt-5 py-2.5 px-3 rounded-xl font-semibold text-xs sm:text-sm bg-blue-700 hover:bg-blue-800 text-white transition-all"
                     >
-                      Select Starter Plan
+                      Subscribe Now
                     </button>
                   </div>
 
@@ -1135,7 +1135,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          One Month Free Trial
+                          Billed today
                         </span>
                       </div>
 
@@ -1191,7 +1191,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          One Month Free Trial
+                          Billed today
                         </span>
                       </div>
 
@@ -1245,35 +1245,23 @@ export default function Signup() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-gray-900 text-base sm:text-lg">NGN 0.00</div>
-                      <div className="text-xs text-emerald-700 font-semibold">For 30 days free</div>
+                      <div className="font-bold text-gray-900 text-base sm:text-lg">NGN {currentPlan.price.toLocaleString()}.00</div>
+                      <div className="text-xs text-blue-700 font-semibold">Billed today</div>
                     </div>
                   </div>
 
-                  {/* Spotify-Style Timeline Breakdown */}
-                  <div className="mt-4 pl-2 space-y-3 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-emerald-300">
-                    {/* Timeline 1: Now */}
+                  <div className="mt-4 pl-2 space-y-3 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-blue-300">
                     <div className="relative flex items-start gap-3">
-                      <div className="w-4 h-4 rounded-full bg-emerald-600 ring-4 ring-emerald-100 shrink-0 mt-0.5 z-10" />
+                      <div className="w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 shrink-0 mt-0.5 z-10" />
                       <div>
                         <p className="text-sm font-bold text-gray-900">
-                          Now: 30 days for NGN 0.00
+                          Today: NGN {currentPlan.price.toLocaleString()}.00
                         </p>
-                      </div>
-                    </div>
-
-                    {/* Timeline 2: Future Billing */}
-                    <div className="relative flex items-start gap-3">
-                      <div className="w-4 h-4 rounded-full bg-gray-400 ring-4 ring-gray-100 shrink-0 mt-0.5 z-10" />
-                      <div>
                         <p className="text-sm font-bold text-gray-900">
-                          After the 30-day trial: NGN {currentPlan.price.toLocaleString()}.00/month
+                          Renews every 30 days at NGN {currentPlan.price.toLocaleString()}.00
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          • We'll remind you 7 days before you're charged directly in your Gmail.
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          • Cancel anytime online. Terms apply.
+                          Cancel renewal any time before the next billing date.
                         </p>
                       </div>
                     </div>
@@ -1293,7 +1281,7 @@ export default function Signup() {
                 <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
                   <h4 className="font-semibold text-blue-950">Secure payment with KoraPay</h4>
                   <p className="mt-2 text-sm text-blue-800">
-                    After you create your account, continue to KoraPay's secure card checkout. Enter your card details there; JobBridge does not receive or store your card number, expiry date, or CVV.
+                    After creating your account, continue to KoraPay's secure card checkout to pay for your first month. KoraPay securely saves the card for monthly renewals; JobBridge does not receive or store your card number, expiry date, or CVV.
                   </p>
                 </div>
 
@@ -1301,21 +1289,21 @@ export default function Signup() {
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-2.5">
                   <h4 className="font-bold text-gray-900 text-sm">Summary</h4>
                   <div className="flex justify-between items-center text-xs sm:text-sm text-gray-600">
-                    <span>{currentPlan.name} (30-Day Free Trial)</span>
-                    <span>NGN 0.00</span>
+                    <span>{currentPlan.name} (first month)</span>
+                    <span>NGN {currentPlan.price.toLocaleString()}.00</span>
                   </div>
                   <div className="flex justify-between items-center text-xs text-gray-500">
-                    <span>Then, after the 30-day trial</span>
+                    <span>Next renewal in 30 days</span>
                     <span>NGN {currentPlan.price.toLocaleString()}.00/month</span>
                   </div>
                   <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-base font-bold text-gray-900">
                     <span>Total now</span>
-                    <span className="text-emerald-700">NGN 0.00</span>
+                    <span className="text-blue-700">NGN {currentPlan.price.toLocaleString()}.00</span>
                   </div>
                 </div>
 
                 <p className="text-[11px] text-gray-500 leading-relaxed">
-                  Your card will be collected by KoraPay during checkout. If you do not cancel before the 30-day trial ends, KoraPay will charge <strong>NGN {currentPlan.price.toLocaleString()}.00/month</strong>. Canceling immediately removes your provider listing. Full terms are available in our{" "}
+                  KoraPay charges <strong>NGN {currentPlan.price.toLocaleString()}.00 today</strong> and renews monthly. Cancel before the next billing date to avoid another charge. Full terms are available in our{" "}
                   <Link to="/privacy" target="_blank" className="underline text-blue-700">
                     Terms of Service
                   </Link>.

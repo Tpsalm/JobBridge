@@ -181,8 +181,8 @@ export default function Pricing() {
                   price: '₦1,500',
                   note: '/month',
                   priceNum: 1500,
-                  badge: 'Get Started',
-                  features: ['One month free trial', 'Profile on JobBridge', 'Name and contact info', 'Description of services', 'Location', 'Receive inquiries'],
+                  badge: 'Subscribe Now',
+                  features: ['One month listing', 'Profile on JobBridge', 'Name and contact info', 'Description of services', 'Location', 'Receive inquiries'],
                   tier: 'basic',
                 },
                 {
@@ -230,21 +230,12 @@ export default function Pricing() {
                       </li>
                     ))}
                   </ul>
-                  {plan.tier === 'basic' ? (
-                    <Link
-                      to="/providers"
-                      className="block w-full py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 transition-colors text-center"
-                    >
-                      Get Started Free
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={() => navigate(`/payment?plan=service_${plan.tier}`)}
-                      className="w-full py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 transition-colors"
-                    >
-                      Subscribe Now
-                    </button>
-                  )}
+                  <button
+                    onClick={() => navigate(`/payment?plan=service_${plan.tier}`)}
+                    className="w-full py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 transition-colors"
+                  >
+                    Subscribe Now
+                  </button>
                 </Card3D>
               ))}
             </div>
@@ -285,9 +276,9 @@ export default function Pricing() {
             <p className="text-sm text-gray-600 mb-4">Promote your restaurant, hotel, fashion brand, phone repair shop, school, hospital, and more.</p>
             <div className="grid md:grid-cols-3 gap-4">
               {[
-                { name: 'Weekly Ad', duration: '7 days', price: 2000, badge: 'Quick Start', features: ['Display on platform', 'Category placement', 'Contact info visible', 'View analytics'] },
-                { name: 'Monthly Ad', duration: '30 days', price: 7500, popular: true, badge: 'Most Popular', features: ['Everything in Weekly', 'Extended visibility', 'Priority listing', 'Performance reports', 'Editable content'] },
-                { name: 'Featured Business', duration: '30 days', price: 15000, badge: 'Best Value', features: ['Everything in Monthly', 'Homepage spotlight', 'Category prominence', 'Social media boost', 'WhatsApp status promo', 'Dedicated banner'] },
+                { name: 'Weekly Ad', planKey: 'business_weekly', duration: '7 days', price: 2000, badge: 'Quick Start', features: ['Display on platform', 'Category placement', 'Contact info visible', 'View analytics'] },
+                { name: 'Monthly Ad', planKey: 'business_monthly', duration: '30 days', price: 7500, popular: true, badge: 'Most Popular', features: ['Everything in Weekly', 'Extended visibility', 'Priority listing', 'Performance reports', 'Editable content'] },
+                { name: 'Featured Business', planKey: 'business_featured', duration: '30 days', price: 15000, badge: 'Best Value', features: ['Everything in Monthly', 'Homepage spotlight', 'Category prominence', 'Social media boost', 'WhatsApp status promo', 'Dedicated banner'] },
               ].map((plan) => (
                 <Card3D
                   key={plan.name}
@@ -315,7 +306,7 @@ export default function Pricing() {
                     ))}
                   </ul>
                   <Link
-                    to="/business"
+                    to={`/payment?plan=${plan.planKey}`}
                     className="block w-full py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 transition-colors text-center"
                   >
                     Create Advert

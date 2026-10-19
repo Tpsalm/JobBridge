@@ -363,6 +363,38 @@ export default function Home() {
         )}
       </AnimatedSection>
 
+      <AnimatedSection className="max-w-7xl mx-auto px-4 py-12 sm:px-6">
+        <div className="mb-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-800">People &amp; careers</p>
+          <h2 className="mt-2 text-2xl font-bold text-gray-900 sm:text-3xl">Meet professionals across our community</h2>
+          <p className="mt-2 max-w-2xl text-gray-600">
+            A snapshot of people working across project management, recruitment, and team leadership.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {[
+            { name: 'Timilehin A.', role: 'Project Manager', company: 'Sakifoods', image: '/images/timilehin-a.jpg' },
+            { name: 'Akinbee C.', role: 'Recruiter', company: 'Akinbee', image: '/images/akinbee-c.jpg' },
+            { name: 'Peace A.', role: 'Team lead', company: 'TFT', image: '/images/peace-a.jpg' },
+          ].map(({ name, role, company, image }) => (
+            <article key={name} className="flex items-center gap-4 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+              <img
+                src={image}
+                alt={name}
+                loading="lazy"
+                decoding="async"
+                className="h-16 w-16 shrink-0 rounded-full border-2 border-emerald-50 object-cover object-top"
+              />
+              <div className="min-w-0">
+                <h3 className="truncate font-semibold text-gray-900">{name}</h3>
+                <p className="mt-1 text-sm text-gray-600">{role}</p>
+                <p className="text-sm font-medium text-blue-800">at {company}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </AnimatedSection>
+
       <AnimatedSection className="border-y border-blue-100 bg-gradient-to-br from-blue-50 via-white to-white py-14" delay={150}>
         <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 md:grid-cols-[1.2fr_1fr] md:items-center">
           <div>

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Briefcase, Users, BarChart3, CreditCard, Bookmark } from 'lucide-react';
+import { Home, Briefcase, Users, UsersRound, BarChart3, CreditCard, Bookmark } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function BottomNav() {
@@ -14,7 +14,7 @@ export default function BottomNav() {
     {
       label: role === 'recruiter' ? 'Recruiter' : 'My Jobs',
       path: role === 'recruiter' ? '/recruiter' : '/my-jobs',
-      icon: role === 'recruiter' ? Briefcase : Bookmark,
+      icon: role === 'recruiter' ? UsersRound : Bookmark,
     },
   ];
 

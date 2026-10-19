@@ -1,4 +1,5 @@
 import { supabase, Job, JobAlert, Profile, Advertisement, SubscriptionInfo, Review } from "./supabase";
+import { sendEmail } from "./email";
 
 // ─── Jobs ───────────────────────────────────────────────────────────────────
 
@@ -802,13 +803,11 @@ export async function createConversationMessage(params: {
 
   if (recipientEmail) {
     try {
-      await import('./email').then(({ sendEmail }) =>
-        sendEmail({
-          type: 'message_alert',
-          email: recipientEmail,
-          name: recipientName,
-        }),
-      );
+      await sendEmail({
+        type: 'message_alert',
+        email: recipientEmail,
+        name: recipientName,
+      });
     } catch (emailError) {
       console.warn('[createConversationMessage] email alert failed:', emailError);
     }

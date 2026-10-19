@@ -1,5 +1,3 @@
-import { supabase } from "./supabase";
-
 const KORA_SCRIPT_SRC =
   "https://korablobstorage.blob.core.windows.net/modal-bucket/korapay-collections.min.js";
 
@@ -21,13 +19,13 @@ export const SERVICE_PROVIDER_PLANS: Record<string, ServiceProviderPlanConfig> =
     price: 1500,
     monthlyPriceFormatted: "₦1,500",
     duration: "30 days",
-    badge: "Get Started",
+    badge: "Subscribe Now",
     features: [
       "Profile on JobBridge marketplace",
       "Name and contact info visible",
       "Description of services & portfolio",
       "Location & direct client inquiries",
-      "₦0 charged today for 30 full days",
+      "Billed monthly from signup",
     ],
   },
   service_verified: {
@@ -81,6 +79,9 @@ export interface KoraPayConfig {
     transaction_reference?: string;
     amount: string;
     status: string;
+    token?: string;
+    card_token?: string;
+    card?: { token?: string };
   }) => void;
   onFailed?: (data: {
     reference: string;
@@ -172,48 +173,6 @@ export function getTrialBillingStartDate(days = 30): { date: Date; formatted: st
     year: "numeric",
   });
   return { date, formatted };
-}
-
-/**
- * Activate the 30-day service-provider trial after KoraPay returns its
- * provider-issued card token. The token is sent directly to the Edge Function
- * and never written to browser storage or profile metadata.
- */
-export async function activateServiceTrialForUser(
-  userId: string,
-  planKey = "service_verified",
-  cardToken = "",
-): Promise<boolean> {
-  if (!userId) return false;
-
-  if (!cardToken) {
-    console.error("[trial] KoraPay did not return a reusable card token.");
-    return false;
-  }
-
-  try {
-    const { data, error } = await supabase.functions.invoke<{ verified?: boolean }>(
-      "verify-payment",
-      {
-        body: {
-          activate_plan: true,
-          trial: true,
-          plan_key: planKey || "service_verified",
-          user_id: userId,
-          duration_days: 30,
-          credits: 0,
-          amount: 0,
-          reference: "",
-          card_token: cardToken,
-        },
-      },
-    );
-    if (error) throw error;
-    return data?.verified === true;
-  } catch (error) {
-    console.error("[trial] Service trial activation failed:", error);
-    return false;
-  }
 }
 
 export function koraTrialReference(): string {

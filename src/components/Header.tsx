@@ -24,6 +24,7 @@ import {
   LogOut,
   Loader2,
   Bot,
+  UsersRound,
 } from "lucide-react";
 import JobBridgeLogo from "./JobBridgeLogo";
 
@@ -36,7 +37,7 @@ const navLinks = [
 ];
 
 const moreLinks = [
-  { label: "Recruiter", path: "/recruiter" },
+  { label: "Recruiter", path: "/recruiter", icon: UsersRound },
   { label: "Joba AI Assistant", path: "/ai-assistant", icon: Bot },
   { label: "AI Resume Studio", path: "/ai-resume" },
   { label: "Support", path: "/support" },
@@ -66,7 +67,7 @@ export default function Header() {
     {
       label: role === "recruiter" ? "Recruiter" : "My Jobs",
       path: role === "recruiter" ? "/recruiter" : "/my-jobs",
-      icon: role === "recruiter" ? Briefcase : Bookmark,
+      icon: role === "recruiter" ? UsersRound : Bookmark,
     },
     ...(role === "admin"
       ? [{ label: "Admin Reports", path: "/admin-reports?tab=reports", icon: Shield }]
@@ -281,17 +282,18 @@ export default function Header() {
                   className="absolute top-full right-0 mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50"
                   onMouseLeave={() => setMoreOpen(false)}
                 >
-                  {moreLinks.map(({ label, path }) => (
+                  {moreLinks.map(({ label, path, icon: Icon }) => (
                     <Link
                       key={path}
                       to={path}
                       onClick={() => setMoreOpen(false)}
-                      className={`block px-4 py-2 text-sm transition-colors ${
+                      className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
                         isActive(path)
                           ? "text-blue-700 bg-blue-50"
                           : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                       }`}
                     >
+                      {Icon && <Icon className="h-4 w-4" />}
                       {label}
                     </Link>
                   ))}
@@ -473,17 +475,18 @@ export default function Header() {
       {mobileOpen && (
         <div className="md:hidden max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-t border-gray-100 bg-white">
           <div className="px-3 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-1">
-            {mobileMenuLinks.map(({ label, path }) => (
+            {mobileMenuLinks.map(({ label, path, icon: Icon }) => (
               <Link
                 key={path}
                 to={path}
                 onClick={() => setMobileOpen(false)}
-                className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive(path)
                     ? "bg-blue-50 text-blue-700"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 }`}
               >
+                {Icon && <Icon className="h-4 w-4" />}
                 {label}
               </Link>
             ))}
