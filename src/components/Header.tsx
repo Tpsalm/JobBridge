@@ -53,7 +53,6 @@ const homepageLinkedPaths = new Set([
   "/business",
   "/pricing",
   "/ai-resume",
-  "/support",
   "/blog",
   "/about",
 ]);

@@ -121,7 +121,7 @@ export default function Home() {
       <Header />
 
       {/* Hero — Professional Video Background */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-green-900 to-emerald-950 min-h-[560px]" style={{ perspective: '1000px' }}>
+      <section className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 min-h-[560px]" style={{ perspective: '1000px' }}>
         <FloatingDecorations className="opacity-70" />
         {/* Professional background video */}
         <div className="absolute inset-0 bg-black z-0">
@@ -147,7 +147,7 @@ export default function Home() {
         </div>
 
         {/* Gradient overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/80 via-green-900/55 to-emerald-950/80 pointer-events-none z-10" />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/75 via-blue-800/50 to-blue-900/75 pointer-events-none z-10" />
         <div className="absolute inset-0 opacity-10 pointer-events-none z-10">
           <div className="absolute top-10 left-10 w-72 h-72 rounded-full bg-white blur-3xl" />
           <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-blue-300 blur-3xl" />
@@ -156,21 +156,21 @@ export default function Home() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-28 z-20">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-sm text-emerald-100 mb-6 animate-float">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-sm text-blue-100 mb-6 animate-float">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 Opportunities across Nigeria and Africa
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6 preserve-3d" style={{ transform: 'translateZ(40px)' }}>
-                Your career bridge to what's <span className="text-amber-300">next</span>
+                Your career bridge to what's <span className="text-blue-300">next</span>
               </h1>
-              <p className="text-lg text-emerald-100 mb-8 max-w-xl leading-relaxed preserve-3d" style={{ transform: 'translateZ(20px)' }}>
+              <p className="text-lg text-blue-100 mb-8 max-w-xl leading-relaxed preserve-3d" style={{ transform: 'translateZ(20px)' }}>
                 Job listings, service-provider profiles, and career tools in one place. Explore what is available and confirm details with each poster.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 preserve-3d" style={{ transform: 'translateZ(30px)' }}>
                 <Link to="/jobs" className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-semibold px-6 py-3 rounded-xl hover:bg-blue-50 transition-all hover:shadow-xl shadow-lg">
                   <Search className="w-4 h-4" /> Find Jobs
                 </Link>
-                <Link to="/providers" className="inline-flex items-center justify-center gap-2 bg-amber-500 text-emerald-950 font-semibold px-6 py-3 rounded-xl hover:bg-amber-400 transition-all hover:shadow-xl border border-amber-400">
+                <Link to="/providers" className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-500 transition-all hover:shadow-xl border border-blue-500">
                   <Users className="w-4 h-4" /> Hire Talent
                 </Link>
                 <Link to="/ai-resume" className="inline-flex items-center justify-center gap-2 bg-transparent text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/10 transition-all hover:shadow-xl border border-white/30">
@@ -363,10 +363,10 @@ export default function Home() {
         )}
       </AnimatedSection>
 
-      <AnimatedSection className="border-y border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-amber-50 py-14" delay={150}>
+      <AnimatedSection className="border-y border-blue-100 bg-gradient-to-br from-blue-50 via-white to-white py-14" delay={150}>
         <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 md:grid-cols-[1.2fr_1fr] md:items-center">
           <div>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-medium text-emerald-900">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1.5 text-sm font-medium text-blue-900">
               <MapPin className="h-4 w-4" /> Rooted in Nigeria. Open to Africa.
             </div>
             <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">Find opportunities that fit your next step</h2>
@@ -375,7 +375,7 @@ export default function Home() {
               Listings are posted by users, so confirm important details with the poster before making decisions.
             </p>
           </div>
-          <div className="rounded-2xl border border-emerald-100 bg-white/80 p-5 shadow-sm">
+          <div className="rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm">
             <p className="text-sm font-semibold text-gray-800">Try searching by location</p>
             <p className="mt-2 text-sm leading-relaxed text-gray-600">
               Lagos · Abuja · Ibadan · Port Harcourt · Kano · Accra · Remote

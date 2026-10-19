@@ -889,7 +889,7 @@ export default function Profile() {
             <div className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.3)] backdrop-blur">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Manage subscription</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-900">Manage subscription</p>
                   <h2 className="mt-2 text-xl font-bold text-slate-900">{managedSubscription?.plan_key.replace(/_/g, ' ') || (subscription?.tier ? subscription.tier.replace(/_/g, ' ') : userProfile?.role === 'provider' ? 'Service provider' : 'Standard')}</h2>
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${managedSubscription?.status === 'active' || managedSubscription?.status === 'trialing' || subscription.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -914,7 +914,7 @@ export default function Profile() {
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
                   to="/pricing#services"
-                  className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  className="inline-flex items-center justify-center rounded-xl bg-blue-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-950"
                 >
                   Explore plans
                 </Link>
