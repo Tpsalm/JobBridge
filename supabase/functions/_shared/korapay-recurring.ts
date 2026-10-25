@@ -151,6 +151,11 @@ export async function persistKoraCardToken(
   if (!token || !userId) return null;
   const mapped = planKeyFor(paymentPlan);
   if (!mapped) return { skipped: true };
+  if (mapped.product_line === "service") {
+    return {
+      error: "Service-provider subscriptions require an active KoraPay Direct Debit authorization.",
+    };
+  }
 
   const now = new Date();
   const { data: planRow, error: planError } = await supabase

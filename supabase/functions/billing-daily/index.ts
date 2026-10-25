@@ -31,6 +31,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { chargeSavedCard } from "../_shared/korapay-recurring.ts";
+import {
+  debitAuthorization,
+  KoraDirectDebitError,
+} from "../_shared/korapay-direct-debit.ts";
 
 const KORA_SECRET_KEY = Deno.env.get("KORA_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -50,6 +54,8 @@ interface Subscription {
   status: string;
   current_period_end: string;
   kora_card_token_key: string | null;
+  kora_authorization_code: string | null;
+  kora_authorization_expires_at: string | null;
   auto_renew: boolean;
   launch_free_period: boolean;
   failed_retries: number;
@@ -116,9 +122,9 @@ async function emailUser(supabase: any, userId: string, subject: string, message
 }
 
 // ── Ledger anchor: write a pending payment row BEFORE hitting the gateway ──
-async function recordAttempt(supabase: any, sub: Subscription, reference: string, attempt: number): Promise<void> {
+async function recordAttempt(supabase: any, sub: Subscription, reference: string, attempt: number): Promise<boolean> {
   const now = new Date().toISOString();
-  const { error } = await supabase.from("payments").upsert(
+  const { error } = await supabase.from("payments").insert(
     {
       user_id: sub.user_id,
       subscription_id: sub.id,
@@ -133,11 +139,12 @@ async function recordAttempt(supabase: any, sub: Subscription, reference: string
       metadata: { subscription_id: sub.id, plan_key: sub.plan_key, attempt },
       updated_at: now,
     },
-    { onConflict: "idempotency_key" },
   );
   if (error) {
-    console.error("[billing-daily] recordAttempt failed:", error.message);
+    if (error.code === "23505") return false;
+    throw new Error(`Could not record subscription payment attempt: ${error.message}`);
   }
+  return true;
 }
 
 // ── Success path: roll the period forward (idempotent) + close the ledger ──
@@ -193,7 +200,7 @@ async function success(sub: Subscription, reference: string, supabase: any): Pro
 // ── Failure: mark past_due, schedule retry, open grace on final attempt ─────
 async function markFailed(sub: Subscription, supabase: any, attempt: number, reason: string, reference?: string): Promise<void> {
   const now = new Date();
-  const graceDays = sub.grace_days || 3;
+  const graceDays = sub.grace_days ?? 3;
   const delay = attempt === 1 ? 1 : attempt === 2 ? 2 : null; // Day 31, Day 33
   await supabase.from("subscriptions").update({
     status: "past_due",
@@ -223,18 +230,107 @@ async function markFailed(sub: Subscription, supabase: any, attempt: number, rea
 
 // ── Single charge step (used by both renewal and retry) ─────────────────────
 // Returns "renewed" | "recovered" | "failed" so the summary is accurate.
-async function chargeStep(sub: Subscription, supabase: any, attempt: number): Promise<"renewed" | "recovered" | "failed"> {
+async function chargeStep(sub: Subscription, supabase: any, attempt: number): Promise<"renewed" | "recovered" | "failed" | "waiting"> {
+  if (
+    sub.product_line === "service" &&
+    (!sub.kora_authorization_code ||
+      (sub.kora_authorization_expires_at &&
+        new Date(sub.kora_authorization_expires_at).getTime() <= Date.now()))
+  ) {
+    const expired = Boolean(
+      sub.kora_authorization_expires_at &&
+      new Date(sub.kora_authorization_expires_at).getTime() <= Date.now(),
+    );
+    await supabase.from("subscriptions").update({
+      status: "past_due",
+      auto_renew: false,
+      next_attempt_at: null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", sub.id);
+    const message = expired
+      ? "Your Direct Debit authorization has expired. Update your payment method to renew."
+      : "Your provider subscription has no active Direct Debit authorization. Update your payment method to renew.";
+    await notifyUser(supabase, sub.user_id, "Update your payment method", message);
+    await emailUser(supabase, sub.user_id, "Update your payment method", message, sub.plan_key);
+    return "failed";
+  }
+
   const token = sub.kora_card_token_key;
-  if (!token) {
+  if (sub.product_line !== "service" && !token) {
     await markFailed(sub, supabase, attempt, "no_card_on_file");
     await notifyUser(supabase, sub.user_id, "Add a card", "No card on file for renewal — add one to keep your listing visible.");
     return "failed";
   }
 
-  const reference = `JB-${sub.id}-${sub.plan_key}-${attempt}`;
-  await recordAttempt(supabase, sub, reference, attempt);
+  const cycle = new Date(sub.current_period_end).getTime();
+  const reference = `JB-${sub.id}-${cycle}-${attempt}`;
+  let recorded: boolean;
+  if (sub.product_line === "service") {
+    const attemptResult = await supabase.rpc("create_service_renewal_attempt", {
+      p_subscription_id: sub.id,
+      p_reference: reference,
+      p_attempt: attempt,
+    });
+    if (attemptResult.error) {
+      throw new Error(`Could not reserve Direct Debit attempt: ${attemptResult.error.message}`);
+    }
+    recorded = attemptResult.data === true;
+  } else {
+    recorded = await recordAttempt(supabase, sub, reference, attempt);
+  }
+  if (!recorded) return "waiting";
 
   const { email, name } = await userEmail(supabase, sub.user_id);
+  if (sub.product_line === "service") {
+    try {
+      const result = await debitAuthorization(
+        KORA_SECRET_KEY,
+        sub.kora_authorization_code!,
+        {
+          amount: sub.base_price_ngn,
+          reference,
+          narration: `${planLabel(sub.plan_key)} monthly subscription`,
+        },
+      );
+      if (result.status === "failed") {
+        await markFailed(sub, supabase, attempt, "direct_debit_failed", reference);
+        return "failed";
+      }
+      await supabase
+        .from("payments")
+        .update({
+          provider_reference: result.transaction_reference || reference,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("idempotency_key", reference)
+        .eq("status", "pending");
+      await notifyUser(
+        supabase,
+        sub.user_id,
+        "Subscription payment processing",
+        `KoraPay is processing your ₦${sub.base_price_ngn.toLocaleString("en-NG")} renewal. We will confirm the result shortly.`,
+        { reference, plan: sub.plan_key },
+      );
+      return "waiting";
+    } catch (error) {
+      if (error instanceof KoraDirectDebitError && error.httpStatus !== null &&
+        error.httpStatus < 500 && error.httpStatus !== 409) {
+        await markFailed(sub, supabase, attempt, error.message, reference);
+        return "failed";
+      }
+
+      console.error("[billing-daily] Direct Debit result is uncertain; awaiting KoraPay confirmation:", error);
+      await notifyUser(
+        supabase,
+        sub.user_id,
+        "Subscription payment being confirmed",
+        "KoraPay has not yet confirmed your renewal. We will not submit another debit while this transaction is being checked.",
+        { reference, plan: sub.plan_key },
+      );
+      return "waiting";
+    }
+  }
+
   const result = await chargeSavedCard({
     secretKey: KORA_SECRET_KEY,
     email,
@@ -300,7 +396,7 @@ serve(async (req: Request) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const summary: Record<string, number> = { processed: 0, renewed: 0, recovered: 0, failed: 0, launch_free: 0, expired_jobs: 0, grace_hidden: 0, hard_canceled: 0 };
+  const summary: Record<string, number> = { processed: 0, renewed: 0, recovered: 0, failed: 0, launch_free: 0, expired_jobs: 0, grace_hidden: 0, hard_canceled: 0, service_expired: 0, renewal_reminders: 0 };
 
   // dryRun: report what would happen without charging / mutating.
   let dryRun = false;
@@ -319,6 +415,50 @@ serve(async (req: Request) => {
     // 2) hide listings past grace
     const gv = await supabase.rpc("enforce_billing_visibility");
     summary.grace_hidden = gv.data || 0;
+    const expired = await supabase.rpc("expire_service_subscriptions");
+    if (expired.error) throw expired.error;
+    summary.service_expired = expired.data || 0;
+
+    const reminders = await supabase.rpc("claim_service_renewal_reminders");
+    if (reminders.error) throw reminders.error;
+    for (const reminder of reminders.data || []) {
+      summary.renewal_reminders++;
+      const chargeDate = new Date(reminder.next_billing_at).toLocaleString("en-NG", {
+        timeZone: "Africa/Lagos",
+        dateStyle: "full",
+        timeStyle: "short",
+      });
+      await notifyUser(
+        supabase,
+        reminder.user_id,
+        "Upcoming subscription renewal",
+        `${planLabel(reminder.plan_key)} is scheduled to renew for ₦${Number(reminder.amount_ngn).toLocaleString("en-NG")} on ${chargeDate}.`,
+        {
+          subscription_id: reminder.subscription_id,
+          plan_key: reminder.plan_key,
+          amount_ngn: reminder.amount_ngn,
+          next_billing_at: reminder.next_billing_at,
+        },
+      );
+      const { email, name } = await userEmail(supabase, reminder.user_id);
+      if (email) {
+        const emailResponse = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "renewal_reminder",
+            email,
+            name,
+            plan: planLabel(reminder.plan_key),
+            amount: `₦${Number(reminder.amount_ngn).toLocaleString("en-NG")}`,
+            nextChargeAt: chargeDate,
+          }),
+        });
+        if (!emailResponse.ok) {
+          console.error("[billing-daily] renewal reminder email was rejected:", emailResponse.status);
+        }
+      }
+    }
 
     // 3) process due subscriptions
     const { data: due } = await supabase.rpc("list_due_subscriptions");
@@ -367,6 +507,7 @@ serve(async (req: Request) => {
       const outcome = await chargeStep(sub, supabase, attempt);
       if (outcome === "renewed") summary.renewed += 1;
       else if (outcome === "recovered") summary.recovered += 1;
+      else if (outcome === "waiting") summary.waiting = (summary.waiting || 0) + 1;
       else summary.failed += 1;
     }
 

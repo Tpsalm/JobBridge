@@ -15,17 +15,17 @@ export interface ServiceProviderPlanConfig {
 export const SERVICE_PROVIDER_PLANS: Record<string, ServiceProviderPlanConfig> = {
   service_monthly: {
     id: "service_monthly",
-    name: "Monthly Listing",
+    name: "Basic Listing",
     price: 1500,
     monthlyPriceFormatted: "₦1,500",
-    duration: "30 days",
+    duration: "Monthly",
     badge: "Subscribe Now",
     features: [
       "Profile on JobBridge marketplace",
       "Name and contact info visible",
       "Description of services & portfolio",
       "Location & direct client inquiries",
-      "Billed monthly from signup",
+      "Billed monthly after the 21-day trial",
     ],
   },
   service_verified: {
@@ -38,10 +38,10 @@ export const SERVICE_PROVIDER_PLANS: Record<string, ServiceProviderPlanConfig> =
     badge: "Best Value",
     features: [
       "Everything in Monthly Listing",
-      "Verified badge ✓ on your profile",
+      "Eligible to request verification",
+      "Verification badge only after JobBridge approval",
       "Priority in search results",
-      "ID & Phone verification badge",
-      "Increased trust & 3x more client inquiries",
+      "Increased trust with customers",
     ],
   },
   service_featured: {
@@ -52,7 +52,6 @@ export const SERVICE_PROVIDER_PLANS: Record<string, ServiceProviderPlanConfig> =
     duration: "30 days",
     badge: "Most Popular",
     features: [
-      "Everything in Verified Professional",
       "Featured badge ⭐",
       "Top of search results & homepage spotlight",
       "Priority placement across categories",
@@ -162,10 +161,10 @@ export function loadKoraScript(timeoutMs = 15000): Promise<boolean> {
 }
 
 /**
- * Format a future date (default 30 days from now) for Spotify-style trial display
+ * Format the scheduled first billing date for the 21-day provider trial.
  * Example: "October 11, 2026"
  */
-export function getTrialBillingStartDate(days = 30): { date: Date; formatted: string } {
+export function getTrialBillingStartDate(days = 21): { date: Date; formatted: string } {
   const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   const formatted = date.toLocaleDateString("en-US", {
     month: "long",

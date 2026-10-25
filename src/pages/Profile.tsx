@@ -131,7 +131,7 @@ function ProfileCompletionRing({ percentage }: { percentage: number }) {
 }
 
 export default function Profile() {
-  const { user, profile: userProfile, updatePassword, isAuthenticated, loading: authLoading, subscription, fetchSubscription } = useAuth();
+  const { user, profile: userProfile, updatePassword, isAuthenticated, loading: authLoading, subscription } = useAuth();
   const { push } = useToasts();
   const navigate = useNavigate();
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -148,7 +148,6 @@ export default function Profile() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [managedSubscription, setManagedSubscription] = useState<ManagedServiceSubscription | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
-  const [cancelingSubscription, setCancelingSubscription] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState("");
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -189,34 +188,6 @@ export default function Profile() {
       active = false;
     };
   }, [user?.id]);
-
-  const handleCancelSubscription = async () => {
-    if (!managedSubscription || !window.confirm(
-      "Cancel this service-provider subscription now? Your listing will be removed immediately and KoraPay will not charge it again.",
-    )) return;
-
-    setCancelingSubscription(true);
-    setSubscriptionError("");
-    try {
-      const { error } = await supabase.rpc("cancel_my_service_subscription");
-      if (error) throw error;
-      const canceledAt = new Date().toISOString();
-      setManagedSubscription({
-        ...managedSubscription,
-        status: "canceled",
-        auto_renew: false,
-        canceled_at: canceledAt,
-      });
-      await fetchSubscription();
-      push({ message: "Subscription canceled. Your provider listing is no longer visible.", type: "success" });
-    } catch (error) {
-      console.error("[Profile] Subscription cancellation failed:", error);
-      setSubscriptionError(error instanceof Error ? error.message : "Could not cancel your subscription. Please try again.");
-      push({ message: "Could not cancel your subscription. Please try again.", type: "error" });
-    } finally {
-      setCancelingSubscription(false);
-    }
-  };
 
   // ─── Dynamic section data ──────────────────────────────────────────────────
   const [experience, setExperience] = useState<ExperienceEntry[]>([]);
@@ -906,7 +877,7 @@ export default function Profile() {
                   <p className="mt-1 font-semibold text-slate-900">{managedSubscription?.auto_renew && managedSubscription.status !== 'canceled' ? new Date(managedSubscription.current_period_end).toLocaleDateString() : managedSubscription ? 'No further charge scheduled' : subscription.expires_at ? new Date(subscription.expires_at).toLocaleDateString() : 'Not scheduled'}</p>
                 </div>
                 {managedSubscription?.canceled_at && (
-                  <p className="text-xs text-slate-500">Canceled on {new Date(managedSubscription.canceled_at).toLocaleDateString()}. Your provider listing is hidden.</p>
+                  <p className="text-xs text-slate-500">Canceled on {new Date(managedSubscription.canceled_at).toLocaleDateString()}. Access remains until the current period ends.</p>
                 )}
                 {subscriptionError && <p role="alert" className="text-xs text-red-600">{subscriptionError}</p>}
                 <p className="text-xs text-slate-500">Payment is processed securely through KoraPay and JobBridge never stores card details.</p>
@@ -918,6 +889,14 @@ export default function Profile() {
                 >
                   Explore plans
                 </Link>
+                {userProfile?.role === "provider" && (
+                  <Link
+                    to="/manage-subscription"
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Manage subscription
+                  </Link>
+                )}
                 {userProfile?.role !== 'provider' && (
                   <Link
                     to="/pricing#services"
@@ -925,16 +904,6 @@ export default function Profile() {
                   >
                     Upgrade to service provider
                   </Link>
-                )}
-                {managedSubscription?.auto_renew && ['active', 'trialing', 'past_due'].includes(managedSubscription.status) && (
-                  <button
-                    type="button"
-                    onClick={handleCancelSubscription}
-                    disabled={cancelingSubscription}
-                    className="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {cancelingSubscription ? 'Canceling…' : 'Cancel subscription'}
-                  </button>
                 )}
               </div>
             </div>

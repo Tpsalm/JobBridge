@@ -30,6 +30,7 @@ import { getSupabaseFunctionsUrl } from "../lib/supabaseHelpers";
 import { recordPaymentClick } from "../lib/paymentMetrics";
 import { supabase } from "../lib/supabase";
 import type { KoraPayConfig } from "../lib/trial";
+import ServiceSubscriptionSetup from "./ServiceSubscriptionSetup";
 
 // Safari/iOS error handling: Suppress KoraPay cleanup errors after payment success
 const isKoraScriptSource = (source?: string | null) => {
@@ -184,7 +185,11 @@ export default function Payment() {
   const { push } = useToasts();
 
   const planKey = searchParams.get("plan") || "basic";
-  const plan = PLANS[planKey] || PLANS.basic;
+  const plan = PLANS[planKey] || (
+    /^svc_[a-z0-9_]{1,40}$/.test(planKey)
+      ? { name: "Service Provider Subscription", duration: "Monthly", price: 0, credits: 0, service: true }
+      : PLANS.basic
+  );
   // Service plans charge for the first month and save the card for renewals.
   const loginRedirect = `/login?redirect=${encodeURIComponent(`/payment?plan=${planKey}`)}`;
 
@@ -1364,6 +1369,10 @@ export default function Payment() {
         </div>
       </div>
     );
+  }
+
+  if (plan.service) {
+    return <ServiceSubscriptionSetup planKey={planKey} />;
   }
 
   return (

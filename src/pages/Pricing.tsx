@@ -7,6 +7,35 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
 import FloatingDecorations from '../components/FloatingDecorations';
+import { supabase } from '../lib/supabase';
+
+const DEFAULT_SERVICE_PLANS = [
+  {
+    name: 'Basic Listing',
+    priceNum: 1500,
+    note: '/month',
+    badge: '21-day free trial',
+    features: ['Profile on JobBridge', 'Name and contact info', 'Description of services', 'Location', 'Receive inquiries'],
+    planKey: 'svc_basic',
+  },
+  {
+    name: 'Verified Professional',
+    priceNum: 3000,
+    note: '/month',
+    popular: true,
+    badge: 'Best Value',
+    features: ['Everything in Basic Listing', 'Eligible to request verification', 'Verification badge only after JobBridge approval', 'Increased trust with customers'],
+    planKey: 'svc_verified',
+  },
+  {
+    name: 'Featured Professional',
+    priceNum: 5000,
+    note: '/month',
+    badge: 'Most Popular',
+    features: ['Basic Listing benefits', 'Featured badge', 'Top of search results', 'Priority placement', 'Featured on homepage', 'Promotion on WhatsApp & social media'],
+    planKey: 'svc_featured',
+  },
+];
 
 export default function Pricing() {
   const { openModal } = useModal();
@@ -17,6 +46,7 @@ export default function Pricing() {
     navigate(`/payment?plan=${plan}`);
   };
   const [activeTab, setActiveTab] = useState<'jobs' | 'services' | 'business' | 'ai' | 'training'>('jobs');
+  const [servicePlans, setServicePlans] = useState(DEFAULT_SERVICE_PLANS);
 
   useEffect(() => {
     if (!location.hash) return;
@@ -27,6 +57,41 @@ export default function Pricing() {
     else if (h === 'training') setActiveTab('training');
     else if (h === 'jobs') setActiveTab('jobs');
   }, [location.hash]);
+
+  useEffect(() => {
+    let active = true;
+    const loadServicePlans = async () => {
+      const { data, error } = await supabase
+        .from('plans')
+        .select('key, name, base_price_ngn, duration_days, product_config')
+        .eq('product_line', 'service')
+        .eq('is_active', true);
+      if (error) {
+        console.error('[Pricing] Provider plan prices could not be loaded:', error.message);
+        return;
+      }
+      if (!active || !data) return;
+      setServicePlans((defaults) => data
+        .map((row) => {
+          const defaultPlan = defaults.find((plan) => plan.planKey === row.key);
+          const config = row.product_config as { benefits?: unknown } | null;
+          const features = Array.isArray(config?.benefits)
+            ? config.benefits.filter((feature): feature is string => typeof feature === 'string')
+            : defaultPlan?.features || [];
+          return {
+            ...defaultPlan,
+            name: row.name,
+            priceNum: Number(row.base_price_ngn),
+            features,
+            note: Number(row.duration_days) === 30 ? '/month' : `/${row.duration_days} days`,
+            planKey: row.key,
+          } as typeof DEFAULT_SERVICE_PLANS[number];
+        })
+      );
+    };
+    void loadServicePlans();
+    return () => { active = false; };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -175,36 +240,7 @@ export default function Pricing() {
           <AnimatedSection direction="up"><div className="space-y-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Service Provider Listing Plans</h2>
             <div className="grid md:grid-cols-3 gap-4">
-              {[
-                {
-                  name: 'Monthly Listing',
-                  price: '₦1,500',
-                  note: '/month',
-                  priceNum: 1500,
-                  badge: 'Subscribe Now',
-                  features: ['One month listing', 'Profile on JobBridge', 'Name and contact info', 'Description of services', 'Location', 'Receive inquiries'],
-                  tier: 'basic',
-                },
-                {
-                  name: 'Verified Professional',
-                  price: '₦3,000',
-                  note: '/month',
-                  priceNum: 3000,
-                  popular: true,
-                  badge: 'Best Value',
-                  features: ['Everything in Monthly Listing', 'Verified badge ✓', 'ID verification', 'Phone verification', 'Increased trust with customers'],
-                  tier: 'verified',
-                },
-                {
-                  name: 'Featured Professional',
-                  price: '₦5,000',
-                  note: '/month',
-                  priceNum: 5000,
-                  badge: 'Most Popular',
-                  features: ['Everything in Verified', 'Featured badge ⭐', 'Top of search results', 'Priority placement', 'Featured on homepage', 'Promotion on WhatsApp & social media'],
-                  tier: 'featured',
-                },
-              ].map((plan) => (
+              {servicePlans.map((plan) => (
                 <Card3D
                   key={plan.name}
                   className={`bg-white rounded-xl p-5 border-2 ${plan.popular ? 'border-blue-500 relative' : 'border-gray-100'}`}
@@ -219,7 +255,7 @@ export default function Pricing() {
                   )}
                   <h3 className="font-bold text-gray-900 text-lg">{plan.name}</h3>
                   <div className="mt-2 mb-1">
-                    <span className="text-3xl font-bold text-gray-900">{plan.price}</span>
+                    <span className="text-3xl font-bold text-gray-900">₦{plan.priceNum.toLocaleString('en-NG')}</span>
                     <span className="text-sm text-gray-500">{plan.note}</span>
                   </div>
                   <ul className="space-y-2 mb-5 mt-4">
@@ -231,7 +267,7 @@ export default function Pricing() {
                     ))}
                   </ul>
                   <button
-                    onClick={() => navigate(`/payment?plan=service_${plan.tier}`)}
+                    onClick={() => navigate(`/payment?plan=${plan.planKey}`)}
                     className="w-full py-2.5 bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 transition-colors"
                   >
                     Subscribe Now

@@ -37,6 +37,8 @@ const ReportContent = lazy(() => import("./pages/ReportContent"));
 const Business = lazy(() => import("./pages/Business"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const Payment = lazy(() => import("./pages/Payment"));
+const ManageSubscription = lazy(() => import("./pages/ManageSubscription"));
+const AdminServiceSubscriptions = lazy(() => import("./pages/AdminServiceSubscriptions"));
 const MyJobs = lazy(() => import("./pages/MyJobs"));
 const Messages = lazy(() => import("./pages/Messages"));
 const Notifications = lazy(() => import("./pages/Notifications"));
@@ -100,6 +102,7 @@ export default function App() {
               <Route path="/business" element={<Business />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/payment" element={<Payment />} />
+              <Route path="/manage-subscription" element={<ManageSubscription />} />
               <Route path="/my-jobs" element={<MyJobs />} />
               <Route path="/messages" element={<Messages />} />
               <Route path="/notifications" element={<Notifications />} />
@@ -110,6 +113,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <EmailLogsAdmin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/subscriptions"
+                element={
+                  <ProtectedRoute>
+                    <AdminServiceSubscriptions />
                   </ProtectedRoute>
                 }
               />

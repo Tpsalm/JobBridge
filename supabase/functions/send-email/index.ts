@@ -330,15 +330,46 @@ function paymentInitiatedTemplate(name: string, plan: string, amount: string): s
 function paymentFailedTemplate(name: string, plan: string): string {
   const safeName = sanitize(name, MAX_NAME_LENGTH) || 'there';
   const safePlan = sanitize(plan, MAX_STR_LENGTH) || 'your subscription';
+  const providerPlan = /service|provider|professional/i.test(safePlan);
+  const billingUrl = providerPlan
+    ? 'https://jobbridge.com.ng/manage-subscription'
+    : 'https://jobbridge.com.ng/profile';
   return T`<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Hi <strong style="color:#111827;">${safeName}</strong>,</p>
-<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">We could not renew <strong>${safePlan}</strong> — the payment on your card on file failed.</p>
+<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">We could not renew <strong>${safePlan}</strong> — the payment method on file was declined or could not be confirmed.</p>
 <div style="background:#fef2f2;border-radius:18px;padding:24px;margin-bottom:24px;border:1px solid #fecaca;">
   <p style="font-size:15px;color:#b91c1c;margin:0 0 8px;font-weight:700;">Action needed</p>
-  <p style="font-size:14px;color:#7f1d1d;line-height:1.7;margin:0;">Update your card in Settings before the grace period ends, otherwise your listing will be hidden.</p>
+  <p style="font-size:14px;color:#7f1d1d;line-height:1.7;margin:0;">Review your payment method or renewal status before the grace period ends, otherwise your listing may be hidden.</p>
 </div>
-<p style="font-size:15px;color:${BRAND_MUTED};line-height:1.7;margin:0 0 24px;">We retry automatically, but you can also update your payment method now to avoid any interruption.</p>
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,${BRAND_PRIMARY},${BRAND_SECONDARY});border-radius:12px;padding:14px 28px;"><a href="https://jobbridge.com.ng/profile?billing=1" target="_blank" style="color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">Update Payment Method</a></td></tr></table></td></tr></table>
+<p style="font-size:15px;color:${BRAND_MUTED};line-height:1.7;margin:0 0 24px;">We may retry automatically in line with your authorization. You can review your subscription and update its payment method to avoid an interruption.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><table cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,${BRAND_PRIMARY},${BRAND_SECONDARY});border-radius:12px;padding:14px 28px;"><a href="${billingUrl}" target="_blank" style="color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">Review Subscription</a></td></tr></table></td></tr></table>
 <p style="font-size:14px;color:${BRAND_MUTED};line-height:1.7;margin:24px 0 0;">Questions? Reply to this email or visit <a href="https://jobbridge.com.ng/support" style="color:${BRAND_PRIMARY};text-decoration:underline;">JobBridge Support</a>.</p>`;
+}
+
+function subscriptionCancelledTemplate(name: string, accessUntil: string): string {
+  const safeName = escapeHtml(sanitize(name, MAX_NAME_LENGTH) || 'there');
+  const accessMessage = accessUntil
+    ? `Your current provider access remains available until <strong>${escapeHtml(sanitize(accessUntil, MAX_STR_LENGTH))}</strong>.`
+    : 'Your trial was not activated, so no provider access period remains.';
+  return `<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Hi <strong>${safeName}</strong>,</p>
+<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Automatic renewal for your JobBridge service-provider subscription has been cancelled. No further subscription debits will be initiated.</p>
+<div style="background:#eff6ff;border-radius:18px;padding:24px;margin-bottom:24px;border:1px solid #bfdbfe;">
+  <p style="font-size:15px;color:#1d4ed8;margin:0 0 8px;font-weight:700;">Access details</p>
+  <p style="font-size:14px;color:#1e3a8a;line-height:1.7;margin:0;">${accessMessage}</p>
+</div>
+<p style="font-size:14px;color:${BRAND_MUTED};line-height:1.7;margin:0;">You can review your subscription or renew at any time from your provider dashboard. Contact JobBridge Support if you did not request this cancellation.</p>`;
+}
+
+function renewalReminderTemplate(name: string, plan: string, amount: string, nextChargeAt: string): string {
+  const safeName = escapeHtml(sanitize(name, MAX_NAME_LENGTH) || 'there');
+  const safePlan = escapeHtml(sanitize(plan, MAX_STR_LENGTH) || 'your provider plan');
+  const safeAmount = escapeHtml(sanitize(amount, MAX_STR_LENGTH) || 'the plan price');
+  const safeDate = escapeHtml(sanitize(nextChargeAt, MAX_STR_LENGTH) || 'your scheduled renewal date');
+  return `<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Hi <strong>${safeName}</strong>,</p>
+<p style="font-size:16px;color:${BRAND_TEXT};line-height:1.7;margin:0 0 20px;">Your <strong>${safePlan}</strong> subscription is scheduled to renew on <strong>${safeDate}</strong>.</p>
+<div style="background:#eff6ff;border-radius:18px;padding:24px;margin-bottom:24px;border:1px solid #bfdbfe;">
+  <p style="font-size:14px;color:#1e3a8a;line-height:1.7;margin:0;">Scheduled amount: <strong>${safeAmount}</strong>. Automatic renewal is enabled. You can review your plan or cancel any time before the debit is submitted.</p>
+</div>
+${heroCard('Manage your subscription', 'Review your scheduled charge, payment method, or renewal preference from your provider dashboard.', 'Manage Subscription', 'https://jobbridge.com.ng/manage-subscription')}`;
 }
 
 function signInTemplate(name: string): string {
@@ -420,6 +451,8 @@ serve(async (req) => {
       company,
       plan,
       amount,
+      accessUntil,
+      nextChargeAt,
       applicantName,
       summary,
       status,
@@ -437,7 +470,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid email format' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'advert_created', 'daily_digest', 'sign_in', 'sign_out', 'profile_reminder', 'payment_failed'];
+    const VALID_TYPES = ['welcome', 'subscription', 'application', 'recruiter_notification', 'payment', 'payment_initiated', 'application_status', 'new_recruiter', 'job_posted', 'advert_created', 'daily_digest', 'sign_in', 'sign_out', 'profile_reminder', 'payment_failed', 'subscription_cancelled', 'renewal_reminder'];
     if (!VALID_TYPES.includes(type)) {
       return new Response(JSON.stringify({ error: `Unknown email type: ${type}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -469,6 +502,14 @@ serve(async (req) => {
       case 'payment_failed':
         subject = 'Payment Failed — Update Your Card on JobBridge';
         htmlBody = paymentFailedTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(plan, MAX_STR_LENGTH));
+        break;
+      case 'subscription_cancelled':
+        subject = 'Your JobBridge subscription was cancelled';
+        htmlBody = subscriptionCancelledTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(accessUntil, MAX_STR_LENGTH));
+        break;
+      case 'renewal_reminder':
+        subject = 'Upcoming JobBridge subscription renewal';
+        htmlBody = renewalReminderTemplate(sanitize(name, MAX_NAME_LENGTH), sanitize(plan, MAX_STR_LENGTH), sanitize(amount, MAX_STR_LENGTH), sanitize(nextChargeAt, MAX_STR_LENGTH));
         break;
       case 'payment_initiated':
         subject = 'Payment Initiated — JobBridge';

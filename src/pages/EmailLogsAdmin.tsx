@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getSupabaseFunctionsUrl } from '../lib/supabaseHelpers';
 import { useAuth } from '../contexts/AuthContext';
@@ -292,6 +292,12 @@ export default function EmailLogsAdmin() {
         >
           Subscriptions
         </button>
+        <Link
+          to="/admin/subscriptions"
+          className="px-3 py-2 rounded bg-indigo-100 text-indigo-800"
+        >
+          Provider subscription admin
+        </Link>
         <button
           type="button"
           onClick={() => setTab('health')}

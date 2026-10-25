@@ -90,6 +90,12 @@ serve(async (req: Request) => {
       const isRecruiterPlan = planKey === "basic" || planKey === "standard" || planKey === "premium";
       const isBusinessPlan = planKey === "business_weekly" || planKey === "business_monthly" || planKey === "business_featured";
 
+      if (isServicePlan) {
+        return new Response(JSON.stringify({
+          error: "Service-provider subscriptions must be activated through a confirmed KoraPay Direct Debit mandate.",
+        }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
       const tier = isAiPlan ? "ai_tools" : planKey;
 
       if (isServicePlan) {
@@ -312,6 +318,18 @@ serve(async (req: Request) => {
 
     if (!paymentRow) {
       return new Response(JSON.stringify({ error: "No payment record found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (
+      paymentRow.plan === "service_monthly" ||
+      paymentRow.plan === "service_verified" ||
+      paymentRow.plan === "service_featured" ||
+      paymentRow.plan === "svc_basic" ||
+      paymentRow.plan === "svc_verified" ||
+      paymentRow.plan === "svc_featured"
+    ) {
+      return new Response(JSON.stringify({
+        error: "Service-provider subscriptions must be activated through a confirmed KoraPay Direct Debit mandate.",
+      }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Call Kora verify endpoint using candidate references until one succeeds

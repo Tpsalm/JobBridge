@@ -8,6 +8,10 @@ import {
   shouldAutoSeedPayment,
 } from "../_shared/payment-seeding.ts";
 import { cardTokenFromVerification, persistKoraCardToken } from "../_shared/korapay-recurring.ts";
+import {
+  retrieveAuthorization,
+  verifyCharge as verifyKoraCharge,
+} from "../_shared/korapay-direct-debit.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const KORA_SECRET_KEY = Deno.env.get("KORA_SECRET_KEY") || "";
@@ -24,13 +28,12 @@ const SKIP_KORA_SIGNATURE_CHECK = isLocalTestOverrideEnabled(
   Deno.env.get("SKIP_KORA_SIGNATURE_CHECK"),
   SUPABASE_URL,
 );
-const KORA_DEBUG_RESPONSE = isLocalTestOverrideEnabled(
-  Deno.env.get("JOBBRIDGE_ENV"),
-  Deno.env.get("KORA_DEBUG_RESPONSE"),
-  SUPABASE_URL,
-);
 
-const ALLOWED_EVENTS = new Set(["charge.success", "charge.failed"]);
+const ALLOWED_EVENTS = new Set([
+  "charge.success",
+  "charge.failed",
+  "direct_debit.auth",
+]);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +44,8 @@ const corsHeaders = {
 
 interface KoraWebhookPayload {
   event: string;
+  type?: string;
+  status?: string;
   data: {
     reference?: string;
     amount?: string | number;
@@ -53,6 +58,11 @@ interface KoraWebhookPayload {
     transaction_reference?: string;
     transaction_status?: string;
     payment_method?: string;
+    authorization_code?: string;
+    direct_debit?: {
+      authorization_code?: string;
+      [key: string]: unknown;
+    };
     [key: string]: unknown;
   };
 }
@@ -89,22 +99,6 @@ function toNumber(value: string | number | undefined | null): number | null {
   if (value === undefined || value === null || value === "") return null;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  }
-
-  const entries = Object.entries(value as Record<string, unknown>)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, val]) => `${JSON.stringify(key)}:${stableStringify(val)}`);
-
-  return `{${entries.join(",")}}`;
 }
 
 function planLabel(plan: string): string {
@@ -258,6 +252,37 @@ async function sendPaymentConfirmationEmail(
       return;
     }
 
+    async function sendPaymentFailureEmail(
+      supabase: ReturnType<typeof createClient>,
+      payment: Pick<PaymentRow, "user_id" | "plan" | "amount">,
+      reference: string,
+    ): Promise<void> {
+      try {
+        const { data, error } = await supabase.auth.admin.getUserById(payment.user_id);
+        if (error || !data?.user?.email) {
+          console.warn("[Kora Webhook] Could not resolve user email for failed payment notification.");
+          return;
+        }
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "payment_failed",
+            email: data.user.email,
+            name: data.user.user_metadata?.full_name || data.user.email,
+            plan: planLabel(payment.plan),
+            amount: String(payment.amount),
+            reference,
+          }),
+        });
+        if (!response.ok) {
+          console.error("[Kora Webhook] Failed-payment email was rejected:", response.status);
+        }
+      } catch (error) {
+        console.error("[Kora Webhook] Failed-payment email could not be sent:", error);
+      }
+    }
+
     const emailPayload = {
       type: "payment",
       email: userData.user.email,
@@ -354,17 +379,11 @@ async function reconcileRenewal(
 }
 
 async function verifySignature(
-  payload: KoraWebhookPayload,
   signature: string | null,
-  rawBody: string,
   rawBodyBytes: ArrayBuffer,
-): Promise<{
-  valid: boolean;
-  normalizedHeaderCandidates: string[];
-  computedVariants: Array<{ name: string; hex: string; base64: string }>;
-}> {
+): Promise<boolean> {
   if (!signature || !KORA_SECRET_KEY) {
-    return { valid: false, normalizedHeaderCandidates: [], computedVariants: [] };
+    return false;
   }
 
   try {
@@ -377,115 +396,24 @@ async function verifySignature(
       ["sign"],
     );
 
-    const headerSig = (signature || "").trim();
-    // Accept header formats like 'sha256=<hex>' or raw hex/base64, with either colon or equals.
-    const headerCandidates = headerSig.split(",").map((s) => s.trim()).filter(Boolean);
-
-    function normalizeHeader(h: string) {
-      let candidate = h.trim();
-      if (candidate.startsWith("sha256='") || candidate.startsWith("SHA256='")) {
-        candidate = candidate.slice(candidate.indexOf("=") + 2, -1);
-      }
-      if (candidate.startsWith("sha256=") || candidate.startsWith("SHA256=")) {
-        candidate = candidate.slice(candidate.indexOf("=") + 1);
-      }
-      if (candidate.startsWith("sha256:") || candidate.startsWith("SHA256:")) {
-        candidate = candidate.slice(candidate.indexOf(":") + 1);
-      }
-      if (candidate.startsWith("hmac-sha256=")) {
-        candidate = candidate.slice("hmac-sha256=".length);
-      }
-      if (candidate.startsWith("hmac-sha256:")) {
-        candidate = candidate.slice("hmac-sha256:".length);
-      }
-      if (candidate.startsWith("hmac=")) {
-        candidate = candidate.slice("hmac=".length);
-      }
-      candidate = candidate.trim().replace(/^['"]|['"]$/g, "");
-      return candidate;
+    const digest = await crypto.subtle.sign(
+      "HMAC",
+      key,
+      rawBodyBytes,
+    );
+    const expected = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, "0")
+    ).join("");
+    const supplied = signature.trim().replace(/^sha256=/i, "").toLowerCase();
+    if (supplied.length !== expected.length) return false;
+    let difference = 0;
+    for (let index = 0; index < expected.length; index++) {
+      difference |= expected.charCodeAt(index) ^ supplied.charCodeAt(index);
     }
-
-    const normalizedHeaderCandidates = headerCandidates.map(normalizeHeader).filter(Boolean);
-
-    const trimmedRawBody = rawBody.replace(/[\r\n]+$/, "");
-    const normalizedRawBody = rawBody.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    const trimmedNormalizedRawBody = normalizedRawBody.replace(/[\r\n]+$/, "");
-
-    const trimmedRawBodyBytes = new TextEncoder().encode(trimmedRawBody);
-    const normalizedRawBodyBytes = new TextEncoder().encode(normalizedRawBody);
-    const trimmedNormalizedRawBodyBytes = new TextEncoder().encode(trimmedNormalizedRawBody);
-
-    const variants = [
-      { name: 'rawBodyBytes', data: rawBodyBytes },
-      { name: 'rawBody', data: rawBody },
-      { name: 'rawBodyTrimmed', data: trimmedRawBody },
-      { name: 'rawBodyNormalized', data: normalizedRawBody },
-      { name: 'rawBodyNormalizedTrimmed', data: trimmedNormalizedRawBody },
-      { name: 'rawBodyTrimmedBytes', data: trimmedRawBodyBytes },
-      { name: 'rawBodyNormalizedBytes', data: normalizedRawBodyBytes },
-      { name: 'rawBodyNormalizedTrimmedBytes', data: trimmedNormalizedRawBodyBytes },
-      { name: 'fullPayloadJson', data: JSON.stringify(payload) },
-      { name: 'jsonData', data: JSON.stringify(payload.data) },
-      { name: 'stablePayload', data: stableStringify(payload) },
-      { name: 'stableData', data: stableStringify(payload.data) },
-      { name: 'stable_no_ws_payload', data: stableStringify(payload).replace(/\s+/g, '') },
-      { name: 'stable_no_ws_data', data: stableStringify(payload.data).replace(/\s+/g, '') },
-      { name: 'jsonData_no_ws', data: JSON.stringify(payload.data).replace(/\s+/g, '') },
-    ];
-
-    const bytesToHex = (b: ArrayBuffer) =>
-      Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, "0")).join("");
-    const bytesToBase64 = (b: ArrayBuffer) => {
-      // Deno-friendly base64 encoding
-      const u8 = new Uint8Array(b);
-      let binary = "";
-      for (let i = 0; i < u8.byteLength; i++) binary += String.fromCharCode(u8[i]);
-      // btoa is available in Deno runtime
-      return btoa(binary);
-    };
-
-    const computedVariants: Array<{ name: string; hex: string; base64: string }> = [];
-    let valid = false;
-
-    for (const { name, data: dataStr } of variants) {
-      try {
-        const dataBytes = dataStr instanceof ArrayBuffer ? new Uint8Array(dataStr) : new TextEncoder().encode(String(dataStr));
-        const sig = await crypto.subtle.sign("HMAC", key, dataBytes);
-        const hex = bytesToHex(sig);
-        const b64 = bytesToBase64(sig);
-        computedVariants.push({ name, hex, base64: b64 });
-        console.log(`[Kora Webhook] Variant ${name} -> hex:${hex} base64:${b64}`);
-
-        for (const candidate of normalizedHeaderCandidates) {
-          if (!candidate) continue;
-          if (candidate === hex || candidate === b64) {
-            console.log("[Kora Webhook] Signature verified using variant", name);
-            valid = true;
-            break;
-          }
-          // sometimes header may include prefix like 'sha256=' or 'hmac='; try normalize
-          if (candidate.endsWith(hex) || candidate.endsWith(b64)) {
-            console.log("[Kora Webhook] Signature verified using suffix match on variant", name);
-            valid = true;
-            break;
-          }
-        }
-
-        if (valid) break;
-      } catch (e) {
-        console.warn(`[Kora Webhook] Failed to compute HMAC for variant ${name}:`, e);
-      }
-    }
-
-    if (!valid) {
-      console.warn(
-        "[Kora Webhook] Signature verification failed for all payload variants",
-      );
-    }
-    return { valid, normalizedHeaderCandidates, computedVariants };
+    return difference === 0;
   } catch (err) {
     console.error("[Kora Webhook] Signature verification error:", err);
-    return { valid: false, normalizedHeaderCandidates: [], computedVariants: [] };
+    return false;
   }
 }
 
@@ -555,6 +483,413 @@ async function verifyCharge(
   return body;
 }
 
+function addOneMonth(date: Date): Date {
+  const next = new Date(date);
+  const day = next.getUTCDate();
+  next.setUTCDate(1);
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  const lastDay = new Date(
+    Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  next.setUTCDate(Math.min(day, lastDay));
+  return next;
+}
+
+async function processDirectDebitAuthorization(
+  supabase: ReturnType<typeof createClient>,
+  payload: KoraWebhookPayload,
+): Promise<Response> {
+  const authCode = String(payload.data.authorization_code || payload.data.reference || "");
+  if (!authCode) return new Response("ok", { status: 200, headers: corsHeaders });
+
+  let { data: subscription, error } = await supabase
+    .from("subscriptions")
+    .select("id, user_id, plan_key, status, metadata, current_period_end, trial_start_at, pending_kora_authorization_code, pending_kora_authorization_expires_at, pending_plan_key, pending_payment_method_bank, pending_payment_method_last4")
+    .eq("kora_authorization_code", authCode)
+    .eq("product_line", "service")
+    .maybeSingle();
+
+  if (!subscription) {
+    const lookup = await supabase
+      .from("subscriptions")
+      .select("id, user_id, plan_key, status, metadata, current_period_end, trial_start_at, pending_kora_authorization_code, pending_kora_authorization_expires_at, pending_plan_key, pending_payment_method_bank, pending_payment_method_last4")
+      .eq("pending_kora_authorization_code", authCode)
+      .eq("product_line", "service")
+      .maybeSingle();
+    subscription = lookup.data;
+    error = lookup.error;
+  }
+  if (error) {
+    console.error("[Kora Webhook] Direct Debit authorization lookup failed:", error.message);
+    return new Response("Retry", { status: 500, headers: corsHeaders });
+  }
+  if (!subscription) return new Response("ok", { status: 200, headers: corsHeaders });
+
+  const replacingAuthorization =
+    subscription.pending_kora_authorization_code === authCode;
+  if (!replacingAuthorization &&
+    (subscription.status === "canceled" || subscription.status === "expired")) {
+    return new Response("ok", { status: 200, headers: corsHeaders });
+  }
+
+  let verifiedAuthorization;
+  try {
+    verifiedAuthorization = await retrieveAuthorization(
+      KORA_SECRET_KEY,
+      authCode,
+    );
+  } catch (verifyError) {
+    console.error("[Kora Webhook] Direct Debit authorization verification failed:", verifyError);
+    return new Response("Retry", { status: 502, headers: corsHeaders });
+  }
+
+  if (verifiedAuthorization.status === "active") {
+    const metadata = subscription.metadata && typeof subscription.metadata === "object"
+      ? subscription.metadata as Record<string, unknown>
+      : {};
+    const planKey = replacingAuthorization
+      ? String(subscription.pending_plan_key || "")
+      : subscription.plan_key;
+    const { data: plan, error: planError } = await supabase
+      .from("plans")
+      .select("base_price_ngn")
+      .eq("key", planKey)
+      .maybeSingle();
+    if (planError) {
+      console.error("[Kora Webhook] Direct Debit plan lookup failed:", planError.message);
+      return new Response("Retry", { status: 500, headers: corsHeaders });
+    }
+
+    if (
+      verifiedAuthorization.debit_type !== "variable" ||
+      verifiedAuthorization.currency !== "NGN" ||
+      Number(verifiedAuthorization.amount) !== Number(plan?.base_price_ngn)
+    ) {
+      console.error("[Kora Webhook] Direct Debit authorization does not match the selected plan.");
+      return new Response("Invalid authorization", { status: 400, headers: corsHeaders });
+    }
+
+    const now = new Date();
+    if (replacingAuthorization) {
+      const accessEnd = new Date(subscription.current_period_end);
+      const nextAttempt = accessEnd <= now ? now.toISOString() : accessEnd.toISOString();
+      const nextStatus = accessEnd <= now ? "past_due" : "active";
+      const { error: updateError } = await supabase
+        .from("subscriptions")
+        .update({
+          plan_key: planKey,
+          kora_authorization_code: authCode,
+          kora_authorization_expires_at: subscription.pending_kora_authorization_expires_at,
+          pending_kora_authorization_code: null,
+          pending_kora_authorization_expires_at: null,
+          pending_plan_key: null,
+          payment_method_bank: subscription.pending_payment_method_bank,
+          payment_method_last4: subscription.pending_payment_method_last4,
+          pending_payment_method_bank: null,
+          pending_payment_method_last4: null,
+          status: nextStatus,
+          auto_renew: true,
+          cancel_at_period_end: false,
+          canceled_at: null,
+          cancel_reason: null,
+          next_billing_at: nextAttempt,
+          next_attempt_at: nextAttempt,
+          metadata: {
+            ...metadata,
+            authorization_status: "active",
+            authorization_reference: verifiedAuthorization.reference,
+            pending_authorization_status: null,
+            pending_authorization_reference: null,
+            pending_plan_key: null,
+          },
+          updated_at: now.toISOString(),
+        })
+        .eq("id", subscription.id)
+        .eq("pending_kora_authorization_code", authCode)
+        .neq("status", "canceled");
+      if (updateError) {
+        console.error("[Kora Webhook] Replacement mandate activation failed:", updateError.message);
+        return new Response("Retry", { status: 500, headers: corsHeaders });
+      }
+      await supabase.from("profiles").update({
+        subscription_tier: planKey === "svc_basic"
+          ? "service_monthly"
+          : planKey === "svc_verified"
+          ? "service_verified"
+          : "service_featured",
+        is_featured: planKey === "svc_featured",
+        updated_at: now.toISOString(),
+      }).eq("id", subscription.user_id);
+      await insertNotification(supabase, {
+        userId: subscription.user_id,
+        type: "payment",
+        title: "Subscription authorization updated",
+        content: nextStatus === "past_due"
+          ? "Your bank authorization is active. Your outstanding subscription payment will be retried."
+          : `Your ${planLabel(planKey)} plan and bank authorization are now active.`,
+        data: { subscription_id: subscription.id, status: nextStatus },
+      });
+      return new Response("ok", { status: 200, headers: corsHeaders });
+    }
+
+    const trialDays = Number(metadata.trial_days ?? 21);
+    if (subscription.trial_start_at) return new Response("ok", { status: 200, headers: corsHeaders });
+    const trialEnd = new Date(now.getTime() + 21 * 86400000);
+    const hasTrial = trialDays === 21;
+    const periodEnd = hasTrial ? trialEnd : now;
+    const { error: activateError } = await supabase
+      .from("subscriptions")
+      .update({
+        status: hasTrial ? "trialing" : "past_due",
+        auto_renew: true,
+        trial_start_at: hasTrial ? now.toISOString() : null,
+        trial_end_at: hasTrial ? trialEnd.toISOString() : null,
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        next_billing_at: periodEnd.toISOString(),
+        next_attempt_at: periodEnd.toISOString(),
+        failed_retries: 0,
+        metadata: {
+          ...metadata,
+          authorization_status: "active",
+          authorization_reference: verifiedAuthorization.reference,
+        },
+        updated_at: now.toISOString(),
+      })
+      .eq("id", subscription.id)
+      .eq("status", "trialing");
+    if (activateError) {
+      console.error("[Kora Webhook] Direct Debit subscription activation failed:", activateError.message);
+      return new Response("Retry", { status: 500, headers: corsHeaders });
+    }
+
+    if (hasTrial) {
+      const legacyPlan = subscription.plan_key === "svc_basic"
+        ? "service_monthly"
+        : subscription.plan_key === "svc_verified"
+        ? "service_verified"
+        : "service_featured";
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          role: "provider",
+          subscription_tier: legacyPlan,
+          subscription_expires_at: trialEnd.toISOString(),
+          trial_start_date: now.toISOString(),
+          trial_end_date: trialEnd.toISOString(),
+          trial_plan: legacyPlan,
+          service_subscription_id: subscription.id,
+          visibility_until: trialEnd.toISOString(),
+          is_premium: true,
+          is_active: true,
+          is_featured: subscription.plan_key === "svc_featured",
+          updated_at: now.toISOString(),
+        })
+        .eq("id", subscription.user_id);
+      if (profileError) {
+        console.error("[Kora Webhook] Provider trial profile activation failed:", profileError.message);
+        return new Response("Retry", { status: 500, headers: corsHeaders });
+      }
+      const { error: listingError } = await supabase
+        .from("service_providers")
+        .update({ is_active: true, updated_at: now.toISOString() })
+        .eq("profile_id", subscription.user_id);
+      if (listingError) {
+        console.error("[Kora Webhook] Provider listing activation failed:", listingError.message);
+        return new Response("Retry", { status: 500, headers: corsHeaders });
+      }
+      await insertNotification(supabase, {
+        userId: subscription.user_id,
+        type: "payment",
+        title: "Your 21-day free trial has started",
+        content: `Your ${planLabel(subscription.plan_key)} trial is active. Your first monthly charge is scheduled for ${trialEnd.toLocaleDateString("en-GB")}.`,
+        data: {
+          subscription_id: subscription.id,
+          trial_end_at: trialEnd.toISOString(),
+          next_billing_at: trialEnd.toISOString(),
+        },
+      });
+    } else {
+      await insertNotification(supabase, {
+        userId: subscription.user_id,
+        type: "payment",
+        title: "Bank authorization confirmed",
+        content: `Your ${planLabel(subscription.plan_key)} authorization is active. Your first ₦${Number(plan?.base_price_ngn).toLocaleString("en-NG")} payment is being scheduled.`,
+        data: { subscription_id: subscription.id, next_billing_at: now.toISOString() },
+      });
+    }
+    return new Response("ok", { status: 200, headers: corsHeaders });
+  }
+
+  if (
+    verifiedAuthorization.status === "deactivated" ||
+    verifiedAuthorization.status === "expired"
+  ) {
+    if (replacingAuthorization) {
+      await supabase.from("subscriptions").update({
+        pending_kora_authorization_code: null,
+        pending_kora_authorization_expires_at: null,
+        pending_plan_key: null,
+        pending_payment_method_bank: null,
+        pending_payment_method_last4: null,
+        metadata: {
+          ...(subscription.metadata || {}),
+          pending_authorization_status: verifiedAuthorization.status,
+        },
+        updated_at: new Date().toISOString(),
+      }).eq("id", subscription.id);
+    } else {
+      await supabase
+        .from("subscriptions")
+        .update({
+          status: "expired",
+          auto_renew: false,
+          metadata: { ...(subscription.metadata || {}), authorization_status: verifiedAuthorization.status },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", subscription.id);
+      if (!subscription.trial_start_at) {
+        await supabase.rpc("release_service_provider_trial_claim", {
+          p_user_id: subscription.user_id,
+          p_subscription_id: subscription.id,
+        });
+      }
+    }
+  }
+
+  return new Response("ok", { status: 200, headers: corsHeaders });
+}
+
+async function processDirectDebitCharge(
+  supabase: ReturnType<typeof createClient>,
+  payload: KoraWebhookPayload,
+): Promise<Response> {
+  const authorizationCode = String(
+    payload.data.direct_debit?.authorization_code || "",
+  );
+  const gatewayReference = String(
+    payload.data.reference || payload.data.payment_reference || "",
+  );
+  if (!authorizationCode || !gatewayReference) {
+    return new Response("ok", { status: 200, headers: corsHeaders });
+  }
+
+  const { data: subscription, error: subscriptionError } = await supabase
+    .from("subscriptions")
+    .select("id, user_id, plan_key, product_line")
+    .eq("kora_authorization_code", authorizationCode)
+    .eq("product_line", "service")
+    .maybeSingle();
+  if (subscriptionError) {
+    console.error("[Kora Webhook] Direct Debit subscription lookup failed:", subscriptionError.message);
+    return new Response("Retry", { status: 500, headers: corsHeaders });
+  }
+  if (!subscription) return new Response("ok", { status: 200, headers: corsHeaders });
+
+  const { data: payment, error: paymentError } = await supabase
+    .from("payments")
+    .select("id, user_id, plan, amount, currency, reference, status, billing_phase, metadata")
+    .eq("subscription_id", subscription.id)
+    .in("billing_phase", ["renewal", "retry", "manual"])
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (paymentError) {
+    console.error("[Kora Webhook] Direct Debit payment lookup failed:", paymentError.message);
+    return new Response("Retry", { status: 500, headers: corsHeaders });
+  }
+  if (!payment) return new Response("ok", { status: 200, headers: corsHeaders });
+
+  let verifiedCharge;
+  try {
+    verifiedCharge = await verifyKoraCharge(KORA_SECRET_KEY, gatewayReference);
+  } catch (verifyError) {
+    console.error("[Kora Webhook] Direct Debit charge verification failed:", verifyError);
+    return new Response("Retry", { status: 502, headers: corsHeaders });
+  }
+  const actualAmount = toNumber(verifiedCharge.amount_paid) ?? toNumber(verifiedCharge.amount);
+  if (
+    String(verifiedCharge.reference || gatewayReference) !== gatewayReference ||
+    String(verifiedCharge.currency || "").toUpperCase() !== "NGN" ||
+    actualAmount !== Number(payment.amount)
+  ) {
+    console.error("[Kora Webhook] Direct Debit amount or currency did not match the ledger.");
+    return new Response("Invalid charge", { status: 400, headers: corsHeaders });
+  }
+
+  const status = String(verifiedCharge.status || "").toLowerCase();
+  if (status !== "success" && status !== "failed") {
+    return new Response("KoraPay charge is not final", { status: 503, headers: corsHeaders });
+  }
+  const { data: settlement, error: settlementError } = await supabase.rpc(
+    "settle_service_subscription_payment",
+    {
+      p_payment_id: payment.id,
+      p_gateway_reference: gatewayReference,
+      p_succeeded: status === "success",
+      p_failure_code: status === "failed"
+        ? String(payload.data.status || "direct_debit_failed").slice(0, 120)
+        : null,
+    },
+  );
+  if (settlementError) {
+    console.error("[Kora Webhook] Direct Debit payment settlement failed:", settlementError.message);
+    return new Response("Retry", { status: 500, headers: corsHeaders });
+  }
+  if (settlement?.state === "failed") {
+    await insertNotification(supabase, {
+      userId: String(settlement.user_id),
+      type: "payment",
+      title: "Subscription payment failed",
+      content: `Your ${planLabel(String(settlement.plan_key))} renewal did not go through. Update your bank mandate or try again.`,
+      data: {
+        reference: gatewayReference,
+        plan: settlement.plan_key,
+        amount: settlement.amount,
+        status: "failed",
+      },
+    });
+    const failedPayment = {
+      ...payment,
+      plan: String(settlement.plan_key),
+      amount: Number(settlement.amount),
+    };
+    await sendPaymentFailureEmail(supabase, failedPayment, gatewayReference);
+    return new Response("ok", { status: 200, headers: corsHeaders });
+  }
+
+  if (
+    settlement?.state === "already_failed" ||
+    settlement?.state === "already_settled" ||
+    settlement?.state === "not_found"
+  ) {
+    return new Response("ok", { status: 200, headers: corsHeaders });
+  }
+  const periodEnd = settlement?.next_billing_at;
+  await insertNotification(supabase, {
+    userId: String(settlement.user_id),
+    type: "payment",
+    title: "Subscription payment successful",
+    content: `Your ${planLabel(String(settlement.plan_key))} subscription was renewed for ₦${Number(settlement.amount).toLocaleString("en-NG")}.`,
+    data: {
+      reference: gatewayReference,
+      plan: settlement.plan_key,
+      amount: settlement.amount,
+      status: "verified",
+      next_billing_at: periodEnd,
+    },
+  });
+  await sendPaymentConfirmationEmail(supabase, {
+    ...payment,
+    subscription_id: String(settlement.subscription_id),
+    plan: String(settlement.plan_key),
+    amount: Number(settlement.amount),
+    provider_reference: gatewayReference,
+  } as PaymentRow, gatewayReference);
+  return new Response("ok", { status: 200, headers: corsHeaders });
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -583,6 +918,7 @@ serve(async (req: Request) => {
 
     try {
       payload = rawBody ? JSON.parse(rawBody) : { event: '', data: {} };
+      payload.event = payload.event || payload.type || "";
     } catch (parseError) {
       console.error("[Kora Webhook] Failed to parse payload:", parseError);
       return new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
@@ -597,48 +933,34 @@ serve(async (req: Request) => {
       "ref:",
       payload.data?.reference,
     );
-    console.log("[Kora Webhook] Signature header:", signature || "<missing>");
-    console.log("[Kora Webhook] Raw payload:", rawBody);
 
     if (!ALLOWED_EVENTS.has(payload.event)) {
       console.log(`[Kora Webhook] Ignoring event type: ${payload.event}`);
       return new Response("ok", { status: 200, headers: corsHeaders });
     }
 
-    let isValid = false;
-    let debugInfo: any = undefined;
+    const isValid = SKIP_KORA_SIGNATURE_CHECK
+      ? true
+      : await verifySignature(signature, rawBodyBuffer);
     if (SKIP_KORA_SIGNATURE_CHECK) {
-      console.warn("[Kora Webhook] SKIP_KORA_SIGNATURE_CHECK is enabled — skipping signature verification");
-      isValid = true;
-    } else {
-      const result = await verifySignature(payload, signature, rawBody, rawBodyBuffer);
-      isValid = result.valid;
-      if (KORA_DEBUG_RESPONSE) {
-        debugInfo = {
-          normalized_header_candidates: result.normalizedHeaderCandidates,
-          computed_variants: result.computedVariants,
-        };
-      }
+      console.warn("[Kora Webhook] Local-only signature verification override is enabled.");
     }
     console.log("[Kora Webhook] Signature check result:", isValid);
     if (!isValid) {
       console.error("[Kora Webhook] Invalid signature — ignoring request");
-      const body: Record<string, unknown> = {
-        error: "Invalid signature",
-        reference: payload.data?.reference || null,
-        signature: signature || null,
-      };
-      if (KORA_DEBUG_RESPONSE) {
-        body['debug'] = {
-          ...debugInfo,
-          raw_body_length: rawBody.length,
-          raw_body_preview: rawBody.slice(0, 1024),
-        };
-      }
       return new Response(
-        JSON.stringify(body),
+        JSON.stringify({ error: "Invalid signature" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    if (payload.event === "direct_debit.auth") {
+      return await processDirectDebitAuthorization(supabase, payload);
+    }
+    if (payload.data.payment_method === "direct_debit" || payload.data.direct_debit) {
+      return await processDirectDebitCharge(supabase, payload);
     }
 
     const reference =
@@ -647,8 +969,6 @@ serve(async (req: Request) => {
       console.error("[Kora Webhook] No reference in payload");
       return new Response("ok", { status: 200, headers: corsHeaders });
     }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     if (KORA_ALLOW_SIMULATED_VERIFICATION && shouldAutoSeedPayment(payload)) {
       const ensureRes = await ensureSeedUser(supabase, payload);
@@ -1056,6 +1376,25 @@ serve(async (req: Request) => {
       });
     }
 
+    if ([
+      "service_monthly",
+      "service_verified",
+      "service_featured",
+      "svc_basic",
+      "svc_verified",
+      "svc_featured",
+    ].includes(payment.plan)) {
+      await insertNotification(supabase, {
+        userId: payment.user_id,
+        type: "payment",
+        title: "Payment received — subscription needs review",
+        content: "This payment used the retired provider checkout and did not activate or renew your service listing. Contact support with your transaction reference.",
+        data: { reference, status: "verified", plan: payment.plan },
+      });
+      console.error("[Kora Webhook] A legacy provider checkout was verified but was not used to activate a subscription.");
+      return new Response("ok", { status: 200, headers: corsHeaders });
+    }
+
     // ── Recurring renewal/retry reconciliation ────────────────────────────
     // Auto-debit charges (ledger rows written by billing-daily) carry a
     // subscription_id. Reconcile the subscription lifecycle here instead of
@@ -1065,7 +1404,8 @@ serve(async (req: Request) => {
     const isRecurringCharge =
       Boolean(payment.subscription_id) ||
       payment.billing_phase === "renewal" ||
-      payment.billing_phase === "retry";
+      payment.billing_phase === "retry" ||
+      payment.billing_phase === "manual";
 
     if (isRecurringCharge) {
       await reconcileRenewal(supabase, payment, reference);
