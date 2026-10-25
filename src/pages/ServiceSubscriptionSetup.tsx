@@ -100,6 +100,7 @@ export default function ServiceSubscriptionSetup({ planKey }: { planKey: string 
   const [bankCode, setBankCode] = useState("");
   const [phone, setPhone] = useState(profile?.phone || "");
   const [consented, setConsented] = useState(false);
+  const [acknowledgedTokenPayment, setAcknowledgedTokenPayment] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [setup, setSetup] = useState<SetupResponse | null>(null);
   const [authorized, setAuthorized] = useState(false);
@@ -222,6 +223,10 @@ export default function ServiceSubscriptionSetup({ planKey }: { planKey: string 
       setError("Authorize the recurring monthly Direct Debit to continue.");
       return;
     }
+    if (!acknowledgedTokenPayment) {
+      setError("Acknowledge KoraPay's separate ₦50 mandate verification payment to continue.");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
@@ -236,6 +241,7 @@ export default function ServiceSubscriptionSetup({ planKey }: { planKey: string 
           phone: normalizedPhone,
           consented: true,
           consent_version: "service-subscription-v1",
+          token_payment_acknowledged: true,
         },
       },
     );
@@ -343,10 +349,16 @@ export default function ServiceSubscriptionSetup({ planKey }: { planKey: string 
                   <li>21 days free, starting only when KoraPay confirms your mandate.</li>
                   <li>First charge: ₦{planPrice.toLocaleString("en-NG")} 21 days after KoraPay confirms your authorization. The exact charge date appears in Manage Subscription.</li>
                   <li>Then ₦{planPrice.toLocaleString("en-NG")} {billingFrequency} while automatic renewal is enabled.</li>
+                  <li>A separate ₦50 NIBSS token payment is required to activate the mandate. It is not your subscription charge; KoraPay shows the transfer instructions after setup.</li>
                   <li>Cancel anytime before a charge is submitted. Access continues through the current paid/trial period.</li>
                   <li>The Direct Debit authorization expires one year after setup and must be renewed to keep automatic billing.</li>
                 </ul>
               </div>
+
+              <label className="flex items-start gap-3 text-sm text-gray-700">
+                <input type="checkbox" checked={acknowledgedTokenPayment} onChange={(event) => setAcknowledgedTokenPayment(event.target.checked)} className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-700" />
+                <span>I understand that KoraPay requires a separate ₦50 NIBSS token payment to activate the mandate, in addition to the recurring subscription charges authorized below.</span>
+              </label>
 
               <label className="flex items-start gap-3 text-sm text-gray-700">
                 <input type="checkbox" checked={consented} onChange={(event) => setConsented(event.target.checked)} className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-700" />
@@ -355,7 +367,7 @@ export default function ServiceSubscriptionSetup({ planKey }: { planKey: string 
 
               {planLoadError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{planLoadError}</p>}
               {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-              <button type="submit" disabled={submitting || planLoading || Boolean(planLoadError) || !planDetails || !consented} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="submit" disabled={submitting || planLoading || Boolean(planLoadError) || !planDetails || !consented || !acknowledgedTokenPayment} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
                 {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting authorization…</> : <><ShieldCheck className="h-4 w-4" /> Authorize recurring payments</>}
               </button>
             </form>

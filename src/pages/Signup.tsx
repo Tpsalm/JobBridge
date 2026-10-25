@@ -1035,7 +1035,7 @@ export default function Signup() {
                     Service Provider Listing Plans
                   </h3>
                   <p className="text-sm text-gray-600 mt-1">
-                    Review the provider listing benefits, then choose a monthly plan. Payment is collected securely by KoraPay at checkout.
+                    Review the provider listing benefits, then choose a monthly plan. Your 21-day trial starts after KoraPay confirms your Direct Debit authorization.
                   </p>
                 </div>
 
@@ -1079,7 +1079,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          Billed today
+                          21-day free trial
                         </span>
                       </div>
 
@@ -1135,7 +1135,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          Billed today
+                          21-day free trial
                         </span>
                       </div>
 
@@ -1146,7 +1146,7 @@ export default function Signup() {
                         </li>
                         <li className="flex items-start gap-2">
                           <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                          <span>Verified badge ✓ on profile</span>
+                          <span>Verification review; badge only after approval</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -1191,7 +1191,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          Billed today
+                          21-day free trial
                         </span>
                       </div>
 
@@ -1246,7 +1246,7 @@ export default function Signup() {
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-gray-900 text-base sm:text-lg">NGN {currentPlan.price.toLocaleString()}.00</div>
-                      <div className="text-xs text-blue-700 font-semibold">Billed today</div>
+                      <div className="text-xs text-blue-700 font-semibold">21-day free trial</div>
                     </div>
                   </div>
 
@@ -1255,13 +1255,13 @@ export default function Signup() {
                       <div className="w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 shrink-0 mt-0.5 z-10" />
                       <div>
                         <p className="text-sm font-bold text-gray-900">
-                          Today: NGN {currentPlan.price.toLocaleString()}.00
+                          During trial: ₦0 monthly subscription charge
                         </p>
                         <p className="text-sm font-bold text-gray-900">
-                          Renews every 30 days at NGN {currentPlan.price.toLocaleString()}.00
+                          First charge after your 21-day trial: ₦{currentPlan.price.toLocaleString()}.00/month
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          Cancel renewal any time before the next billing date.
+                          Your trial starts after KoraPay confirms the Direct Debit authorization. Cancel before the first charge to avoid the subscription fee.
                         </p>
                       </div>
                     </div>
@@ -1279,9 +1279,9 @@ export default function Signup() {
                 </div>
 
                 <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
-                  <h4 className="font-semibold text-blue-950">Secure payment with KoraPay</h4>
+                  <h4 className="font-semibold text-blue-950">Secure Direct Debit setup with KoraPay</h4>
                   <p className="mt-2 text-sm text-blue-800">
-                    After creating your account, continue to KoraPay's secure card checkout to pay for your first month. KoraPay securely saves the card for monthly renewals; JobBridge does not receive or store your card number, expiry date, or CVV.
+                    After creating your account, authorize recurring Direct Debit through KoraPay. No monthly subscription fee is charged during the 21-day trial. KoraPay requires a separate ₦50 NIBSS token payment to activate the mandate; the transfer instructions and amount are shown before you proceed. JobBridge stores only safe bank details, not your full account number.
                   </p>
                 </div>
 
@@ -1289,21 +1289,21 @@ export default function Signup() {
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-2.5">
                   <h4 className="font-bold text-gray-900 text-sm">Summary</h4>
                   <div className="flex justify-between items-center text-xs sm:text-sm text-gray-600">
-                    <span>{currentPlan.name} (first month)</span>
-                    <span>NGN {currentPlan.price.toLocaleString()}.00</span>
+                    <span>21-day trial</span>
+                    <span>₦0 subscription charge</span>
                   </div>
                   <div className="flex justify-between items-center text-xs text-gray-500">
-                    <span>Next renewal in 30 days</span>
-                    <span>NGN {currentPlan.price.toLocaleString()}.00/month</span>
+                    <span>First subscription charge after trial</span>
+                    <span>₦{currentPlan.price.toLocaleString()}.00/month</span>
                   </div>
                   <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-base font-bold text-gray-900">
-                    <span>Total now</span>
-                    <span className="text-blue-700">NGN {currentPlan.price.toLocaleString()}.00</span>
+                    <span>Separate mandate verification payment</span>
+                    <span className="text-blue-700">₦50</span>
                   </div>
                 </div>
 
                 <p className="text-[11px] text-gray-500 leading-relaxed">
-                  KoraPay charges <strong>NGN {currentPlan.price.toLocaleString()}.00 today</strong> and renews monthly. Cancel before the next billing date to avoid another charge. Full terms are available in our{" "}
+                  The 21-day trial begins only after KoraPay confirms your mandate. KoraPay requires a separate ₦50 NIBSS token payment to activate it; the first subscription charge of ₦{currentPlan.price.toLocaleString()}.00 is due after the trial, then monthly. You can cancel before a subscription charge is submitted. Full terms are available in our{" "}
                   <Link to="/privacy" target="_blank" className="underline text-blue-700">
                     Terms of Service
                   </Link>.
@@ -1330,7 +1330,7 @@ export default function Signup() {
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5" />
-                      Create Account & Enter Card Securely with KoraPay
+                      Create Account & Set Up Direct Debit
                     </>
                   )}
                 </button>

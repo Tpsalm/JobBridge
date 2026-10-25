@@ -71,6 +71,9 @@ serve(async (req: Request) => {
     if (body?.consented !== true || body?.consent_version !== "service-subscription-v1") {
       return json({ error: "Explicit recurring-payment consent is required." }, 400);
     }
+    if (body?.token_payment_acknowledged !== true) {
+      return json({ error: "Acknowledge the separate ₦50 mandate verification payment to continue." }, 400);
+    }
     const requestedPlanKey = String(body?.plan_key || "");
     const planKey = PLANS[requestedPlanKey] ||
       (/^svc_[a-z0-9_]{1,40}$/.test(requestedPlanKey) ? requestedPlanKey : null);
