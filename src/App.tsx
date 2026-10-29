@@ -103,6 +103,8 @@ export default function App() {
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/payment" element={<Payment />} />
               <Route path="/manage-subscription" element={<ManageSubscription />} />
+              <Route path="/manage-subscription/history" element={<ManageSubscription />} />
+              <Route path="/manage-subscription/cancel" element={<ManageSubscription />} />
               <Route path="/my-jobs" element={<MyJobs />} />
               <Route path="/messages" element={<Messages />} />
               <Route path="/notifications" element={<Notifications />} />

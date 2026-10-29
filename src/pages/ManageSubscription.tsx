@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   AlertCircle,
   ArrowLeft,
@@ -90,15 +90,21 @@ function statusLabel(status: string): string {
 export default function ManageSubscription() {
   const { user, profile, loading: authLoading } = useAuth();
   const { push } = useToasts();
+  const location = useLocation();
   const [subscription, setSubscription] = useState<SubscriptionRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [confirmingCancellation, setConfirmingCancellation] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [manualPaying, setManualPaying] = useState(false);
   const [receipt, setReceipt] = useState<PaymentRecord | null>(null);
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "successful" | "failed">("all");
   const [now, setNow] = useState(Date.now());
   const [error, setError] = useState("");
+  const view = location.pathname.endsWith("/history")
+    ? "history"
+    : location.pathname.endsWith("/cancel")
+      ? "cancel"
+      : "overview";
 
   const loadSubscription = useCallback(async (quiet = false) => {
     if (!user?.id) {
@@ -156,7 +162,6 @@ export default function ManageSubscription() {
       return;
     }
     push({ message: "Automatic renewal has been cancelled.", type: "success" });
-    setConfirmingCancellation(false);
     setCancelling(false);
     await loadSubscription(true);
   };
@@ -218,6 +223,12 @@ export default function ManageSubscription() {
     periodHasEnded &&
     !hasPendingPayment,
   );
+  const successfulPaymentStatuses = ["success", "successful", "verified", "completed"];
+  const historyPayments = (subscription?.payments || []).filter((payment) => {
+    if (paymentFilter === "successful") return successfulPaymentStatuses.includes(payment.status);
+    if (paymentFilter === "failed") return payment.status === "failed";
+    return true;
+  });
 
   if (authLoading || loading) {
     return (
@@ -251,13 +262,21 @@ export default function ManageSubscription() {
     <main className="min-h-screen bg-slate-50 pb-24">
       <Header />
       <section className="mx-auto max-w-5xl px-4 py-8 sm:py-12">
-        <Link to="/profile" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-blue-700">
-          <ArrowLeft className="h-4 w-4" /> Provider dashboard
+        <Link to={view === "overview" ? "/profile" : "/manage-subscription"} className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-blue-700">
+          <ArrowLeft className="h-4 w-4" /> {view === "overview" ? "Provider dashboard" : "Manage subscription"}
         </Link>
         <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-950">Manage subscription</h1>
-            <p className="mt-2 text-slate-600">Manage your service-provider plan, renewals and payment history.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-950">
+              {view === "history" ? "Payment history" : view === "cancel" ? "Cancel subscription" : "Manage subscription"}
+            </h1>
+            <p className="mt-2 text-slate-600">
+              {view === "history"
+                ? "Review payments and download your receipts."
+                : view === "cancel"
+                  ? "Review what happens to your plan before confirming cancellation."
+                  : "Manage your service-provider plan, renewals and payment history."}
+            </p>
           </div>
           <button
             type="button"
@@ -287,7 +306,7 @@ export default function ManageSubscription() {
           </div>
         ) : (
           <>
-            {(subscription.status === "past_due" || periodHasEnded) && (
+            {view === "overview" && (subscription.status === "past_due" || periodHasEnded) && (
               <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
@@ -309,7 +328,7 @@ export default function ManageSubscription() {
               </div>
             )}
 
-            <div className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+            {view === "overview" && <div className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_1fr]">
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -355,6 +374,14 @@ export default function ManageSubscription() {
                   <Link to={planPaymentUrl} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
                     Change payment method
                   </Link>
+                  <Link to="/manage-subscription/history" className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
+                    Payment history
+                  </Link>
+                  {canCancel && (
+                    <Link to="/manage-subscription/cancel" className="rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">
+                      Cancel subscription
+                    </Link>
+                  )}
                 </div>
               </section>
 
@@ -396,18 +423,18 @@ export default function ManageSubscription() {
                   </p>
                 )}
               </section>
-            </div>
+            </div>}
 
-            <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            {(view === "overview" || view === "cancel") && <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-950">Cancel subscription</h2>
+                  <h2 className="text-lg font-bold text-slate-950">{view === "cancel" ? "Your cancellation request" : "Subscription cancellation"}</h2>
                   <p className="mt-1 max-w-2xl text-sm text-slate-600">You can cancel at any time. Cancellation stops future debit requests; access remains until the end of your current trial or paid period.</p>
                 </div>
-                {canCancel && !confirmingCancellation && (
-                  <button type="button" onClick={() => setConfirmingCancellation(true)} className="rounded-lg border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">
+                {canCancel && view === "overview" && (
+                  <Link to="/manage-subscription/cancel" className="rounded-lg border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">
                     Cancel subscription
-                  </button>
+                  </Link>
                 )}
                 {!canCancel && (
                   <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
@@ -415,36 +442,51 @@ export default function ManageSubscription() {
                   </span>
                 )}
               </div>
-              {confirmingCancellation && (
+              {view === "cancel" && canCancel && (
                 <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
-                  <p className="font-semibold text-red-950">Turn off automatic renewal?</p>
+                  <p className="font-semibold text-red-950">Are you sure you want to cancel?</p>
                   <p className="mt-1 text-sm text-red-900">
                     {activePeriodEnd
-                      ? `No future debits will be requested. Your access remains until ${formatDate(activePeriodEnd)}.`
+                      ? `No future subscription payments will be requested. Your profile remains active until ${formatDate(activePeriodEnd)}.`
                       : "No future debits will be requested. Your trial access has not started."}
                   </p>
+                  <h3 className="mt-5 text-sm font-bold text-red-950">What happens next?</h3>
+                  <ul className="mt-3 space-y-2 text-sm text-red-900">
+                    <li className="flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" /> No future charges will be made.</li>
+                    <li className="flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" /> Your profile remains visible until the current period ends.</li>
+                    <li className="flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" /> You can subscribe again whenever you are ready.</li>
+                  </ul>
                   <div className="mt-4 flex flex-wrap gap-3">
                     <button type="button" disabled={cancelling} onClick={() => void cancelSubscription()} className="inline-flex items-center gap-2 rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
                       {cancelling && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Confirm cancellation
+                      Confirm Cancellation
                     </button>
-                    <button type="button" disabled={cancelling} onClick={() => setConfirmingCancellation(false)} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">
-                      Keep subscription
-                    </button>
+                    <Link to="/manage-subscription" className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Go Back</Link>
                   </div>
                 </div>
               )}
-            </section>
+            </section>}
 
-            <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            {(view === "overview" || view === "history") && <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-bold text-slate-950">Payment history</h2>
                   <p className="mt-1 text-sm text-slate-600">Transaction references and payment outcomes for this subscription.</p>
                 </div>
-                {subscription.status === "active" && <CheckCircle2 className="h-5 w-5 text-emerald-700" />}
+                {view === "overview" ? (
+                  <Link to="/manage-subscription/history" className="text-sm font-semibold text-blue-700 hover:underline">View all</Link>
+                ) : subscription.status === "active" && <CheckCircle2 className="h-5 w-5 text-emerald-700" />}
               </div>
-              {subscription.payments?.length ? (
+              {view === "history" && (
+                <div className="mt-5 flex gap-2" role="group" aria-label="Filter payment history">
+                  {(["all", "successful", "failed"] as const).map((filter) => (
+                    <button key={filter} type="button" onClick={() => setPaymentFilter(filter)} aria-pressed={paymentFilter === filter} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${paymentFilter === filter ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                      {filter === "successful" ? "Successful" : filter}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {historyPayments.length ? (
                 <div className="mt-5 overflow-x-auto">
                   <table className="w-full min-w-[640px] text-left text-sm">
                     <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -456,7 +498,7 @@ export default function ManageSubscription() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {subscription.payments.map((payment) => (
+                      {historyPayments.map((payment) => (
                         <tr key={payment.id}>
                           <td className="py-3 pr-4 text-slate-700">{formatDate(payment.created_at)}</td>
                           <td className="py-3 pr-4 font-mono text-xs text-slate-700">{payment.provider_reference || payment.reference}</td>
@@ -466,7 +508,7 @@ export default function ManageSubscription() {
                               {statusLabel(payment.status)}
                             </span>
                             {payment.failure_code && <p className="mt-1 text-xs text-red-700">Failure: {payment.failure_code}</p>}
-                            {["success", "successful", "verified", "completed"].includes(payment.status) && (
+                            {successfulPaymentStatuses.includes(payment.status) && (
                               <button type="button" onClick={() => setReceipt(payment)} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline">
                                 <Receipt className="h-3.5 w-3.5" /> View receipt
                               </button>
@@ -478,9 +520,11 @@ export default function ManageSubscription() {
                   </table>
                 </div>
               ) : (
-                <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">No subscription payments have been recorded yet.</p>
+                <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+                  {subscription.payments?.length ? "No payments match this filter." : "No subscription payments have been recorded yet."}
+                </p>
               )}
-            </section>
+            </section>}
           </>
         )}
       </section>
