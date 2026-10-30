@@ -15,6 +15,7 @@ import Header from "../components/Header";
 import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
+import { getFunctionInvokeErrorMessage } from "../lib/supabaseHelpers";
 import { SERVICE_PROVIDER_PLANS } from "../lib/trial";
 
 const BANKS = [
@@ -281,7 +282,11 @@ export default function ServiceSubscriptionSetup({ planKey }: { planKey: string 
     );
     setSubmitting(false);
     if (invokeError || data?.error) {
-      const message = data?.error || invokeError?.message || "Could not start the bank authorization.";
+      const message = data?.error || await getFunctionInvokeErrorMessage(
+        invokeError,
+        "Could not start the bank authorization.",
+      );
+      console.error("[ServiceSubscriptionSetup] subscription authorization failed:", message);
       setError(message);
       return;
     }

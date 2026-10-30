@@ -20,3 +20,27 @@ export function getSupabaseFunctionsUrl(): string | null {
 
   return null;
 }
+
+export async function getFunctionInvokeErrorMessage(
+  error: unknown,
+  fallback: string,
+): Promise<string> {
+  if (error && typeof error === "object" && "context" in error) {
+    const context = error.context;
+    if (context instanceof Response) {
+      const body = await context.clone().json().catch(() => null);
+      if (
+        body &&
+        typeof body === "object" &&
+        "error" in body &&
+        typeof body.error === "string"
+      ) {
+        return body.error;
+      }
+      return `The server rejected the request (HTTP ${context.status}). ${fallback}`;
+    }
+  }
+
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
