@@ -19,6 +19,12 @@ const profileCards = [
   { name: 'Makinde David Ayomidotun', role: 'Digital Marketing Manager', img: '/images/team-profile.jpeg' },
 ];
 
+const communityTestimonials = [
+  { name: 'Timilehin A.', role: 'Project Manager', company: 'Sakifoods', image: '/images/testimonial-timilehin.png' },
+  { name: 'Akinbee C.', role: 'Recruiter', company: 'Akinbee', image: '/images/testimonial-akinbee.png' },
+  { name: 'Peace A.', role: 'Team lead', company: 'TFT', image: '/images/testimonial-peace.png' },
+];
+
 function CarouselImg({ images, className }: { images: string[]; className?: string }) {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
@@ -393,24 +399,45 @@ export default function Home() {
         </div>
       </AnimatedSection>
 
-      <AnimatedSection className="border-y border-blue-100 bg-gradient-to-br from-blue-50 via-white to-white py-14" delay={150}>
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 md:grid-cols-[1.2fr_1fr] md:items-center">
-          <div>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1.5 text-sm font-medium text-blue-900">
-              <MapPin className="h-4 w-4" /> Rooted in Nigeria. Open to Africa.
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">Find opportunities that fit your next step</h2>
-            <p className="mt-3 max-w-2xl leading-relaxed text-gray-600">
-              Browse job and service listings, connect with recruiters or professionals, and use career tools to prepare your next move.
-              Listings are posted by users, so confirm important details with the poster before making decisions.
-            </p>
+      <AnimatedSection className="overflow-hidden border-y border-blue-100 bg-gradient-to-br from-blue-50 via-white to-white py-14" delay={150}>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="mb-8 text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-800">From the JobBridge community</p>
+            <h2 className="mt-2 text-2xl font-bold text-gray-900 sm:text-3xl">Professionals in the JobBridge community</h2>
+            <p className="mt-2 text-gray-600">Meet people and the teams they work with.</p>
           </div>
-          <div className="rounded-2xl border border-blue-100 bg-white/80 p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-800">Try searching by location</p>
-            <p className="mt-2 text-sm leading-relaxed text-gray-600">
-              Lagos · Abuja · Ibadan · Port Harcourt · Kano · Accra · Remote
-            </p>
-            <p className="mt-3 text-xs text-gray-500">Examples only; available listings change as people post on JobBridge.</p>
+          <div
+            className="testimonial-marquee rounded-2xl py-2"
+            role="region"
+            aria-label="JobBridge community profiles"
+            tabIndex={0}
+          >
+            <div className="testimonial-marquee-track">
+              {[false, true].map((isDuplicate) => (
+                <div
+                  key={isDuplicate ? 'duplicate' : 'profiles'}
+                  className="testimonial-marquee-group"
+                  aria-hidden={isDuplicate || undefined}
+                >
+                  {communityTestimonials.map(({ name, role, company, image }) => (
+                    <article key={name} className="flex w-[min(22rem,82vw)] shrink-0 items-center gap-4 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm sm:w-[22rem]">
+                      <img
+                        src={image}
+                        alt={isDuplicate ? '' : name}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-20 w-20 shrink-0 rounded-xl object-cover object-top"
+                      />
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-gray-900">{name}</h3>
+                        <p className="mt-1 text-sm text-gray-600">{role}</p>
+                        <p className="text-sm font-medium text-blue-800">at {company}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </AnimatedSection>

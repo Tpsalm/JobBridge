@@ -211,6 +211,25 @@ body { min-height: 100dvh; background-color: #faf9f6; overflow-y: auto; }
 .marquee { overflow: hidden; position: relative; }
 .marquee-track { display: inline-flex; white-space: nowrap; gap: 48px; animation: marquee-left 18s linear infinite; }
 
+@keyframes testimonial-marquee-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.testimonial-marquee { overflow: hidden; position: relative; }
+.testimonial-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: testimonial-marquee-left 36s linear infinite;
+  will-change: transform;
+}
+.testimonial-marquee-group { display: flex; flex-shrink: 0; gap: 1rem; padding-right: 1rem; }
+.testimonial-marquee:hover .testimonial-marquee-track,
+.testimonial-marquee:focus-within .testimonial-marquee-track { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .testimonial-marquee { overflow-x: auto; }
+  .testimonial-marquee-track { animation: none; will-change: auto; }
+}
 
 /* Stagger children on scroll */
 .stagger-children > * {
