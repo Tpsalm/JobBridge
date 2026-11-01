@@ -24,13 +24,13 @@ jobs:
     steps:
       - name: Trigger the billing worker
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: https://ppramomuckkjzssrfghi.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "::error::Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY repository secrets."
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Configure the SUPABASE_SERVICE_ROLE_KEY repository secret."
             exit 1
           fi
 
