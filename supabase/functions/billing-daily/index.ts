@@ -25,7 +25,7 @@
 //     same reference (safe when cron and webhook race).
 //
 // SECRETS:  KORA_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-// SCHEDULE: hourly (Vercel cron hitting `billing-daily`).
+// SCHEDULE: hourly GitHub Actions trigger, with a daily Vercel backup.
 // =========================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";

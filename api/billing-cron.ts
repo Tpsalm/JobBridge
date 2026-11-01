@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Vercel Cron endpoint → triggers the Supabase `billing-daily` edge function.
-// Registered in vercel.json crons[] (hourly, to process scheduled card charges promptly).
+// Daily Vercel backup trigger for the Supabase `billing-daily` edge function.
+// The hourly GitHub Actions workflow handles scheduled subscription charges.
 // Run locally to test:  curl "http://localhost:3000/api/billing-cron?dryRun=1"
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

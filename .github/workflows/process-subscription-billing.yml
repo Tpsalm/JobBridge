@@ -1,0 +1,46 @@
+name: Process subscription billing
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview due subscription actions without charging
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: process-subscription-billing
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the billing worker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY repository secrets."
+            exit 1
+          fi
+
+          billing_url="${SUPABASE_URL%/}/functions/v1/billing-daily"
+          if [ "$DRY_RUN" = "true" ]; then
+            billing_url="${billing_url}?dryRun=1"
+          fi
+
+          curl --fail --silent --show-error --max-time 300 --request POST "$billing_url" \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Content-Type: application/json" \
+            --data '{"cron":true}' | jq .

@@ -80,7 +80,7 @@
     },
     {
       "path": "/api/billing-cron",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
