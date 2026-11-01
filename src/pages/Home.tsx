@@ -13,6 +13,12 @@ import { fetchPublicAdvertisements, incrementAdvertisementViews, incrementAdvert
 import type { Advertisement } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
+const profileCards = [
+  { name: 'Uthman Busari Olamide', role: 'Social Media Manager', img: '/images/social-media-manager.jpeg' },
+  { name: 'Akinnirun Timilehin', role: 'Project Manager', img: '/images/project-manager.jpeg' },
+  { name: 'Makinde David Ayomidotun', role: 'Digital Marketing Manager', img: '/images/team-profile.jpeg' },
+];
+
 function CarouselImg({ images, className }: { images: string[]; className?: string }) {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
@@ -363,35 +369,27 @@ export default function Home() {
         )}
       </AnimatedSection>
 
-      <AnimatedSection className="max-w-7xl mx-auto px-4 py-12 sm:px-6">
-        <div className="mb-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-800">People &amp; careers</p>
-          <h2 className="mt-2 text-2xl font-bold text-gray-900 sm:text-3xl">Meet professionals across our community</h2>
-          <p className="mt-2 max-w-2xl text-gray-600">
-            A snapshot of people working across project management, recruitment, and team leadership.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            { name: 'Timilehin A.', role: 'Project Manager', company: 'Sakifoods', image: '/images/timilehin-a.jpg' },
-            { name: 'Akinbee C.', role: 'Recruiter', company: 'Akinbee', image: '/images/akinbee-c.jpg' },
-            { name: 'Peace A.', role: 'Team lead', company: 'TFT', image: '/images/peace-a.jpg' },
-          ].map(({ name, role, company, image }) => (
-            <article key={name} className="flex items-center gap-4 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
-              <img
-                src={image}
-                alt={name}
-                loading="lazy"
-                decoding="async"
-                className="h-16 w-16 shrink-0 rounded-full border-2 border-emerald-50 object-cover object-top"
-              />
-              <div className="min-w-0">
-                <h3 className="truncate font-semibold text-gray-900">{name}</h3>
-                <p className="mt-1 text-sm text-gray-600">{role}</p>
-                <p className="text-sm font-medium text-blue-800">at {company}</p>
-              </div>
-            </article>
-          ))}
+      <AnimatedSection className="bg-amber-50 py-14" direction="scale">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="mb-10 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">Professionals who found their path</h2>
+            <p className="mt-2 text-gray-500">Join thousands of professionals who landed their dream roles</p>
+          </div>
+          <div className="mx-auto grid max-w-4xl grid-cols-1 justify-items-center gap-6 sm:grid-cols-2 lg:grid-cols-3 stagger-children stagger-visible">
+            {profileCards.map(({ name, role, img }) => (
+              <Card3D key={name} className="w-full max-w-64 overflow-hidden rounded-2xl bg-white shadow-lg" strength={8}>
+                <img src={img} alt={name} loading="lazy" decoding="async" className="h-64 w-full object-cover" />
+                <div className="p-4 text-center">
+                  <h3 className="text-lg font-bold text-gray-900">{name}</h3>
+                  <p className="font-medium text-blue-700">{role}</p>
+                  <div className="mt-2 flex items-center justify-center gap-1">
+                    <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                    <span className="text-xs text-gray-500">Hired via JobBridge</span>
+                  </div>
+                </div>
+              </Card3D>
+            ))}
+          </div>
         </div>
       </AnimatedSection>
 
