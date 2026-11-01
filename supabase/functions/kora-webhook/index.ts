@@ -93,6 +93,7 @@ interface PaymentRow {
   subscription_id?: string | null;
   billing_phase?: string | null;
   idempotency_key?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 function toNumber(value: string | number | undefined | null): number | null {
@@ -1189,6 +1190,7 @@ serve(async (req: Request) => {
               reference,
             currency: payload.data.currency || payment.currency || "NGN",
             metadata: {
+              ...(payment.metadata || {}),
               webhook_event: payload.event,
               webhook_status:
                 payload.data.status ||
@@ -1374,6 +1376,11 @@ serve(async (req: Request) => {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (payment.billing_phase === "card_setup") {
+      console.log(`[Kora Webhook] Provider card setup payment ${reference} verified.`);
+      return new Response("ok", { status: 200, headers: corsHeaders });
     }
 
     if ([

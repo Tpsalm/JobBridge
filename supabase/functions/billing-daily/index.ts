@@ -1,7 +1,7 @@
 // =========================================================================
 // JobBridge — `billing-daily` edge function (automated billing engine)
 //
-// PURPOSE:  Drives the monetization state machine on a daily cron:
+// PURPOSE:  Drives the monetization state machine on an hourly cron:
 //     1) expiring one-time job posts (soft hide),
 //     2) hiding listings whose billing grace window elapsed,
 //     3) launch-free rollover (no charge),
@@ -25,7 +25,7 @@
 //     same reference (safe when cron and webhook race).
 //
 // SECRETS:  KORA_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-// SCHEDULE: daily (Vercel cron / Supabase pg_cron hitting `billing-daily`).
+// SCHEDULE: hourly (Vercel cron hitting `billing-daily`).
 // =========================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -173,6 +173,7 @@ async function success(sub: Subscription, reference: string, supabase: any): Pro
       last_attempt_ref: reference,
       current_period_start: now.toISOString(),
       current_period_end: periodEnd,
+      next_billing_at: periodEnd,
       next_attempt_at: null,
       grace_ends_at: null,
       launch_free_period: false,
@@ -231,8 +232,10 @@ async function markFailed(sub: Subscription, supabase: any, attempt: number, rea
 // ── Single charge step (used by both renewal and retry) ─────────────────────
 // Returns "renewed" | "recovered" | "failed" so the summary is accurate.
 async function chargeStep(sub: Subscription, supabase: any, attempt: number): Promise<"renewed" | "recovered" | "failed" | "waiting"> {
+  const usesDirectDebit =
+    sub.product_line === "service" && Boolean(sub.kora_authorization_code);
   if (
-    sub.product_line === "service" &&
+    usesDirectDebit &&
     (!sub.kora_authorization_code ||
       (sub.kora_authorization_expires_at &&
         new Date(sub.kora_authorization_expires_at).getTime() <= Date.now()))
@@ -256,16 +259,16 @@ async function chargeStep(sub: Subscription, supabase: any, attempt: number): Pr
   }
 
   const token = sub.kora_card_token_key;
-  if (sub.product_line !== "service" && !token) {
+  if (!usesDirectDebit && !token) {
     await markFailed(sub, supabase, attempt, "no_card_on_file");
-    await notifyUser(supabase, sub.user_id, "Add a card", "No card on file for renewal — add one to keep your listing visible.");
+    await notifyUser(supabase, sub.user_id, "Add a card", "No reusable card is available for renewal — update your payment method to keep your listing visible.");
     return "failed";
   }
 
   const cycle = new Date(sub.current_period_end).getTime();
   const reference = `JB-${sub.id}-${cycle}-${attempt}`;
   let recorded: boolean;
-  if (sub.product_line === "service") {
+  if (usesDirectDebit) {
     const attemptResult = await supabase.rpc("create_service_renewal_attempt", {
       p_subscription_id: sub.id,
       p_reference: reference,
@@ -281,7 +284,7 @@ async function chargeStep(sub: Subscription, supabase: any, attempt: number): Pr
   if (!recorded) return "waiting";
 
   const { email, name } = await userEmail(supabase, sub.user_id);
-  if (sub.product_line === "service") {
+  if (usesDirectDebit) {
     try {
       const result = await debitAuthorization(
         KORA_SECRET_KEY,

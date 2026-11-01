@@ -151,13 +151,29 @@ export async function debitAuthorization(
 export async function verifyCharge(
   secretKey: string,
   reference: string,
-): Promise<{ reference?: string; status?: string; amount?: number | string; amount_paid?: number | string; currency?: string }> {
+): Promise<{
+  reference?: string;
+  payment_reference?: string;
+  transaction_reference?: string;
+  status?: string;
+  amount?: number | string;
+  amount_paid?: number | string;
+  currency?: string;
+  token?: string;
+  card_token?: string;
+  card?: { token?: string; last_four?: string };
+}> {
   const result = await koraRequest<{
     reference?: string;
+    payment_reference?: string;
+    transaction_reference?: string;
     status?: string;
     amount?: number | string;
     amount_paid?: number | string;
     currency?: string;
+    token?: string;
+    card_token?: string;
+    card?: { token?: string; last_four?: string };
   }>(secretKey, `/charges/${encodeURIComponent(reference)}`, { method: "GET" });
   if (!result.data) throw new Error("KoraPay returned no charge details.");
   return result.data;

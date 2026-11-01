@@ -14,7 +14,7 @@ const DEFAULT_SERVICE_PLANS = [
     name: 'Basic Listing',
     priceNum: 1500,
     note: '/month',
-    badge: '21-day free trial',
+    badge: 'First plan charge in 48 hours',
     features: ['Profile on JobBridge', 'Name and contact info', 'Description of services', 'Location', 'Receive inquiries'],
     planKey: 'svc_basic',
   },

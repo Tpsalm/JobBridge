@@ -194,7 +194,7 @@ export default function ManageSubscription() {
   };
 
   const planPaymentUrl = subscription
-    ? `/payment?plan=${encodeURIComponent(subscription.plan_key)}`
+    ? `/payment?plan=${encodeURIComponent(subscription.plan_key)}&update_method=1`
     : "/pricing#services";
   const activePeriodEnd = subscription?.status === "trialing"
     ? subscription.trial_end_at
@@ -299,7 +299,7 @@ export default function ManageSubscription() {
           <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
             <CreditCard className="mx-auto h-10 w-10 text-blue-700" />
             <h2 className="mt-4 text-xl font-bold text-slate-900">No service subscription yet</h2>
-            <p className="mx-auto mt-2 max-w-lg text-slate-600">Choose a provider plan and complete the secure Direct Debit authorization to start your trial.</p>
+            <p className="mx-auto mt-2 max-w-lg text-slate-600">Choose a provider plan and add a card through Korapay’s secure checkout to start your subscription.</p>
             <Link to="/pricing#services" className="mt-6 inline-flex rounded-lg bg-blue-700 px-5 py-3 font-semibold text-white">
               View provider plans
             </Link>
@@ -344,12 +344,12 @@ export default function ManageSubscription() {
                 </div>
                 <div className="mt-6 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
                   <div>
-                    <p className="text-sm text-slate-500">Trial started</p>
-                    <p className="mt-1 font-semibold text-slate-900">{formatDate(subscription.trial_start_at)}</p>
+                    <p className="text-sm text-slate-500">{subscription.trial_start_at ? "Trial started" : "Current period started"}</p>
+                    <p className="mt-1 font-semibold text-slate-900">{formatDate(subscription.trial_start_at || subscription.current_period_start)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-500">Trial ends</p>
-                    <p className="mt-1 font-semibold text-slate-900">{formatDate(subscription.trial_end_at)}</p>
+                    <p className="text-sm text-slate-500">{subscription.trial_end_at ? "Trial ends" : "Current period ends"}</p>
+                    <p className="mt-1 font-semibold text-slate-900">{formatDate(subscription.trial_end_at || subscription.current_period_end)}</p>
                   </div>
                   {subscription.status === "trialing" && (
                     <div>
@@ -405,16 +405,30 @@ export default function ManageSubscription() {
                     <p className="mt-1 text-sm text-slate-600">
                       {subscription.payment_method_type === "kora_direct_debit"
                         ? `${subscription.payment_method_bank || "Nigerian bank account"} account ending ${subscription.payment_method_last4 || "••••"}`
-                        : "No active Direct Debit method"}
+                        : subscription.payment_method_type === "kora_saved_card"
+                          ? `Korapay saved card${subscription.payment_method_last4 ? ` ending ${subscription.payment_method_last4}` : ""}`
+                          : "No active payment method"}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">Only the bank and last four digits are shown. Full account details are not stored here.</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {subscription.payment_method_type === "kora_saved_card"
+                        ? "Card details are processed by Korapay; JobBridge stores only the reusable token and optional last four digits."
+                        : subscription.payment_method_type === "kora_direct_debit"
+                          ? "Only the bank and last four digits are shown. Full account details are not stored here."
+                          : "No payment details are stored."}
+                    </p>
                   </div>
                 </div>
                 <div className="mt-5 flex items-start gap-3">
                   {subscription.auto_renew ? <ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-700" /> : <XCircle className="mt-0.5 h-5 w-5 text-slate-500" />}
                   <div>
                     <p className="font-semibold text-slate-900">Authorization status</p>
-                    <p className="mt-1 text-sm text-slate-600">{subscription.auto_renew ? "Recurring debit authorization is active." : "Recurring debits are disabled."}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {subscription.auto_renew
+                        ? subscription.payment_method_type === "kora_saved_card"
+                          ? "Automatic card billing is active."
+                          : "Recurring payment authorization is active."
+                        : "Automatic renewal is disabled."}
+                    </p>
                   </div>
                 </div>
                 {subscription.failed_retries > 0 && (

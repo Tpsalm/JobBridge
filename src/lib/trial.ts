@@ -25,7 +25,7 @@ export const SERVICE_PROVIDER_PLANS: Record<string, ServiceProviderPlanConfig> =
       "Name and contact info visible",
       "Description of services & portfolio",
       "Location & direct client inquiries",
-      "Billed monthly after the 21-day trial",
+      "₦100 card setup charge; first plan payment after 48 hours",
     ],
   },
   service_verified: {

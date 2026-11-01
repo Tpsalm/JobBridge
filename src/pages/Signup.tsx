@@ -1035,7 +1035,7 @@ export default function Signup() {
                     Service Provider Listing Plans
                   </h3>
                   <p className="text-sm text-gray-600 mt-1">
-                    Review the provider listing benefits, then choose a monthly plan. Your 21-day trial starts after KoraPay confirms your Direct Debit authorization.
+                    Review provider plan benefits and pricing. After account creation, Korapay securely collects your card details: ₦100 is charged immediately, then your selected plan price is scheduled after 48 hours.
                   </p>
                 </div>
 
@@ -1079,7 +1079,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          21-day free trial
+                          First plan charge after 48h
                         </span>
                       </div>
 
@@ -1135,7 +1135,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          21-day free trial
+                          First plan charge after 48h
                         </span>
                       </div>
 
@@ -1191,7 +1191,7 @@ export default function Signup() {
                           <span className="text-xs text-gray-500">/month</span>
                         </div>
                         <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-1">
-                          21-day free trial
+                          First plan charge after 48h
                         </span>
                       </div>
 
@@ -1246,7 +1246,7 @@ export default function Signup() {
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-gray-900 text-base sm:text-lg">NGN {currentPlan.price.toLocaleString()}.00</div>
-                      <div className="text-xs text-blue-700 font-semibold">21-day free trial</div>
+                      <div className="text-xs text-blue-700 font-semibold">First plan charge after 48h</div>
                     </div>
                   </div>
 
@@ -1255,13 +1255,13 @@ export default function Signup() {
                       <div className="w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 shrink-0 mt-0.5 z-10" />
                       <div>
                         <p className="text-sm font-bold text-gray-900">
-                          During trial: ₦0 monthly subscription charge
+                          Today: ₦100 card setup charge
                         </p>
                         <p className="text-sm font-bold text-gray-900">
-                          First charge after your 21-day trial: ₦{currentPlan.price.toLocaleString()}.00/month
+                          First plan charge after 48 hours: ₦{currentPlan.price.toLocaleString()}.00/month
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          Your trial starts after KoraPay confirms the Direct Debit authorization. Cancel before the first charge to avoid the subscription fee.
+                          The first plan charge is initiated on the first hourly billing run at or after 48 hours. Cancel before a subscription charge is submitted.
                         </p>
                       </div>
                     </div>
@@ -1279,9 +1279,9 @@ export default function Signup() {
                 </div>
 
                 <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
-                  <h4 className="font-semibold text-blue-950">Secure Direct Debit setup with KoraPay</h4>
+                  <h4 className="font-semibold text-blue-950">Secure card setup with Korapay</h4>
                   <p className="mt-2 text-sm text-blue-800">
-                    After creating your account, authorize recurring Direct Debit through KoraPay. No monthly subscription fee is charged during the 21-day trial. KoraPay requires a separate ₦50 NIBSS token payment to activate the mandate; the transfer instructions and amount are shown before you proceed. JobBridge stores only safe bank details, not your full account number.
+                    After creating your account, enter your card only in Korapay’s hosted checkout. Korapay charges ₦100 immediately to save a reusable card token; your selected plan price is scheduled 48 hours later and then renews every month. JobBridge does not collect or store the full card number or security code.
                   </p>
                 </div>
 
@@ -1289,21 +1289,21 @@ export default function Signup() {
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-2.5">
                   <h4 className="font-bold text-gray-900 text-sm">Summary</h4>
                   <div className="flex justify-between items-center text-xs sm:text-sm text-gray-600">
-                    <span>21-day trial</span>
-                    <span>₦0 subscription charge</span>
+                    <span>Card setup charge today</span>
+                    <span>₦100</span>
                   </div>
                   <div className="flex justify-between items-center text-xs text-gray-500">
-                    <span>First subscription charge after trial</span>
+                    <span>First plan charge after 48 hours</span>
                     <span>₦{currentPlan.price.toLocaleString()}.00/month</span>
                   </div>
                   <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-base font-bold text-gray-900">
                     <span>Separate mandate verification payment</span>
-                    <span className="text-blue-700">₦50</span>
+                    <span className="text-blue-700">₦{currentPlan.price.toLocaleString()}.00</span>
                   </div>
                 </div>
 
                 <p className="text-[11px] text-gray-500 leading-relaxed">
-                  The 21-day trial begins only after KoraPay confirms your mandate. KoraPay requires a separate ₦50 NIBSS token payment to activate it; the first subscription charge of ₦{currentPlan.price.toLocaleString()}.00 is due after the trial, then monthly. You can cancel before a subscription charge is submitted. Full terms are available in our{" "}
+                  The ₦100 card setup charge is collected immediately. The first ₦{currentPlan.price.toLocaleString()}.00 plan charge is scheduled after 48 hours, then monthly; it is initiated on the first hourly billing run at or after the scheduled time. You can cancel before a subscription charge is submitted. Full terms are available in our{" "}
                   <Link to="/privacy" target="_blank" className="underline text-blue-700">
                     Terms of Service
                   </Link>.
@@ -1330,7 +1330,7 @@ export default function Signup() {
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5" />
-                      Create Account & Set Up Direct Debit
+                      Create Account & Set Up Card
                     </>
                   )}
                 </button>
