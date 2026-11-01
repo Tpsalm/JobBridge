@@ -825,7 +825,7 @@ function AIAssistantWidget() {
                     Joba
                   </h3>
                   <span className="px-1.5 py-0.5 bg-emerald-400/25 border border-emerald-400/20 text-emerald-300 text-[9px] font-bold rounded-md">
-                    {modelInfo.provider === "DeepSeek" ? "DeepSeek" : "GPT"}
+                    {modelInfo.provider}
                   </span>
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-[10px] font-medium text-blue-100">

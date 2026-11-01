@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { requireUser, setSameOriginHeaders, supabaseRequest } from './broadcast.js';
+import { geminiChat, GeminiRequestError } from './gemini.js';
 
 type AIToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } };
 type AIMessage = {
@@ -167,36 +168,16 @@ function parseMessages(value: unknown): AIMessage[] {
   return messages;
 }
 
-async function deepseek(messages: AIMessage[], enableTools = false): Promise<{ content: string; toolCalls: AIToolCall[] }> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) throw new AIRequestError(503, 'Joba is not configured. Contact JobBridge support.');
-  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
+async function generate(messages: AIMessage[], enableTools = false): Promise<{ content: string; toolCalls: AIToolCall[] }> {
+  try {
+    return await geminiChat(
       messages,
-      max_tokens: 4000,
-      temperature: 0.7,
-      ...(enableTools ? { tools: JOBBRIDGE_TOOLS, tool_choice: 'auto' } : {}),
-    }),
-  });
-  if (!response.ok) {
-    console.error('[ai-operations] DeepSeek request failed:', response.status);
-    throw new AIRequestError(response.status === 429 ? 429 : 502, response.status === 429
-      ? 'Joba is busy right now. Please try again shortly.'
-      : 'Joba could not complete the request. Please try again.');
+      enableTools ? JOBBRIDGE_TOOLS.map((tool) => tool.function) : [],
+    );
+  } catch (error) {
+    if (error instanceof GeminiRequestError) throw new AIRequestError(error.status, error.message);
+    throw error;
   }
-  const data = await response.json() as {
-    choices?: Array<{ message?: { content?: unknown; tool_calls?: AIToolCall[] } }>;
-  };
-  const message = data.choices?.[0]?.message;
-  const result = message?.content;
-  const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
-  if ((typeof result !== 'string' || !result.trim()) && toolCalls.length === 0) {
-    throw new AIRequestError(502, 'Joba returned an empty response. Please try again.');
-  }
-  return { content: typeof result === 'string' ? result.trim() : '', toolCalls };
 }
 
 function resumePrompt(resumeText: string, jobTitle: string, jobDescription: string): AIMessage[] {
@@ -260,10 +241,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     switch (body.type) {
       case 'status':
-        if (!process.env.DEEPSEEK_API_KEY) throw new AIRequestError(503, 'Joba is not configured. Contact JobBridge support.');
+        if (!process.env.GEMINI_API_KEY) throw new AIRequestError(503, 'Joba is not configured. Contact JobBridge support.');
         return res.status(200).json({ ok: true, result: 'Joba is ready.' });
       case 'chat': {
-        const completion = await deepseek(parseMessages(body.messages), body.enableTools !== false);
+        const completion = await generate(parseMessages(body.messages), body.enableTools !== false);
         return res.status(200).json({
           ok: true,
           result: completion.content,
@@ -286,7 +267,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const resume = textField(body, 'resumeText', MAX_INPUT_LENGTH);
         const title = textField(body, 'jobTitle', 500);
         const description = textField(body, 'jobDescription', MAX_INPUT_LENGTH, false);
-        return res.status(200).json({ ok: true, result: (await deepseek(resumePrompt(resume, title, description))).content });
+        return res.status(200).json({ ok: true, result: (await generate(resumePrompt(resume, title, description))).content });
       }
       case 'cover-letter': {
         const user = await requireUser(req);
@@ -305,7 +286,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const title = textField(body, 'jobTitle', 500);
         const description = textField(body, 'jobDescription', MAX_INPUT_LENGTH, false);
         const company = textField(body, 'companyName', 500, false) || 'the company';
-        return res.status(200).json({ ok: true, result: (await deepseek(coverLetterPrompt(resume, title, description, company))).content });
+        return res.status(200).json({ ok: true, result: (await generate(coverLetterPrompt(resume, title, description, company))).content });
       }
       case 'embed':
         return res.status(200).json({ ok: true, embedding: await createEmbedding(textField(body, 'text', MAX_INPUT_LENGTH)) });

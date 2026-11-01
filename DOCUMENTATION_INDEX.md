@@ -61,7 +61,7 @@ This document helps you navigate all the documentation related to fixing the AI 
 - **`supabase/functions/ai-operations/index.ts`**
   - 400+ lines of secure AI proxy code
   - Handles chat, embeddings, resume generation, cover letters
-  - Server-side authentication with OpenAI/DeepSeek
+  - Server-side authentication with Google Gemini
 
 ### New Frontend Files
 - **`src/lib/aiBackend.ts`**
@@ -106,8 +106,8 @@ A: See "Troubleshooting" section in AI_SETUP.md
 **Q: Can I test locally?**
 A: Yes! Instructions in AI_SETUP.md → Local Development
 
-**Q: What if I'm using DeepSeek instead?**
-A: Also supported! See AI_SETUP.md → "Option B: DeepSeek"
+**Q: What model provider powers Joba?**
+A: Google Gemini. See AI_SETUP.md for server-side setup.
 
 ---
 

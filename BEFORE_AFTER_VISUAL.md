@@ -136,7 +136,7 @@ Now users see this:
 This Supabase Edge Function:
 - Accepts AI requests from frontend
 - Uses server-side API keys (safe)
-- Proxies to OpenAI/DeepSeek
+- Proxies to Google Gemini
 - Returns results to client
 
 ```typescript
@@ -305,8 +305,8 @@ Should work without any key prompt!
 ### Q: Can I limit usage?
 **A:** Yes! Set spending limits in OpenAI dashboard and implement rate limiting.
 
-### Q: What about DeepSeek?
-**A:** The system supports both OpenAI and DeepSeek. Set either `OPENAI_API_KEY` or `DEEPSEEK_API_KEY`.
+### Q: Which model provider powers Joba?
+**A:** Joba and AI resume generation use Google Gemini through server-side API keys. AI Studio free-tier quotas and model availability are subject to Google's terms.
 
 ### Q: What if I need to change the key later?
 **A:** Just run: `supabase secrets set OPENAI_API_KEY=new_key` and redeploy.

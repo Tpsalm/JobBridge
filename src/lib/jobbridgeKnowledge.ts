@@ -95,7 +95,7 @@ Visit /ceo to read a note from **Owoyemi Samuel Tobi**, view the CTO portrait an
 - **Supabase** — provides PostgreSQL database, authentication (email/password), storage for file uploads (CVs, resumes), and Row Level Security (RLS) for data protection
 
 ### AI Features
-- **DeepSeek (deepseek-chat)** — powers the AI Assistant chat widget and the AI resume/cover-letter tools
+- **Google Gemini Flash** — powers the AI Assistant chat widget and the AI resume/cover-letter tools
 - **text-embedding-3-small** — for embeddings (retrieval)
 
 ### Payments
@@ -684,7 +684,7 @@ Look for the **robot icon** or **chat icon** in the bottom-right corner of any p
 - General platform information
 
 ### How It Works
-The assistant uses a comprehensive JobBridge knowledge base combined with **DeepSeek** for natural, conversational responses grounded in verified JobBridge facts.
+The assistant uses a comprehensive JobBridge knowledge base combined with **Google Gemini** for natural, conversational responses grounded in verified JobBridge facts.
 
 ### Processing Indicators
 While processing your question, it shows:

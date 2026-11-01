@@ -5,7 +5,7 @@
 **The Problem:** Users were being asked to provide their own OpenAI API key just to use the AI Resume feature. This is a major security issue and bad user experience.
 
 **The Solution:** I've implemented a secure backend system where:
-- ✅ Your OpenAI/DeepSeek API key is stored **server-side only**
+- ✅ Your Gemini API key is stored **server-side only**
 - ✅ Users **never see** or **enter** an API key
 - ✅ All AI calls go through a secure Supabase Edge Function
 - ✅ No changes needed to the frontend UI

@@ -25,7 +25,7 @@ User Browser
     ↓
 Supabase Edge Function (ai-operations) ← API key stored here (server-side)
     ↓
-OpenAI/DeepSeek API
+Google Gemini API
 ```
 
 ### Key Changes
@@ -33,7 +33,7 @@ OpenAI/DeepSeek API
 #### 1. **Created Backend Proxy Function** (`supabase/functions/ai-operations/index.ts`)
 - Accepts AI requests from frontend
 - Uses server-side API keys (NEVER exposed to client)
-- Proxies to OpenAI or DeepSeek
+- Proxies to Google Gemini
 - Returns results safely
 
 #### 2. **Created Frontend Communication Module** (`src/lib/aiBackend.ts`)
@@ -55,7 +55,7 @@ export async function aiChat(messages: Array<{role: string; content: string}>): 
 #### 3. **Updated RAG Engine** (`src/lib/ragEngine.ts`)
 - Replaced direct OpenAI calls with backend API calls
 - Removed `VITE_OPENAI_API_KEY` dependency
-- Removed `VITE_DEEPSEEK_API_KEY` dependency
+- Provider key remains server-side; never expose it with a `VITE_` prefix
 - All AI operations now go through secure backend
 
 #### 4. **Updated Environment Configuration** (`.env.example`)

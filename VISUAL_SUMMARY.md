@@ -124,7 +124,7 @@ Purpose: Handle AI API calls securely
 Features:
   • Accepts requests from frontend
   • Uses server-side API keys
-  • Proxies to OpenAI/DeepSeek
+  • Proxies to Google Gemini
   • Returns results safely
 ```
 

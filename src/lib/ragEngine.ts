@@ -7,8 +7,8 @@ import { aiChatStream, aiChatWithTools } from "./aiBackend";
 
 // All AI operations are now handled through the secure backend.
 // API keys are server-side only and never exposed to the client.
-const LLM_MODEL = "deepseek-chat";
-const LLM_PROVIDER = "DeepSeek";
+const LLM_MODEL = "gemini-flash-lite-latest";
+const LLM_PROVIDER = "Gemini";
 
 const TOP_K = 8;
 const MAX_HISTORY = 30;
@@ -877,10 +877,10 @@ function buildFallbackAnswer(
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  CHAIN-OF-THOUGHT SYSTEM PROMPT (DeepSeek-level reasoning)
+//  CAREER ASSISTANT SYSTEM PROMPT
 // ══════════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `You are the JobBridge AI Career Agent — an intelligent, professional reasoning assistant for the JobBridge platform (jobbridge.com.ng). You have comprehensive knowledge of every page, feature, pricing plan, and workflow on the platform. Your reasoning depth is modeled after DeepSeek V4 Flash: you think step-by-step, consider multiple interpretations, and only then produce your final answer.
+const SYSTEM_PROMPT = `You are the JobBridge AI Career Agent — an intelligent, professional reasoning assistant for the JobBridge platform (jobbridge.com.ng). You have comprehensive knowledge of every page, feature, pricing plan, and workflow on the platform. Consider multiple interpretations, then produce a clear, accurate final answer.
 
 Core reasoning process (always follow internally before answering):
 1. UNDERSTAND: Parse what the user's underlying need is. Do they want information? Navigation? Form help? Troubleshooting? Pricing? Feature explanation?
@@ -932,7 +932,7 @@ async function streamLLM(
   messages: HistoryMsg[],
   onToken: (token: string) => void,
 ): Promise<string> {
-  // Call the backend AI service (which handles OpenAI/DeepSeek internally)
+  // Call the secure Gemini-backed AI service.
   const messageList = messages
     .filter((m) => m.role === "user" || m.role === "system" || m.role === "assistant" || m.role === "tool")
     .map((m) => ({
@@ -1314,7 +1314,7 @@ export async function streamAnswer(
     const msg = err instanceof Error ? err.message : "";
     if (msg.includes("401")) {
       onError(
-        `Authentication failed. Please verify your DEEPSEEK_API_KEY environment variable in Supabase secrets.`,
+        `Authentication failed. Please sign in again and retry your request.`,
       );
     } else if (msg.includes("429")) {
       onError("Rate limit exceeded. Please try again in a few moments.");

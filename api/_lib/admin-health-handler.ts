@@ -25,9 +25,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         detail: supabaseConfigured ? 'Administrator session and server credentials verified.' : 'Server-side Supabase credentials are missing.',
       },
       {
-        name: 'Joba AI (DeepSeek)',
-        status: process.env.DEEPSEEK_API_KEY ? 'ready' as HealthState : 'not_configured' as HealthState,
-        detail: process.env.DEEPSEEK_API_KEY ? 'Server-side AI key is configured.' : 'Set DEEPSEEK_API_KEY in the server environment.',
+        name: 'Joba AI (Google Gemini)',
+        status: process.env.GEMINI_API_KEY ? 'ready' as HealthState : 'not_configured' as HealthState,
+        detail: process.env.GEMINI_API_KEY ? 'Server-side AI key is configured.' : 'Set GEMINI_API_KEY in the server environment.',
       },
       {
         name: 'Notification email (Resend)',

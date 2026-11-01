@@ -1,8 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getCorsHeaders, handleCors } from '../_shared/cors.ts';
+import { geminiChat, GeminiRequestError, type GeminiMessage } from '../_shared/gemini.ts';
 
-// Read keys from Supabase secret environment
-const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY') || '';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
 const MAX_MESSAGES = 100;
 const MAX_MESSAGE_LENGTH = 12000;
@@ -12,7 +11,7 @@ const MAX_INPUT_LENGTH = 24000;
 interface AIRequest {
   type: 'status' | 'chat' | 'embed' | 'resume' | 'cover-letter';
   messages?: Array<{
-    role: string;
+    role: 'system' | 'user' | 'assistant' | 'tool';
     content: string;
     name?: string;
     tool_call_id?: string;
@@ -95,47 +94,12 @@ const JOBBRIDGE_TOOLS = [
   },
 ];
 
-async function chat(
-  messages: Array<Record<string, unknown>>,
-  enableTools = false,
-): Promise<{ content: string; toolCalls: AIResponse['tool_calls'] }> {
-  if (!DEEPSEEK_API_KEY) {
-    throw new Error('AI_NOT_CONFIGURED');
-  }
-
-  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: messages,
-      max_tokens: 4000,
-      temperature: 0.7,
-      ...(enableTools ? { tools: JOBBRIDGE_TOOLS, tool_choice: 'auto' } : {}),
-    }),
-  });
-
-  if (!response.ok) {
-    console.error('DeepSeek chat request failed:', response.status);
-    throw new AIProviderError(
-      response.status === 429 ? 429 : 502,
-      response.status === 429
-        ? 'Joba is busy right now. Please try again shortly.'
-        : 'Joba could not complete the request. Please check the AI provider configuration.',
-    );
-  }
-
-  const data = await response.json();
-  const message = data.choices?.[0]?.message;
-  const content = typeof message?.content === 'string' ? message.content : '';
-  const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
-  if (!content.trim() && toolCalls.length === 0) throw new Error('DeepSeek returned an empty response');
-  return { content, toolCalls };
+async function chat(messages: GeminiMessage[], enableTools = false): Promise<{ content: string; toolCalls: NonNullable<AIResponse['tool_calls']> }> {
+  return await geminiChat(
+    messages,
+    enableTools ? JOBBRIDGE_TOOLS.map((tool) => tool.function) : [],
+  );
 }
-
 async function embed(text: string): Promise<number[]> {
   if (!OPENAI_API_KEY) {
     throw new Error('AI_NOT_CONFIGURED');
@@ -276,10 +240,10 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
 
     switch (body.type) {
       case 'status': {
-        if (!DEEPSEEK_API_KEY) {
-          return { ok: false, error: 'AI service not configured. Please set DEEPSEEK_API_KEY in Supabase secrets.' };
+        if (!Deno.env.get('GEMINI_API_KEY')) {
+          return { ok: false, error: 'AI service is not configured. Please contact JobBridge support.' };
         }
-        return { ok: true, result: 'DeepSeek API key is configured.' };
+        return { ok: true, result: 'Joba is ready.' };
       }
 
       case 'chat': {
@@ -330,7 +294,7 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
         if (totalLength > MAX_TOTAL_MESSAGE_LENGTH) {
           return { ok: false, error: 'Chat exceeds the maximum supported length.' };
         }
-        const result = await chat(body.messages as Array<Record<string, unknown>>, body.enableTools !== false);
+        const result = await chat(body.messages as GeminiMessage[], body.enableTools !== false);
         return { ok: true, result: result.content, ...(result.toolCalls?.length ? { tool_calls: result.toolCalls } : {}) };
       }
 
@@ -393,14 +357,14 @@ async function handleRequest(body: AIRequest): Promise<AIResponse> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    if (error instanceof AIProviderError) {
+    if (error instanceof GeminiRequestError || error instanceof AIProviderError) {
       return { ok: false, error: error.message, httpStatus: error.status };
     }
 
     if (errorMessage === 'AI_NOT_CONFIGURED') {
       return {
         ok: false,
-        error: 'AI service not configured. Please set DEEPSEEK_API_KEY in Supabase secrets.',
+        error: 'AI service is not configured. Please contact JobBridge support.',
         httpStatus: 503,
       };
     }

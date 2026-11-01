@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { geminiChat, GeminiRequestError, type GeminiMessage } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,59 +23,33 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
     if (userError || !user) throw new Error('Unauthorized')
 
-    const { documentType, rawData } = await req.json()
-    
-    const apiKey = Deno.env.get("DEEPSEEK_API_KEY")
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "AI service is not configured." }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+    const { data: profile, error: profileError } = await serviceClient
+      .from('profiles')
+      .select('subscription_tier, subscription_expires_at')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (profileError) throw profileError
     if (
-      typeof documentType !== "string" ||
-      !documentType.trim() ||
-      typeof rawData !== "string" ||
-      !rawData.trim() ||
-      rawData.length > 24000
+      profile?.subscription_tier !== 'ai_tools' ||
+      !profile.subscription_expires_at ||
+      new Date(profile.subscription_expires_at).getTime() <= Date.now()
     ) {
       return new Response(
-        JSON.stringify({ error: "Document details are missing or exceed the supported length." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "An active AI Career Tools subscription is required." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
-    const deepSeekResponse = await fetch("https://api.deepseek.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: [
-          { role: "system", content: `You are an expert ATS-optimized ${documentType} builder. Generate professional Markdown.` },
-          { role: "user", content: `Create a professional ${documentType} based on this information: ${rawData}` }
-        ],
-        temperature: 0.7
-      })
-    })
-
-    if (!deepSeekResponse.ok) {
-      console.error("[ai-resume] DeepSeek request failed:", deepSeekResponse.status)
-      return new Response(
-        JSON.stringify({ error: "Resume generation is temporarily unavailable. Please try again." }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
-
-    const deepSeekData = await deepSeekResponse.json()
-    
-    if (!deepSeekData.choices || deepSeekData.choices.length === 0) {
-      throw new Error(deepSeekData.error?.message || "Failed to get data from DeepSeek")
-    }
-    
-    const generatedText = deepSeekData.choices[0].message.content
+    const { documentType, rawData } = await req.json()
+    const messages: GeminiMessage[] = [
+      { role: 'system', content: `You are an expert ATS-optimized ${documentType} builder. Generate professional Markdown and do not invent facts.` },
+      { role: 'user', content: `Create a professional ${documentType} based only on these details: ${rawData}` },
+    ]
+    const generatedText = (await geminiChat(messages)).content
 
     const { data, error: dbError } = await supabaseClient
       .from('generated_documents')
@@ -95,9 +70,14 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    const status = error instanceof GeminiRequestError
+      ? error.status
+      : error instanceof Error && error.message === 'Unauthorized'
+        ? 401
+        : 500
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: error instanceof GeminiRequestError ? error.message : 'Resume generation failed. Please try again.' }),
+      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   }
 })

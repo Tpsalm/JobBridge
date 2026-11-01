@@ -4,7 +4,7 @@
 
 **NEVER expose API keys to the frontend!** This is a critical security vulnerability.
 
-JobBridge uses the same-origin Vercel `/api/broadcast?endpoint=ai` endpoint as its primary AI proxy and the Supabase `ai-operations` Edge Function as a fallback. Provider API keys are stored **server-side only** and never exposed to the browser.
+JobBridge uses the same-origin Vercel `/api/broadcast?endpoint=ai` endpoint and the Supabase `ai-operations` Edge Function as a fallback. Both use the official Google Gemini API. Provider API keys are stored **server-side only** and never exposed to the browser.
 
 ---
 
@@ -16,11 +16,11 @@ User Browser
 Vercel /api/broadcast?endpoint=ai
    ├─ Validates request type and size
    ├─ Enforces AI subscription access for resume and cover-letter generation
-   ├─ Proxies Joba and resume requests to DeepSeek
+   ├─ Proxies Joba and resume requests to Gemini Flash
    └─ Returns results to browser
 
 If the Vercel endpoint is unavailable:
-User Browser → Supabase Edge Function (ai-operations) → DeepSeek API
+User Browser → Supabase Edge Function (ai-operations) → Gemini Flash
 ```
 
 ---
@@ -29,20 +29,12 @@ User Browser → Supabase Edge Function (ai-operations) → DeepSeek API
 
 ### 1. Get Your API Key
 
-#### Option A: OpenAI (Recommended)
+#### Google Gemini (Recommended)
 
-1. Go to [OpenAI Platform](https://platform.openai.com/)
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
 2. Sign up or log in
-3. Navigate to **API Keys** → **Create new secret key**
-4. Copy your key (starts with `sk_`)
-5. Keep it **SAFE** — treat it like a password
-
-#### Option B: DeepSeek
-
-1. Go to [DeepSeek Platform](https://www.deepseek.com/)
-2. Sign up or log in
-3. Get your API key from account settings
-4. Keep it **SAFE**
+3. Create an API key
+4. Keep it **SAFE** — treat it like a password. Gemini free-tier quotas and model availability are controlled by Google and may change.
 
 ### 2. Set Up Supabase Secrets
 
@@ -54,9 +46,8 @@ Your API key goes into **Supabase Secrets** (for the Edge Function) and/or a ser
 
 ```bash
 # .env.local (DO NOT COMMIT THIS FILE)
-OPENAI_API_KEY=sk_live_your_actual_key_here
-# OR for DeepSeek:
-# DEEPSEEK_API_KEY=your_key_here
+GEMINI_API_KEY=your_google_ai_studio_key
+GEMINI_MODEL=gemini-flash-lite-latest
 ```
 
 2. Run Supabase locally (if testing Edge Functions locally):
@@ -67,9 +58,9 @@ supabase start
 
 #### For Production:
 
-1. Set `DEEPSEEK_API_KEY` as a **server-only** Vercel environment variable for the consolidated `/api/broadcast` endpoint. Do not prefix it with `VITE_`.
+1. Set `GEMINI_API_KEY` and `GEMINI_MODEL=gemini-flash-lite-latest` as **server-only** Vercel environment variables for the consolidated `/api/broadcast` endpoint. Do not prefix the key with `VITE_`.
 2. Set `SUPABASE_SERVICE_ROLE_KEY` as a server-only Vercel variable. The handler also needs `SUPABASE_URL` and `SUPABASE_ANON_KEY`; it accepts the existing public `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` values when the server-only aliases are not set.
-3. For the Edge Function fallback, confirm it will be deployed to the same Supabase project configured in the live website, then set `DEEPSEEK_API_KEY` and deploy `ai-operations`.
+3. For the Edge Function fallback, confirm it will be deployed to the same Supabase project configured in the live website, then set `GEMINI_API_KEY` and `GEMINI_MODEL=gemini-flash-lite-latest` and deploy `ai-operations` and `ai-resume`.
 4. Set `OPENAI_API_KEY` as a server-side variable only if embedding requests are needed.
 5. Keep browser configuration limited to the public Supabase URL and anon/publishable key.
 
@@ -164,8 +155,9 @@ All without users ever seeing or providing an API key.
 - `VITE_PAYSTACK_PUBLIC_KEY` - Paystack public key (if using payments)
 
 ### Backend/Supabase Secrets (NEVER expose):
-- `OPENAI_API_KEY` - OpenAI secret key (server-side only)
-- `DEEPSEEK_API_KEY` - DeepSeek secret key (server-side only)
+- `GEMINI_API_KEY` - Google Gemini key (server-side only; AI Studio free-tier quotas apply)
+- `GEMINI_MODEL` - Gemini model ID (defaults to `gemini-flash-lite-latest`)
+- `OPENAI_API_KEY` - Optional embeddings key (server-side only)
 - `RESEND_API_KEY` - Email service key (server-side only)
 
 ---
@@ -174,12 +166,12 @@ All without users ever seeing or providing an API key.
 
 ### "AI service not configured" error
 
-**Cause:** OpenAI key not set in Supabase secrets
+**Cause:** Gemini key not set in Vercel or Supabase secrets
 
 **Fix:**
-1. Verify the key is set: `supabase secrets list`
-2. If missing, add it: `supabase secrets set OPENAI_API_KEY=sk_live_...`
-3. Redeploy: `supabase functions deploy ai-operations`
+1. Verify `GEMINI_API_KEY` exists in the server environment without printing its value.
+2. Set `GEMINI_MODEL=gemini-flash-lite-latest` and configure the key in Vercel and Supabase.
+3. Redeploy both functions: `supabase functions deploy ai-operations` and `supabase functions deploy ai-resume`
 4. Wait 1-2 minutes for the function to update
 
 ### "403 Forbidden" error
@@ -190,24 +182,12 @@ All without users ever seeing or providing an API key.
 - Ensure VITE_SUPABASE_ANON_KEY is correct in frontend `.env`
 - Check Supabase RLS (Row Level Security) policies allow the function call
 
-### "Invalid API key" error
-
-**Cause:** OpenAI key is wrong or revoked
+### "Invalid API key" or unavailable model
 
 **Fix:**
-1. Verify key at [OpenAI Platform](https://platform.openai.com/api-keys)
-2. Update Supabase secret: `supabase secrets set OPENAI_API_KEY=your_new_key`
-3. Redeploy function
-
-### Embedding errors with DeepSeek
-
-DeepSeek doesn't have embeddings API. The system falls back to OpenAI for embeddings even when using DeepSeek for chat.
-
-**Solution:** Set both keys if using DeepSeek:
-```bash
-supabase secrets set DEEPSEEK_API_KEY=your_deepseek_key
-supabase secrets set OPENAI_API_KEY=your_openai_key
-```
+1. Create or rotate the key at [Google AI Studio](https://aistudio.google.com/apikey).
+2. Set it as `GEMINI_API_KEY` in both server environments.
+3. Confirm the model supports `generateContent`; the default is `gemini-flash-lite-latest`.
 
 ---
 

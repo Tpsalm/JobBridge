@@ -158,7 +158,7 @@ Before beginning the deployment, fill out the release owner notes and perform in
 - [ ] **7.4 Review Optional Envs (If Configured):**
   - [ ] `VITE_CHATBASE_ID`
   - [ ] `VITE_OPENAI_API_KEY`
-  - [ ] `VITE_DEEPSEEK_API_KEY`
+  - [ ] `GEMINI_API_KEY` (server-side only; never `VITE_`-prefixed)
   - [ ] Confirm `VITE_LOCAL_API_URL` is empty or correctly configured for production.
 - [ ] **7.5 Save Environment Variables:** Confirm all changes are saved.
 
