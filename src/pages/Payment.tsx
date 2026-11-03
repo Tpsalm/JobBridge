@@ -273,10 +273,10 @@ export default function Payment() {
         ];
       }
       return [
-        `Pay ${formatNaira(plan.price)} for your first month`,
-        "Your card will be securely saved for renewal",
-        "Subscription renews every 30 days",
-        "Cancel before the next renewal to avoid another charge",
+        "21 days free trial with Korapay Direct Debit",
+        "₦50 one-time NIBSS token payment to activate mandate",
+        `₦${plan.price.toLocaleString("en-NG")} monthly renewal after trial`,
+        "Cancel anytime from Manage Subscription",
       ];
     }
 

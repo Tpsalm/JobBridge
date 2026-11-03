@@ -84,28 +84,46 @@ export async function createVariableAuthorization(
     endDate: string;
   },
 ): Promise<KoraAuthorization> {
-  const result = await koraRequest<KoraAuthorization>(
-    secretKey,
-    "/direct-debit/initiate",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        debit_type: "variable",
-        amount: input.amount,
-        currency: "NGN",
-        description: "JobBridge service-provider monthly subscription",
-        start_date: input.startDate,
-        end_date: input.endDate,
-        customer: {
-          name: input.name,
-          email: input.email,
-          phone_number: input.phone,
-          account_number: input.accountNumber,
-          bank_code: input.bankCode,
-        },
-      }),
+  const payload = {
+    debit_type: "variable",
+    amount: input.amount,
+    currency: "NGN",
+    description: "JobBridge service-provider monthly subscription",
+    start_date: input.startDate,
+    end_date: input.endDate,
+    customer: {
+      name: input.name,
+      email: input.email,
+      phone_number: input.phone,
+      account_number: input.accountNumber,
+      bank_code: input.bankCode,
     },
-  );
+  };
+
+  let result: KoraResponse<KoraAuthorization>;
+  try {
+    result = await koraRequest<KoraAuthorization>(
+      secretKey,
+      "/direct-debit/initiate",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+  } catch (error) {
+    if (error instanceof KoraDirectDebitError && error.httpStatus === 404) {
+      result = await koraRequest<KoraAuthorization>(
+        secretKey,
+        "/direct-debit/authorizations",
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        },
+      );
+    } else {
+      throw error;
+    }
+  }
 
   if (!result.data?.authorization_code || !result.data.reference) {
     throw new Error("KoraPay did not return a Direct Debit authorization reference.");

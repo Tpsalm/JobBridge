@@ -1,6 +1,9 @@
 const KORA_SCRIPT_SRC =
   "https://korablobstorage.blob.core.windows.net/modal-bucket/korapay-collections.min.js";
 
+export const KORAPAY_DIRECT_DEBIT_DOCS_URL =
+  "https://developers.korapay.com/docs/overview-1";
+
 export interface ServiceProviderPlanConfig {
   id: string;
   name: string;
@@ -19,13 +22,13 @@ export const SERVICE_PROVIDER_PLANS: Record<string, ServiceProviderPlanConfig> =
     price: 1500,
     monthlyPriceFormatted: "₦1,500",
     duration: "Monthly",
-    badge: "Subscribe Now",
+    badge: "21-Day Free Trial",
     features: [
       "Profile on JobBridge marketplace",
       "Name and contact info visible",
       "Description of services & portfolio",
       "Location & direct client inquiries",
-      "₦100 card setup charge; first plan payment after 48 hours",
+      "21-day free trial under Korapay Direct Debit mandate",
     ],
   },
   service_verified: {

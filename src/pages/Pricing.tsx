@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { useModal } from '../contexts/ModalContext';
-import { Check, Star, Zap, Briefcase, Users, Award, MessageCircle, CreditCard, ExternalLink, ChevronRight, Bot, BookOpen, ShoppingBag } from 'lucide-react';
+import { Check, Star, Zap, Briefcase, Users, Award, MessageCircle, CreditCard, ExternalLink, ChevronRight, Bot, BookOpen, ShoppingBag, ShieldCheck } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AnimatedSection from '../components/AnimatedSection';
 import Card3D from '../components/Card3D';
@@ -14,7 +14,7 @@ const DEFAULT_SERVICE_PLANS = [
     name: 'Basic Listing',
     priceNum: 1500,
     note: '/month',
-    badge: 'First plan charge in 48 hours',
+    badge: '21-day free trial',
     features: ['Profile on JobBridge', 'Name and contact info', 'Description of services', 'Location', 'Receive inquiries'],
     planKey: 'svc_basic',
   },
@@ -274,6 +274,24 @@ export default function Pricing() {
                   </button>
                 </Card3D>
               ))}
+            </div>
+
+            <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 text-xs leading-5 text-blue-950">
+              <div className="flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-semibold text-blue-900">Korapay Direct Debit Standard:</span> All service-provider listing plans include a 21-day free trial activated upon bank mandate confirmation. Subscriptions operate in full compliance with the Korapay Direct Debit Documentation Policy (NIBSS Mandate Standard).{' '}
+                  <a
+                    href="https://developers.korapay.com/docs/overview-1"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-1 font-semibold text-blue-700 underline hover:text-blue-900"
+                  >
+                    Read Documentation Standard
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
             </div>
 
             <Card3D className="bg-blue-50 rounded-xl p-5 border border-blue-100" strength={5}>

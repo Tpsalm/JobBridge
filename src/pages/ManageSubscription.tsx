@@ -5,8 +5,13 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
+  Clock3,
   CreditCard,
+  ExternalLink,
+  HelpCircle,
+  Info,
   Loader2,
+  Lock,
   Receipt,
   RefreshCw,
   ShieldCheck,
@@ -17,6 +22,9 @@ import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
 import { useToasts } from "../contexts/ToastContext";
 import { supabase } from "../lib/supabase";
+
+export const KORAPAY_DIRECT_DEBIT_DOCS_URL =
+  "https://developers.korapay.com/docs/overview-1";
 
 type PaymentRecord = {
   id: string;
@@ -66,6 +74,18 @@ function formatDate(value: string | null): string {
   });
 }
 
+function formatDateOnly(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-NG", {
+    timeZone: "Africa/Lagos",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 function formatAmount(value: number | string, currency = "NGN"): string {
   return new Intl.NumberFormat("en-NG", {
     style: "currency",
@@ -83,8 +103,26 @@ function remainingTime(value: string | null, now: number): string {
   return `${days} day${days === 1 ? "" : "s"} ${hours} hour${hours === 1 ? "" : "s"}`;
 }
 
-function statusLabel(status: string): string {
-  return status.replace(/_/g, " ").replace(/\b\w/g, (character: string) => character.toUpperCase());
+function statusBadge(status: string): { label: string; className: string } {
+  switch (status.toLowerCase()) {
+    case "active":
+      return { label: "Active Mandate", className: "bg-emerald-100 text-emerald-800 border-emerald-200" };
+    case "trialing":
+      return { label: "21-Day Free Trial", className: "bg-blue-100 text-blue-800 border-blue-200" };
+    case "pending":
+      return { label: "Pending Mandate", className: "bg-amber-100 text-amber-900 border-amber-200" };
+    case "past_due":
+      return { label: "Past Due", className: "bg-rose-100 text-rose-800 border-rose-200" };
+    case "canceled":
+      return { label: "Cancelled", className: "bg-slate-100 text-slate-700 border-slate-200" };
+    case "expired":
+      return { label: "Mandate Expired", className: "bg-slate-100 text-slate-700 border-slate-200" };
+    default:
+      return {
+        label: status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        className: "bg-slate-100 text-slate-700 border-slate-200",
+      };
+  }
 }
 
 export default function ManageSubscription() {
@@ -100,31 +138,42 @@ export default function ManageSubscription() {
   const [paymentFilter, setPaymentFilter] = useState<"all" | "successful" | "failed">("all");
   const [now, setNow] = useState(Date.now());
   const [error, setError] = useState("");
+
   const view = location.pathname.endsWith("/history")
     ? "history"
     : location.pathname.endsWith("/cancel")
-      ? "cancel"
-      : "overview";
+    ? "cancel"
+    : "overview";
 
-  const loadSubscription = useCallback(async (quiet = false) => {
-    if (!user?.id) {
-      setSubscription(null);
+  const loadSubscription = useCallback(
+    async (quiet = false) => {
+      if (!user?.id) {
+        setSubscription(null);
+        setLoading(false);
+        return;
+      }
+      if (quiet) setRefreshing(true);
+      else setLoading(true);
+
+      const { data, error: queryError } = await supabase.rpc(
+        "get_my_service_subscription",
+      );
+
+      if (queryError) {
+        console.error(
+          "[ManageSubscription] Could not load subscription:",
+          queryError.message,
+        );
+        setError("We could not load your subscription right now. Please try again.");
+      } else {
+        setError("");
+        setSubscription((data as SubscriptionRecord | null) ?? null);
+      }
       setLoading(false);
-      return;
-    }
-    if (quiet) setRefreshing(true);
-    else setLoading(true);
-    const { data, error: queryError } = await supabase.rpc("get_my_service_subscription");
-    if (queryError) {
-      console.error("[ManageSubscription] Could not load subscription:", queryError.message);
-      setError("We could not load your subscription right now. Please try again.");
-    } else {
-      setError("");
-      setSubscription((data as SubscriptionRecord | null) ?? null);
-    }
-    setLoading(false);
-    setRefreshing(false);
-  }, [user?.id]);
+      setRefreshing(false);
+    },
+    [user?.id],
+  );
 
   useEffect(() => {
     void loadSubscription();
@@ -137,14 +186,16 @@ export default function ManageSubscription() {
 
   const nextChargeAt = useMemo(() => {
     if (!subscription) return null;
-    return subscription.next_billing_at ||
+    return (
+      subscription.next_billing_at ||
       (subscription.status === "trialing" && subscription.auto_renew
         ? subscription.trial_end_at
-        : null);
+        : null)
+    );
   }, [subscription]);
 
   useEffect(() => {
-    if (!subscription?.payments?.some((payment) => payment.status === "pending")) return;
+    if (!subscription?.payments?.some((p) => p.status === "pending")) return;
     const timer = window.setInterval(() => void loadSubscription(true), 10_000);
     return () => window.clearInterval(timer);
   }, [loadSubscription, subscription?.payments]);
@@ -157,11 +208,17 @@ export default function ManageSubscription() {
     );
     if (cancelError) {
       console.error("[ManageSubscription] Cancellation failed:", cancelError.message);
-      push({ message: "Subscription could not be cancelled. Please try again.", type: "error" });
+      push({
+        message: "Subscription could not be cancelled. Please try again.",
+        type: "error",
+      });
       setCancelling(false);
       return;
     }
-    push({ message: "Automatic renewal has been cancelled.", type: "success" });
+    push({
+      message: "Direct Debit automatic renewal has been cancelled.",
+      type: "success",
+    });
     setCancelling(false);
     await loadSubscription(true);
   };
@@ -169,7 +226,11 @@ export default function ManageSubscription() {
   const makeManualPayment = async () => {
     if (!subscription) return;
     const amount = formatAmount(subscription.price_ngn);
-    if (!window.confirm(`Pay ${amount} now using your saved bank authorization? This will renew your subscription for ${subscription.billing_period_days} days.`)) {
+    if (
+      !window.confirm(
+        `Pay ${amount} now using your saved Korapay Direct Debit bank authorization? This will renew your subscription for ${subscription.billing_period_days} days.`,
+      )
+    ) {
       return;
     }
     setManualPaying(true);
@@ -179,15 +240,27 @@ export default function ManageSubscription() {
     );
     if (paymentError) {
       console.error("[ManageSubscription] Manual payment failed:", paymentError.message);
-      push({ message: paymentError.message || "Manual payment could not be started.", type: "error" });
+      push({
+        message: paymentError.message || "Manual payment could not be started.",
+        type: "error",
+      });
     } else if (data?.status === "payment_confirmed") {
-      push({ message: "Your payment was confirmed and your profile access has been renewed.", type: "success" });
+      push({
+        message: "Payment confirmed! Your service listing has been renewed.",
+        type: "success",
+      });
       await loadSubscription(true);
     } else if (data?.status === "payment_failed") {
-      push({ message: "The payment failed. Review your payment method and try again.", type: "error" });
+      push({
+        message: "The payment failed. Review your bank details or contact support.",
+        type: "error",
+      });
       await loadSubscription(true);
     } else {
-      push({ message: "Payment is processing. Do not submit another payment; this page will reflect the verified result.", type: "info" });
+      push({
+        message: "Payment is processing with Korapay. This page will reflect the confirmed result.",
+        type: "info",
+      });
       await loadSubscription(true);
     }
     setManualPaying(false);
@@ -196,36 +269,51 @@ export default function ManageSubscription() {
   const planPaymentUrl = subscription
     ? `/payment?plan=${encodeURIComponent(subscription.plan_key)}&update_method=1`
     : "/pricing#services";
-  const activePeriodEnd = subscription?.status === "trialing"
-    ? subscription.trial_end_at
-    : subscription?.current_period_end;
+
+  const activePeriodEnd =
+    subscription?.status === "trialing"
+      ? subscription.trial_end_at
+      : subscription?.current_period_end;
+
   const periodHasEnded = activePeriodEnd
     ? new Date(activePeriodEnd).getTime() <= now
     : false;
+
   const canCancel = Boolean(
     subscription &&
-    subscription.auto_renew &&
-    !subscription.cancel_at_period_end &&
-    !["canceled", "expired"].includes(subscription.status),
+      subscription.auto_renew &&
+      !subscription.cancel_at_period_end &&
+      !["canceled", "expired"].includes(subscription.status),
   );
+
   const nextChargeIsDue = Boolean(
     subscription?.status === "past_due" ||
-    subscription?.status === "expired" ||
-    (subscription && periodHasEnded),
+      subscription?.status === "expired" ||
+      (subscription && periodHasEnded),
   );
+
   const hasPendingPayment = Boolean(
     subscription?.payments?.some((payment) => payment.status === "pending"),
   );
+
   const manualPaymentAvailable = Boolean(
     subscription?.payment_method_type === "kora_direct_debit" &&
-    subscription.payment_method_expires_at &&
-    new Date(subscription.payment_method_expires_at).getTime() > now &&
-    periodHasEnded &&
-    !hasPendingPayment,
+      subscription.payment_method_expires_at &&
+      new Date(subscription.payment_method_expires_at).getTime() > now &&
+      periodHasEnded &&
+      !hasPendingPayment,
   );
-  const successfulPaymentStatuses = ["success", "successful", "verified", "completed"];
+
+  const successfulPaymentStatuses = [
+    "success",
+    "successful",
+    "verified",
+    "completed",
+  ];
+
   const historyPayments = (subscription?.payments || []).filter((payment) => {
-    if (paymentFilter === "successful") return successfulPaymentStatuses.includes(payment.status);
+    if (paymentFilter === "successful")
+      return successfulPaymentStatuses.includes(payment.status);
     if (paymentFilter === "failed") return payment.status === "failed";
     return true;
   });
@@ -235,7 +323,10 @@ export default function ManageSubscription() {
       <main className="min-h-screen bg-slate-50">
         <Header />
         <div className="mx-auto flex max-w-5xl justify-center px-4 py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-700" aria-label="Loading subscription" />
+          <Loader2
+            className="h-8 w-8 animate-spin text-blue-700"
+            aria-label="Loading subscription"
+          />
         </div>
         <BottomNav />
       </main>
@@ -248,8 +339,13 @@ export default function ManageSubscription() {
         <Header />
         <section className="mx-auto max-w-2xl px-4 py-20 text-center">
           <h1 className="text-2xl font-bold text-slate-900">Provider account required</h1>
-          <p className="mt-3 text-slate-600">Sign in with a service-provider account to manage its subscription.</p>
-          <Link to="/login?redirect=%2Fmanage-subscription" className="mt-6 inline-flex rounded-lg bg-blue-700 px-5 py-3 font-semibold text-white">
+          <p className="mt-3 text-slate-600">
+            Sign in with a service-provider account to manage your subscription.
+          </p>
+          <Link
+            to="/login?redirect=%2Fmanage-subscription"
+            className="mt-6 inline-flex rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800"
+          >
             Sign in
           </Link>
         </section>
@@ -258,317 +354,586 @@ export default function ManageSubscription() {
     );
   }
 
+  const badge = subscription ? statusBadge(subscription.status) : null;
+
   return (
     <main className="min-h-screen bg-slate-50 pb-24">
       <Header />
       <section className="mx-auto max-w-5xl px-4 py-8 sm:py-12">
-        <Link to={view === "overview" ? "/profile" : "/manage-subscription"} className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-blue-700">
-          <ArrowLeft className="h-4 w-4" /> {view === "overview" ? "Provider dashboard" : "Manage subscription"}
+        {/* Navigation Breadcrumb */}
+        <Link
+          to={view === "overview" ? "/profile" : "/manage-subscription"}
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-blue-700"
+        >
+          <ArrowLeft className="h-4 w-4" />{" "}
+          {view === "overview" ? "Provider dashboard" : "Manage subscription"}
         </Link>
+
+        {/* Page Title & Refresh */}
         <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-950">
-              {view === "history" ? "Payment history" : view === "cancel" ? "Cancel subscription" : "Manage subscription"}
-            </h1>
-            <p className="mt-2 text-slate-600">
               {view === "history"
-                ? "Review payments and download your receipts."
+                ? "Payment History"
                 : view === "cancel"
-                  ? "Review what happens to your plan before confirming cancellation."
-                  : "Manage your service-provider plan, renewals and payment history."}
+                ? "Cancel Subscription"
+                : "Manage Subscription"}
+            </h1>
+            <p className="mt-2 text-sm text-slate-600">
+              {view === "history"
+                ? "Review Direct Debit payment transactions and print receipts."
+                : view === "cancel"
+                ? "Review what happens to your listing before confirming cancellation."
+                : "Manage your service-provider plan, Korapay Direct Debit mandate, and billing history."}
             </p>
           </div>
           <button
             type="button"
             onClick={() => void loadSubscription(true)}
             disabled={refreshing}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </button>
         </div>
 
+        {/* Korapay Policy & Documentation Banner */}
+        <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs leading-5 text-blue-950">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-blue-700" />
+              <span>
+                <strong>Korapay Documentation Standard Policy:</strong> Service provider recurring payments operate via Korapay&apos;s NIBSS Direct Debit mandate framework.
+              </span>
+            </div>
+            <a
+              href={KORAPAY_DIRECT_DEBIT_DOCS_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1 font-semibold text-blue-700 underline hover:text-blue-900"
+            >
+              View Documentation (developers.korapay.com/docs/overview-1)
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </div>
+
         {error && (
-          <div role="alert" className="mt-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+          <div
+            role="alert"
+            className="mt-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800"
+          >
             <AlertCircle className="h-5 w-5 shrink-0" /> {error}
           </div>
         )}
 
         {!subscription ? (
           <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <CreditCard className="mx-auto h-10 w-10 text-blue-700" />
-            <h2 className="mt-4 text-xl font-bold text-slate-900">No service subscription yet</h2>
-            <p className="mx-auto mt-2 max-w-lg text-slate-600">Choose a provider plan and add a card through Korapay’s secure checkout to start your subscription.</p>
-            <Link to="/pricing#services" className="mt-6 inline-flex rounded-lg bg-blue-700 px-5 py-3 font-semibold text-white">
-              View provider plans
+            <CreditCard className="mx-auto h-12 w-12 text-blue-700" />
+            <h2 className="mt-4 text-xl font-bold text-slate-900">
+              No service subscription active
+            </h2>
+            <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">
+              Select a provider listing plan and authorize a Korapay Direct Debit mandate with your Nigerian bank account to start your 21-day free trial.
+            </p>
+            <Link
+              to="/pricing#services"
+              className="mt-6 inline-flex rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-700/20 hover:bg-blue-800"
+            >
+              View Provider Plans
             </Link>
           </div>
         ) : (
           <>
+            {/* Attention banner if past due or expired */}
             {view === "overview" && (subscription.status === "past_due" || periodHasEnded) && (
-              <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+              <div
+                role="alert"
+                className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950"
+              >
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
                   <div>
-                    <p className="font-semibold">Payment attention needed</p>
-                    <p className="mt-1 text-sm">Your latest subscription period has ended or renewal is overdue. Your listing may be hidden until a payment is confirmed.</p>
+                    <p className="font-semibold">Renewal Attention Needed</p>
+                    <p className="mt-1 text-sm text-amber-900">
+                      Your subscription period has ended or renewal payment requires attention. Your provider profile may be hidden from search results until payment is confirmed.
+                    </p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {manualPaymentAvailable && (
-                    <button type="button" disabled={manualPaying} onClick={() => void makeManualPayment()} className="rounded-lg bg-amber-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
-                      {manualPaying ? "Processing…" : `Pay ${formatAmount(subscription.price_ngn)} now`}
+                    <button
+                      type="button"
+                      disabled={manualPaying}
+                      onClick={() => void makeManualPayment()}
+                      className="rounded-lg bg-amber-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-950 disabled:opacity-60"
+                    >
+                      {manualPaying ? "Processing…" : `Pay ${formatAmount(subscription.price_ngn)} Now`}
                     </button>
                   )}
-                  <Link to={planPaymentUrl} className="rounded-lg border border-amber-900 px-4 py-2 text-sm font-semibold text-amber-950">
-                    {nextChargeIsDue ? "Update payment method" : "Review payment"}
+                  <Link
+                    to={planPaymentUrl}
+                    className="rounded-lg border border-amber-900 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100/50"
+                  >
+                    {nextChargeIsDue ? "Update Bank Mandate" : "Review Payment"}
                   </Link>
                 </div>
               </div>
             )}
 
-            {view === "overview" && <div className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Current plan</p>
-                    <h2 className="mt-1 text-2xl font-bold text-slate-950">{subscription.plan_name}</h2>
-                    <p className="mt-2 text-slate-600">
-                      {formatAmount(subscription.price_ngn)} / {subscription.billing_period_days === 30 ? "month" : `${subscription.billing_period_days} days`}
-                    </p>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-sm font-semibold ${subscription.status === "active" || subscription.status === "trialing" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>
-                    {statusLabel(subscription.status)}
-                  </span>
-                </div>
-                <div className="mt-6 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
-                  <div>
-                    <p className="text-sm text-slate-500">{subscription.trial_start_at ? "Trial started" : "Current period started"}</p>
-                    <p className="mt-1 font-semibold text-slate-900">{formatDate(subscription.trial_start_at || subscription.current_period_start)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500">{subscription.trial_end_at ? "Trial ends" : "Current period ends"}</p>
-                    <p className="mt-1 font-semibold text-slate-900">{formatDate(subscription.trial_end_at || subscription.current_period_end)}</p>
-                  </div>
-                  {subscription.status === "trialing" && (
+            {/* OVERVIEW VIEW */}
+            {view === "overview" && (
+              <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+                {/* Left Column: Plan & Dates */}
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm text-slate-500">Trial time remaining</p>
-                      <p className="mt-1 font-semibold text-slate-900">{remainingTime(subscription.trial_end_at, now)}</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Current Listing Plan
+                      </p>
+                      <h2 className="mt-1 text-2xl font-bold text-slate-950">
+                        {subscription.plan_name}
+                      </h2>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {formatAmount(subscription.price_ngn)} /{" "}
+                        {subscription.billing_period_days === 30
+                          ? "month"
+                          : `${subscription.billing_period_days} days`}
+                      </p>
+                    </div>
+                    {badge && (
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-bold ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-6 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        {subscription.trial_start_at ? "Trial Started" : "Current Period Started"}
+                      </p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {formatDate(subscription.trial_start_at || subscription.current_period_start)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        {subscription.trial_end_at ? "Trial Ends" : "Current Period Ends"}
+                      </p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {formatDate(subscription.trial_end_at || subscription.current_period_end)}
+                      </p>
+                    </div>
+                    {subscription.status === "trialing" && (
+                      <div>
+                        <p className="text-xs text-slate-500">Trial Time Remaining</p>
+                        <p className="mt-1 font-semibold text-emerald-700">
+                          {remainingTime(subscription.trial_end_at, now)}
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs text-slate-500">Next Scheduled Charge</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {formatDate(nextChargeAt)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {nextChargeAt && subscription.auto_renew && !subscription.cancel_at_period_end
+                          ? `${formatAmount(subscription.price_ngn)} via Direct Debit`
+                          : "No automatic debit scheduled"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap gap-3 border-t border-slate-100 pt-5">
+                    <Link
+                      to="/pricing#services"
+                      className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-800"
+                    >
+                      Change or Upgrade Plan
+                    </Link>
+                    <Link
+                      to={planPaymentUrl}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Update Bank Mandate
+                    </Link>
+                    <Link
+                      to="/manage-subscription/history"
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Payment History
+                    </Link>
+                    {canCancel && (
+                      <Link
+                        to="/manage-subscription/cancel"
+                        className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50"
+                      >
+                        Cancel Subscription
+                      </Link>
+                    )}
+                  </div>
+                </section>
+
+                {/* Right Column: Mandate & Payment Method Details */}
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-bold text-slate-950">
+                    Direct Debit Mandate Details
+                  </h2>
+
+                  {/* Mandate Renewal Status */}
+                  <div className="mt-5 flex items-start gap-3">
+                    <CalendarDays className="mt-0.5 h-5 w-5 text-blue-700" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Automatic Renewal</p>
+                      <p className="mt-0.5 text-xs text-slate-600">
+                        {subscription.auto_renew && !subscription.cancel_at_period_end
+                          ? "Active — monthly renewal via Korapay Direct Debit"
+                          : "Off — no future debits will be requested"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bank Account Mandate */}
+                  <div className="mt-5 flex items-start gap-3">
+                    <CreditCard className="mt-0.5 h-5 w-5 text-blue-700" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Authorized Bank Account</p>
+                      <p className="mt-0.5 text-xs font-medium text-slate-800">
+                        {subscription.payment_method_type === "kora_direct_debit"
+                          ? `${subscription.payment_method_bank || "Nigerian Bank"} ending •••• ${subscription.payment_method_last4 || "••••"}`
+                          : subscription.payment_method_type === "kora_saved_card"
+                          ? `Korapay Saved Card ending •••• ${subscription.payment_method_last4 || "••••"}`
+                          : "No active bank mandate"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Mandate valid until:{" "}
+                        <span className="font-semibold text-slate-700">
+                          {formatDateOnly(subscription.payment_method_expires_at)}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Data Privacy & Compliance Notice */}
+                  <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                    <Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <span>
+                      <strong>Safe Mandate Policy:</strong> Full account credentials and PINs are never stored. Per Korapay standard policy, debits require active authorization and cannot exceed the agreed plan amount.
+                    </span>
+                  </div>
+
+                  {/* Authorization Status */}
+                  <div className="mt-5 flex items-start gap-3">
+                    {subscription.auto_renew ? (
+                      <ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-600" />
+                    ) : (
+                      <XCircle className="mt-0.5 h-5 w-5 text-slate-400" />
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Mandate Status</p>
+                      <p className="mt-0.5 text-xs text-slate-600">
+                        {subscription.auto_renew
+                          ? "Approved by bank through NIBSS; active and debit-ready."
+                          : "Automatic renewal disabled; no further debits will occur."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {subscription.failed_retries > 0 && (
+                    <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
+                      <strong>Payment Attention:</strong> {subscription.failed_retries} unsuccessful debit attempt(s) recorded. Check your account balance or update your mandate.
                     </div>
                   )}
+                </section>
+              </div>
+            )}
+
+            {/* CANCELLATION VIEW */}
+            {(view === "overview" || view === "cancel") && (
+              <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm text-slate-500">Next scheduled charge</p>
-                    <p className="mt-1 font-semibold text-slate-900">{formatDate(nextChargeAt)}</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {nextChargeAt && subscription.auto_renew && !subscription.cancel_at_period_end
-                        ? `${formatAmount(subscription.price_ngn)} will be charged`
-                        : "No automatic charge is scheduled"}
+                    <h2 className="text-lg font-bold text-slate-950">
+                      {view === "cancel" ? "Confirm Subscription Cancellation" : "Subscription Cancellation"}
+                    </h2>
+                    <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">
+                      In full compliance with Korapay Direct Debit consumer standards, you can cancel at any time. Cancellation halts future debit requests immediately while your listing remains active through the end of the current paid or trial period.
                     </p>
                   </div>
-                </div>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <Link to="/pricing#services" className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white">
-                    Change or upgrade plan
-                  </Link>
-                  <Link to={planPaymentUrl} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
-                    Change payment method
-                  </Link>
-                  <Link to="/manage-subscription/history" className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">
-                    Payment history
-                  </Link>
-                  {canCancel && (
-                    <Link to="/manage-subscription/cancel" className="rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">
-                      Cancel subscription
+                  {canCancel && view === "overview" && (
+                    <Link
+                      to="/manage-subscription/cancel"
+                      className="rounded-xl border border-red-300 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                    >
+                      Cancel Subscription
                     </Link>
                   )}
+                  {!canCancel && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Renewal is off
+                    </span>
+                  )}
                 </div>
-              </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-950">Renewal and payment method</h2>
-                <div className="mt-5 flex items-start gap-3">
-                  <CalendarDays className="mt-0.5 h-5 w-5 text-blue-700" />
-                  <div>
-                    <p className="font-semibold text-slate-900">Automatic renewal</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {subscription.auto_renew && !subscription.cancel_at_period_end
-                        ? "On — monthly renewal is authorized"
-                        : "Off — no further automatic renewal"}
+                {view === "cancel" && canCancel && (
+                  <div className="mt-6 rounded-2xl border border-red-200 bg-red-50/70 p-6">
+                    <p className="font-bold text-red-950">Are you sure you want to cancel?</p>
+                    <p className="mt-1.5 text-xs leading-5 text-red-900">
+                      {activePeriodEnd
+                        ? `No future Direct Debit payments will be requested from your bank account. Your provider profile remains active and visible until ${formatDate(
+                            activePeriodEnd,
+                          )}.`
+                        : "No future debits will be requested. Your trial has not started."}
                     </p>
+
+                    <h3 className="mt-4 text-xs font-bold uppercase tracking-wider text-red-950">
+                      What happens when you cancel:
+                    </h3>
+                    <ul className="mt-2 space-y-1.5 text-xs text-red-900">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+                        <span>All future scheduled Direct Debit requests are permanently stopped.</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+                        <span>Your service listing remains active until the end of the current period.</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+                        <span>You can re-subscribe or update your mandate at any time.</span>
+                      </li>
+                    </ul>
+
+                    <div className="mt-6 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        disabled={cancelling}
+                        onClick={() => void cancelSubscription()}
+                        className="inline-flex items-center gap-2 rounded-xl bg-red-700 px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-red-800 disabled:opacity-60"
+                      >
+                        {cancelling && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        Confirm Cancellation
+                      </button>
+                      <Link
+                        to="/manage-subscription"
+                        className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Keep Subscription
+                      </Link>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-5 flex items-start gap-3">
-                  <CreditCard className="mt-0.5 h-5 w-5 text-blue-700" />
-                  <div>
-                    <p className="font-semibold text-slate-900">Saved payment method</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {subscription.payment_method_type === "kora_direct_debit"
-                        ? `${subscription.payment_method_bank || "Nigerian bank account"} account ending ${subscription.payment_method_last4 || "••••"}`
-                        : subscription.payment_method_type === "kora_saved_card"
-                          ? `Korapay saved card${subscription.payment_method_last4 ? ` ending ${subscription.payment_method_last4}` : ""}`
-                          : "No active payment method"}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {subscription.payment_method_type === "kora_saved_card"
-                        ? "Card details are processed by Korapay; JobBridge stores only the reusable token and optional last four digits."
-                        : subscription.payment_method_type === "kora_direct_debit"
-                          ? "Only the bank and last four digits are shown. Full account details are not stored here."
-                          : "No payment details are stored."}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-5 flex items-start gap-3">
-                  {subscription.auto_renew ? <ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-700" /> : <XCircle className="mt-0.5 h-5 w-5 text-slate-500" />}
-                  <div>
-                    <p className="font-semibold text-slate-900">Authorization status</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {subscription.auto_renew
-                        ? subscription.payment_method_type === "kora_saved_card"
-                          ? "Automatic card billing is active."
-                          : "Recurring payment authorization is active."
-                        : "Automatic renewal is disabled."}
-                    </p>
-                  </div>
-                </div>
-                {subscription.failed_retries > 0 && (
-                  <p className="mt-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-                    {subscription.failed_retries} failed payment attempt{subscription.failed_retries === 1 ? "" : "s"} recorded. Check your payment method or renew your plan.
-                  </p>
                 )}
               </section>
-            </div>}
+            )}
 
-            {(view === "overview" || view === "cancel") && <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-950">{view === "cancel" ? "Your cancellation request" : "Subscription cancellation"}</h2>
-                  <p className="mt-1 max-w-2xl text-sm text-slate-600">You can cancel at any time. Cancellation stops future debit requests; access remains until the end of your current trial or paid period.</p>
-                </div>
-                {canCancel && view === "overview" && (
-                  <Link to="/manage-subscription/cancel" className="rounded-lg border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">
-                    Cancel subscription
-                  </Link>
-                )}
-                {!canCancel && (
-                  <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
-                    <CheckCircle2 className="h-4 w-4" /> Renewal is off
-                  </span>
-                )}
-              </div>
-              {view === "cancel" && canCancel && (
-                <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
-                  <p className="font-semibold text-red-950">Are you sure you want to cancel?</p>
-                  <p className="mt-1 text-sm text-red-900">
-                    {activePeriodEnd
-                      ? `No future subscription payments will be requested. Your profile remains active until ${formatDate(activePeriodEnd)}.`
-                      : "No future debits will be requested. Your trial access has not started."}
-                  </p>
-                  <h3 className="mt-5 text-sm font-bold text-red-950">What happens next?</h3>
-                  <ul className="mt-3 space-y-2 text-sm text-red-900">
-                    <li className="flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" /> No future charges will be made.</li>
-                    <li className="flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" /> Your profile remains visible until the current period ends.</li>
-                    <li className="flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" /> You can subscribe again whenever you are ready.</li>
-                  </ul>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button type="button" disabled={cancelling} onClick={() => void cancelSubscription()} className="inline-flex items-center gap-2 rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
-                      {cancelling && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Confirm Cancellation
-                    </button>
-                    <Link to="/manage-subscription" className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Go Back</Link>
+            {/* PAYMENT HISTORY VIEW */}
+            {(view === "overview" || view === "history") && (
+              <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-950">Direct Debit Payment History</h2>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Audit trail of Korapay transaction references, dates, and verification statuses.
+                    </p>
                   </div>
+                  {view === "overview" ? (
+                    <Link
+                      to="/manage-subscription/history"
+                      className="text-xs font-semibold text-blue-700 hover:underline"
+                    >
+                      View all ({subscription.payments?.length || 0})
+                    </Link>
+                  ) : (
+                    subscription.status === "active" && (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+                    )
+                  )}
                 </div>
-              )}
-            </section>}
 
-            {(view === "overview" || view === "history") && <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-950">Payment history</h2>
-                  <p className="mt-1 text-sm text-slate-600">Transaction references and payment outcomes for this subscription.</p>
-                </div>
-                {view === "overview" ? (
-                  <Link to="/manage-subscription/history" className="text-sm font-semibold text-blue-700 hover:underline">View all</Link>
-                ) : subscription.status === "active" && <CheckCircle2 className="h-5 w-5 text-emerald-700" />}
-              </div>
-              {view === "history" && (
-                <div className="mt-5 flex gap-2" role="group" aria-label="Filter payment history">
-                  {(["all", "successful", "failed"] as const).map((filter) => (
-                    <button key={filter} type="button" onClick={() => setPaymentFilter(filter)} aria-pressed={paymentFilter === filter} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${paymentFilter === filter ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                      {filter === "successful" ? "Successful" : filter}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {historyPayments.length ? (
-                <div className="mt-5 overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="pb-3 pr-4 font-semibold">Date</th>
-                        <th className="pb-3 pr-4 font-semibold">Reference</th>
-                        <th className="pb-3 pr-4 font-semibold">Amount</th>
-                        <th className="pb-3 font-semibold">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {historyPayments.map((payment) => (
-                        <tr key={payment.id}>
-                          <td className="py-3 pr-4 text-slate-700">{formatDate(payment.created_at)}</td>
-                          <td className="py-3 pr-4 font-mono text-xs text-slate-700">{payment.provider_reference || payment.reference}</td>
-                          <td className="py-3 pr-4 font-semibold text-slate-900">{formatAmount(payment.amount, payment.currency)}</td>
-                          <td className="py-3">
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${["success", "successful", "verified", "completed"].includes(payment.status) ? "bg-emerald-100 text-emerald-800" : payment.status === "failed" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900"}`}>
-                              {statusLabel(payment.status)}
-                            </span>
-                            {payment.failure_code && <p className="mt-1 text-xs text-red-700">Failure: {payment.failure_code}</p>}
-                            {successfulPaymentStatuses.includes(payment.status) && (
-                              <button type="button" onClick={() => setReceipt(payment)} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline">
-                                <Receipt className="h-3.5 w-3.5" /> View receipt
-                              </button>
-                            )}
-                          </td>
+                {view === "history" && (
+                  <div className="mt-5 flex gap-2" role="group" aria-label="Filter payment history">
+                    {(["all", "successful", "failed"] as const).map((filter) => (
+                      <button
+                        key={filter}
+                        type="button"
+                        onClick={() => setPaymentFilter(filter)}
+                        aria-pressed={paymentFilter === filter}
+                        className={`rounded-full px-4 py-1.5 text-xs font-semibold capitalize transition ${
+                          paymentFilter === filter
+                            ? "bg-blue-700 text-white"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {filter === "successful" ? "Successful" : filter}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {historyPayments.length ? (
+                  <div className="mt-5 overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-left text-xs">
+                      <thead className="border-b border-slate-200 text-slate-500 uppercase tracking-wider">
+                        <tr>
+                          <th className="pb-3 pr-4 font-semibold">Date</th>
+                          <th className="pb-3 pr-4 font-semibold">Transaction Reference</th>
+                          <th className="pb-3 pr-4 font-semibold">Amount</th>
+                          <th className="pb-3 font-semibold">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
-                  {subscription.payments?.length ? "No payments match this filter." : "No subscription payments have been recorded yet."}
-                </p>
-              )}
-            </section>}
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {historyPayments.map((payment) => (
+                          <tr key={payment.id}>
+                            <td className="py-3 pr-4 text-slate-700">
+                              {formatDate(payment.created_at)}
+                            </td>
+                            <td className="py-3 pr-4 font-mono text-slate-700">
+                              {payment.provider_reference || payment.reference}
+                            </td>
+                            <td className="py-3 pr-4 font-semibold text-slate-900">
+                              {formatAmount(payment.amount, payment.currency)}
+                            </td>
+                            <td className="py-3">
+                              <span
+                                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                  ["success", "successful", "verified", "completed"].includes(
+                                    payment.status,
+                                  )
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : payment.status === "failed"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-amber-100 text-amber-900"
+                                }`}
+                              >
+                                {payment.status}
+                              </span>
+                              {payment.failure_code && (
+                                <p className="mt-1 text-xs text-red-700">
+                                  {payment.failure_code}
+                                </p>
+                              )}
+                              {successfulPaymentStatuses.includes(payment.status) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setReceipt(payment)}
+                                  className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline"
+                                >
+                                  <Receipt className="h-3.5 w-3.5" /> View Receipt
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="mt-5 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">
+                    {subscription.payments?.length
+                      ? "No payments match this filter."
+                      : "No Direct Debit payment records yet."}
+                  </p>
+                )}
+              </section>
+            )}
           </>
         )}
       </section>
+
+      {/* Printable Receipt Modal */}
       {receipt && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="receipt-title"
+        >
           <style>{`@media print { body * { visibility: hidden !important; } #service-payment-receipt, #service-payment-receipt * { visibility: visible !important; } #service-payment-receipt { position: absolute; inset: 0 auto auto 0; width: 100%; box-shadow: none !important; } }`}</style>
-          <div id="service-payment-receipt" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+          <div
+            id="service-payment-receipt"
+            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-blue-800">JobBridge</p>
-                <h2 id="receipt-title" className="mt-1 text-2xl font-bold text-slate-950">Payment receipt</h2>
-                <p className="mt-1 text-sm text-slate-500">Service-provider subscription</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-blue-800">
+                  JobBridge
+                </p>
+                <h2 id="receipt-title" className="mt-1 text-2xl font-bold text-slate-950">
+                  Subscription Receipt
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Korapay Direct Debit Mandate Standard
+                </p>
               </div>
               <Receipt className="h-7 w-7 text-blue-700" />
             </div>
-            <dl className="mt-6 space-y-3 border-t border-slate-200 pt-5 text-sm">
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">Provider</dt><dd className="text-right font-medium text-slate-900">{user.email}</dd></div>
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">Plan</dt><dd className="text-right font-medium text-slate-900">{subscription?.plan_name}</dd></div>
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">Amount paid</dt><dd className="text-right font-bold text-slate-950">{formatAmount(receipt.amount, receipt.currency)}</dd></div>
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">Payment date</dt><dd className="text-right font-medium text-slate-900">{formatDate(receipt.created_at)}</dd></div>
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">Transaction reference</dt><dd className="max-w-[65%] break-all text-right font-mono text-xs text-slate-900">{receipt.provider_reference || receipt.reference}</dd></div>
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">Status</dt><dd className="font-semibold capitalize text-emerald-700">{statusLabel(receipt.status)}</dd></div>
+
+            <dl className="mt-6 space-y-3 border-t border-slate-200 pt-5 text-xs">
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Service Provider</dt>
+                <dd className="text-right font-medium text-slate-900">{user.email}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Plan</dt>
+                <dd className="text-right font-medium text-slate-900">
+                  {subscription?.plan_name}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Amount Paid</dt>
+                <dd className="text-right font-bold text-slate-950">
+                  {formatAmount(receipt.amount, receipt.currency)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Transaction Date</dt>
+                <dd className="text-right font-medium text-slate-900">
+                  {formatDate(receipt.created_at)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Korapay Reference</dt>
+                <dd className="max-w-[65%] break-all text-right font-mono text-slate-900">
+                  {receipt.provider_reference || receipt.reference}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Payment Status</dt>
+                <dd className="font-semibold capitalize text-emerald-700">
+                  {receipt.status}
+                </dd>
+              </div>
             </dl>
+
+            <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-[11px] leading-4 text-blue-900">
+              Verified through Korapay Direct Debit Gateway. Complies with Korapay Documentation Policy (developers.korapay.com/docs/overview-1).
+            </div>
+
             <div className="mt-6 flex justify-end gap-3 border-t border-slate-200 pt-4 print:hidden">
-              <button type="button" onClick={() => setReceipt(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Close</button>
-              <button type="button" onClick={() => window.print()} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white">Print / Save PDF</button>
+              <button
+                type="button"
+                onClick={() => setReceipt(null)}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800"
+              >
+                Print / Save PDF
+              </button>
             </div>
           </div>
         </div>
       )}
+
       <BottomNav />
     </main>
   );
