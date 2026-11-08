@@ -74,15 +74,27 @@ serve(async (req: Request) => {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY || !KORA_SECRET_KEY) {
     return response({ error: "Manual subscription payments are not configured." }, 500);
   }
-  const authorization = req.headers.get("Authorization");
-  if (!authorization) return response({ error: "Authentication required." }, 401);
+  const authorization = req.headers.get("Authorization") || "";
+  const accessToken = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!accessToken) return response({ error: "Authentication required." }, 401);
 
   try {
+    // Verify the caller's token explicitly; `getUser()` without an argument
+    // relies on the client detecting a custom Authorization header and fails
+    // for signed-in providers in the edge runtime.
     const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
-    const { data: { user }, error: authError } = await authClient.auth.getUser();
-    if (authError || !user) return response({ error: "Authentication required." }, 401);
+    const { data: { user }, error: authError } = await authClient.auth
+      .getUser(accessToken);
+    if (authError || !user) {
+      console.warn(
+        "[pay-service-subscription-manually] auth rejected:",
+        authError?.message || "no user",
+      );
+      return response({ error: "Authentication required." }, 401);
+    }
 
     const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: attempt, error: attemptError } = await serviceClient.rpc(

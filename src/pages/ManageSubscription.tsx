@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
-  ExternalLink,
   HelpCircle,
   Info,
   Loader2,
@@ -22,9 +21,6 @@ import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
 import { useToasts } from "../contexts/ToastContext";
 import { supabase } from "../lib/supabase";
-
-export const KORAPAY_DIRECT_DEBIT_DOCS_URL =
-  "https://developers.korapay.com/docs/overview-1";
 
 type PaymentRecord = {
   id: string;
@@ -396,27 +392,6 @@ export default function ManageSubscription() {
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </button>
-        </div>
-
-        {/* Korapay Policy & Documentation Banner */}
-        <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs leading-5 text-blue-950">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-blue-700" />
-              <span>
-                <strong>Korapay Documentation Standard Policy:</strong> Service provider recurring payments operate via Korapay&apos;s NIBSS Direct Debit mandate framework.
-              </span>
-            </div>
-            <a
-              href={KORAPAY_DIRECT_DEBIT_DOCS_URL}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center gap-1 font-semibold text-blue-700 underline hover:text-blue-900"
-            >
-              View Documentation (developers.korapay.com/docs/overview-1)
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          </div>
         </div>
 
         {error && (
@@ -911,7 +886,7 @@ export default function ManageSubscription() {
             </dl>
 
             <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-[11px] leading-4 text-blue-900">
-              Verified through Korapay Direct Debit Gateway. Complies with Korapay Documentation Policy (developers.korapay.com/docs/overview-1).
+              Verified through the Korapay Direct Debit Gateway.
             </div>
 
             <div className="mt-6 flex justify-end gap-3 border-t border-slate-200 pt-4 print:hidden">

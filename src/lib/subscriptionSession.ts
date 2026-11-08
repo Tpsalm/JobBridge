@@ -11,9 +11,14 @@
 //   2. The user reached the Review & Confirm step without a session at all
 //      (e.g. they landed on the page straight after signup, when email
 //      confirmation is still pending).
+//   3. The edge functions verified the token through a `global.headers` shim
+//      that never read the caller's Authorization header, so a perfectly valid
+//      token was treated as missing (fixed server-side in the subscription
+//      functions by calling `auth.getUser(accessToken)`).
 //
-// These helpers make the token fresh before every privileged call, retry once
-// on a 401, and translate gateway errors into copy a provider can act on.
+// These helpers make the token fresh before every privileged call, send it
+// explicitly, retry once on a 401, and translate gateway errors into copy a
+// provider can act on.
 // =========================================================================
 
 import { supabase } from "./supabase";
@@ -23,7 +28,7 @@ import { getFunctionInvokeErrorMessage } from "./supabaseHelpers";
 const REFRESH_THRESHOLD_SECONDS = 120;
 
 export type SubscriptionSessionCheck =
-  | { ok: true; userId: string; email: string }
+  | { ok: true; userId: string; email: string; accessToken: string }
   | {
       ok: false;
       reason: "unauthenticated" | "missing-email" | "error";
@@ -32,6 +37,21 @@ export type SubscriptionSessionCheck =
 
 export const SIGN_IN_REQUIRED_MESSAGE =
   "Please sign in to continue with your subscription.";
+
+/**
+ * Exchange the refresh token for a brand new access token, bypassing the
+ * "is it close to expiry?" heuristic used by the Supabase client.
+ */
+async function forceRefreshAccessToken(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error || !data.session?.access_token) return null;
+    return data.session.access_token;
+  } catch (error) {
+    console.error("[subscriptionSession] forced token refresh failed:", error);
+    return null;
+  }
+}
 
 /**
  * Guarantee a usable Supabase session before calling a privileged edge
@@ -49,9 +69,10 @@ export async function ensureSubscriptionSession(): Promise<SubscriptionSessionCh
     const needsRefresh = !session || !session.access_token || secondsLeft <= REFRESH_THRESHOLD_SECONDS;
 
     if (needsRefresh) {
-      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-      if (!refreshError && refreshed.session) {
-        session = refreshed.session;
+      const freshToken = await forceRefreshAccessToken();
+      if (freshToken) {
+        const refreshed = await supabase.auth.getSession();
+        if (refreshed.data.session) session = refreshed.data.session;
       }
     }
 
@@ -72,7 +93,12 @@ export async function ensureSubscriptionSession(): Promise<SubscriptionSessionCh
       };
     }
 
-    return { ok: true, userId: session.user.id, email: session.user.email };
+    return {
+      ok: true,
+      userId: session.user.id,
+      email: session.user.email,
+      accessToken: session.access_token,
+    };
   } catch (error) {
     console.error("[subscriptionSession] session check failed:", error);
     return {
@@ -102,7 +128,7 @@ export type SubscriptionInvokeResult<T> = {
 
 /**
  * Invoke a subscription edge function with a guaranteed-fresh token and a
- * single automatic retry when the gateway answers 401.
+ * single automatic retry when the function or the gateway rejects the token.
  */
 export async function invokeSubscriptionFunction<T extends { error?: string }>(
   functionName: string,
@@ -118,16 +144,23 @@ export async function invokeSubscriptionFunction<T extends { error?: string }>(
     };
   }
 
-  const call = () =>
-    supabase.functions.invoke<T>(functionName, { body });
+  // Send the access token explicitly. `functions.invoke` normally attaches the
+  // session token itself, but passing it here guarantees the exact token we
+  // just validated is the one the edge function verifies.
+  const call = (accessToken: string) =>
+    supabase.functions.invoke<T>(functionName, {
+      body,
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
-  let { data, error } = await call();
+  let { data, error } = await call(session.accessToken);
 
   if (error && statusFromInvokeError(error) === 401) {
-    // Token raced out of date between the check and the call: refresh + retry.
-    const { data: refreshed } = await supabase.auth.refreshSession();
-    if (refreshed.session) {
-      ({ data, error } = await call());
+    // The function rejected the token (expired or rotated by another tab):
+    // force a refresh and retry exactly once.
+    const retryToken = await forceRefreshAccessToken();
+    if (retryToken) {
+      ({ data, error } = await call(retryToken));
     }
   }
 
@@ -140,11 +173,13 @@ export async function invokeSubscriptionFunction<T extends { error?: string }>(
   }
 
   const unauthorized = statusFromInvokeError(error) === 401;
-  const message = await getFunctionInvokeErrorMessage(error, fallbackMessage);
-  const friendly =
-    unauthorized && /sign in|verified email|authentication required/i.test(message)
-      ? `${SIGN_IN_REQUIRED_MESSAGE} Your sign-in session expired — sign in again to finish setting up your card.`
-      : message;
+  const raw = await getFunctionInvokeErrorMessage(error, fallbackMessage);
+  // A 401 here is never "please sign in": the session was confirmed above, so
+  // the important thing is to reassure the provider that nothing was charged.
+  const message =
+    unauthorized && /sign in|verified email|authentication required|session|jwt/i.test(raw)
+      ? "We could not verify your JobBridge sign-in for this step. Refresh the page and try again — no payment has been taken."
+      : raw;
 
-  return { data: data ?? null, message: friendly, unauthorized };
+  return { data: data ?? null, message, unauthorized };
 }

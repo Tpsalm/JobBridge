@@ -1,9 +1,6 @@
 const KORA_SCRIPT_SRC =
   "https://korablobstorage.blob.core.windows.net/modal-bucket/korapay-collections.min.js";
 
-export const KORAPAY_DIRECT_DEBIT_DOCS_URL =
-  "https://developers.korapay.com/docs/overview-1";
-
 export interface ServiceProviderPlanConfig {
   id: string;
   name: string;

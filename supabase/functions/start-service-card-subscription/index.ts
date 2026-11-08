@@ -49,15 +49,30 @@ serve(async (req: Request) => {
     return json({ error: "Card subscription setup is not configured." }, 500);
   }
 
-  const authorization = req.headers.get("Authorization");
-  if (!authorization) return json({ error: "Authentication required." }, 401);
+  const authorization = req.headers.get("Authorization") || "";
+  const accessToken = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!accessToken) return json({ error: "Authentication required." }, 401);
 
   try {
+    // Verify the caller's access token explicitly.
+    //
+    // Relying on `global.headers` + `auth.getUser()` (no argument) is fragile
+    // in the edge runtime: when the bundled auth client does not detect a
+    // custom Authorization header it short-circuits with
+    // AuthSessionMissingError, so *every* signed-in provider was told to
+    // "sign in again". Passing the token straight to getUser() verifies it
+    // against GoTrue on every request and is supported by all 2.x clients.
     const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
-    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    const { data: { user }, error: authError } = await authClient.auth
+      .getUser(accessToken);
     if (authError || !user?.id || !user.email) {
+      console.warn(
+        "[start-service-card-subscription] auth rejected:",
+        authError?.message || "missing user id/email",
+      );
       return json({ error: "Please sign in with a verified email address." }, 401);
     }
 

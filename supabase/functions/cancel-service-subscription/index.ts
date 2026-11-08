@@ -26,8 +26,9 @@ serve(async (req: Request) => {
     });
   }
 
-  const authorization = req.headers.get("Authorization");
-  if (!authorization) {
+  const authorization = req.headers.get("Authorization") || "";
+  const accessToken = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!accessToken) {
     return new Response(JSON.stringify({ error: "Authentication required." }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -35,11 +36,20 @@ serve(async (req: Request) => {
   }
 
   try {
+    // Verify the caller's token explicitly; `getUser()` without an argument
+    // relies on the client detecting a custom Authorization header and fails
+    // for signed-in providers in the edge runtime.
     const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
-    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    const { data: { user }, error: authError } = await authClient.auth
+      .getUser(accessToken);
     if (authError || !user) {
+      console.warn(
+        "[cancel-service-subscription] auth rejected:",
+        authError?.message || "no user",
+      );
       return new Response(JSON.stringify({ error: "Authentication required." }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

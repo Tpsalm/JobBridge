@@ -55,15 +55,24 @@ serve(async (req: Request) => {
     return json({ error: "Service subscription setup is not configured." }, 500);
   }
 
-  const authorization = req.headers.get("Authorization");
-  if (!authorization) return json({ error: "Authentication required." }, 401);
+  const authorization = req.headers.get("Authorization") || "";
+  const accessToken = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!accessToken) return json({ error: "Authentication required." }, 401);
 
   try {
+    // Verify the caller's token explicitly (see the card-subscription
+    // function for why `getUser()` without a token is unreliable here).
     const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
-    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    const { data: { user }, error: authError } = await authClient.auth
+      .getUser(accessToken);
     if (authError || !user?.id || !user.email) {
+      console.warn(
+        "[start-service-subscription] auth rejected:",
+        authError?.message || "missing user id/email",
+      );
       return json({ error: "Please sign in with a verified email address." }, 401);
     }
 
