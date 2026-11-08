@@ -5,10 +5,7 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
-  Clock3,
   CreditCard,
-  HelpCircle,
-  Info,
   Loader2,
   Lock,
   Receipt,
@@ -21,6 +18,7 @@ import BottomNav from "../components/BottomNav";
 import { useAuth } from "../contexts/AuthContext";
 import { useToasts } from "../contexts/ToastContext";
 import { supabase } from "../lib/supabase";
+import { invokeSubscriptionFunction } from "../lib/subscriptionSession";
 
 type PaymentRecord = {
   id: string;
@@ -198,14 +196,18 @@ export default function ManageSubscription() {
 
   const cancelSubscription = async () => {
     setCancelling(true);
-    const { error: cancelError } = await supabase.functions.invoke(
+    const { message: cancelError } = await invokeSubscriptionFunction<{
+      status?: string;
+      error?: string;
+    }>(
       "cancel-service-subscription",
-      { body: {} },
+      {},
+      "Subscription could not be cancelled. Please try again.",
     );
     if (cancelError) {
-      console.error("[ManageSubscription] Cancellation failed:", cancelError.message);
+      console.error("[ManageSubscription] Cancellation failed:", cancelError);
       push({
-        message: "Subscription could not be cancelled. Please try again.",
+        message: cancelError,
         type: "error",
       });
       setCancelling(false);
@@ -230,14 +232,14 @@ export default function ManageSubscription() {
       return;
     }
     setManualPaying(true);
-    const { data, error: paymentError } = await supabase.functions.invoke(
-      "pay-service-subscription-manually",
-      { body: {} },
-    );
+    const { data, message: paymentError } = await invokeSubscriptionFunction<{
+      status?: string;
+      error?: string;
+    }>("pay-service-subscription-manually", {}, "Manual payment could not be started.");
     if (paymentError) {
-      console.error("[ManageSubscription] Manual payment failed:", paymentError.message);
+      console.error("[ManageSubscription] Manual payment failed:", paymentError);
       push({
-        message: paymentError.message || "Manual payment could not be started.",
+        message: paymentError,
         type: "error",
       });
     } else if (data?.status === "payment_confirmed") {
