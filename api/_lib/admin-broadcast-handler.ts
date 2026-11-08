@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   estimateSmsSegments,
   getSupabaseConfig,
@@ -7,8 +7,11 @@ import {
   normalizedPhone,
   requireAdmin,
   setSameOriginHeaders,
+  supabaseCount,
   supabaseRequest,
 } from './broadcast.js';
+import { BROADCAST_TEMPLATES, BROADCAST_TYPES, normalizeBroadcastType, renderMessage } from './broadcast-templates.js';
+import { countPendingDeliveries, drainBroadcastQueue, sendPushToUser } from './process-broadcasts-handler.js';
 
 type Audience = { type: 'all' } | { type: 'role'; role: string } | { type: 'selected'; userIds: string[] };
 type ProfileRecipient = {
@@ -155,6 +158,30 @@ async function checkSmsGateway(): Promise<SmsGatewayCheck> {
   }
 }
 
+function pushConfigured(): boolean {
+  return Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+}
+
+type Reachability = {
+  totalUsers: number;
+  pushUsers: number;
+  pushDevices: number;
+  smsOptInUsers: number;
+};
+
+/** How many real phones/inboxes can be reached right now. */
+async function getReachability(): Promise<Reachability> {
+  const [totalUsers, subscriptionRows, smsOptInUsers] = await Promise.all([
+    supabaseCount('profiles?role=neq.admin').catch(() => 0),
+    supabaseRequest<Array<{ user_id: string | null }>>('push_subscriptions?select=user_id&limit=50000').catch(() => []),
+    supabaseCount('profiles?sms_broadcast_opt_in=is.true&phone_verified=is.true').catch(() => 0),
+  ]);
+  const pushUsers = new Set(
+    subscriptionRows.map((row) => row.user_id).filter((id): id is string => typeof id === 'string' && id.length > 0),
+  ).size;
+  return { totalUsers, pushUsers, pushDevices: subscriptionRows.length, smsOptInUsers };
+}
+
 async function preview(input: Record<string, unknown>) {
   const title = cleanText(input.title, 120);
   const content = cleanText(input.content, 4000);
@@ -179,8 +206,8 @@ async function preview(input: Record<string, unknown>) {
   if (channels.includes('sms') && !smsGateway.enabled) {
     throw new BroadcastRequestError(503, smsGateway.reason || 'SMS is not configured.');
   }
-  const pushConfigured = Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
-  if (channels.includes('push') && !pushConfigured) throw new BroadcastRequestError(503, 'Web push is not configured on the server.');
+  const pushReady = pushConfigured();
+  if (channels.includes('push') && !pushReady) throw new BroadcastRequestError(503, 'Web push is not configured on the server.');
   const pushUserIds = channels.includes('push') ? await getPushUserIds(ids) : new Set<string>();
   const segmentsPerMessage = estimateSmsSegments(content);
   const smsSegments = channels.includes('sms') ? eligibleSms.length * segmentsPerMessage : 0;
@@ -232,10 +259,11 @@ async function preview(input: Record<string, unknown>) {
       smsSegments,
       smsCostNgn: Number(smsCost.toFixed(2)),
     },
-    pushConfigured,
+    pushConfigured: pushReady,
     smsConfigured: channels.includes('sms') ? smsGateway.enabled : isSmsGatewayConfigured(),
     smsUnavailableReason: smsGateway.reason || null,
     testMode,
+    broadcastType: testMode ? 'test' : normalizeBroadcastType(input.broadcastType),
     testCampaignRequired,
     recipients,
     pushUserIds: [...pushUserIds],
@@ -257,7 +285,7 @@ function campaignFingerprint(details: Awaited<ReturnType<typeof preview>>, input
     scheduledAt: typeof input.scheduledAt === 'string' ? input.scheduledAt : null,
     actionUrl,
     actionLabel: cleanText(input.actionLabel, 50) || null,
-    broadcastType: input.testMode === true ? 'test' : cleanText(input.broadcastType, 32) || 'announcement',
+    broadcastType: input.testMode === true ? 'test' : normalizeBroadcastType(input.broadcastType),
     testMode: input.testMode === true,
   });
   return createHash('sha256').update(canonical).digest('hex');
@@ -307,11 +335,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
       const action = String(req.query.action || 'campaigns');
       if (action === 'config') {
-        const sms = await checkSmsGateway();
+        const [sms, reach] = await Promise.all([checkSmsGateway(), getReachability()]);
         return res.status(200).json({
-          pushConfigured: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
+          pushConfigured: pushConfigured(),
           smsConfigured: sms.enabled,
           smsUnavailableReason: sms.reason || null,
+          ...reach,
+        });
+      }
+      if (action === 'templates') {
+        const [sms, reach] = await Promise.all([checkSmsGateway(), getReachability()]);
+        return res.status(200).json({
+          templates: BROADCAST_TEMPLATES,
+          types: BROADCAST_TYPES,
+          capabilities: {
+            pushConfigured: pushConfigured(),
+            smsConfigured: sms.enabled,
+            smsUnavailableReason: sms.reason || null,
+            ...reach,
+          },
         });
       }
       if (action === 'users') {
@@ -372,6 +414,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? req.body as Record<string, unknown>
       : null;
     if (!body) return fail(res, 400, 'A campaign request body is required.');
+    if (body.action === 'test-push') {
+      const title = cleanText(body.title, 120);
+      const content = cleanText(body.content, 4000);
+      if (!title || !content) return fail(res, 400, 'Provide a title and message to send the test notification.');
+      if (!pushConfigured()) return fail(res, 503, 'Web push keys (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY) are not configured on the server.');
+      const actionUrl = validateActionUrl(body.actionUrl);
+      const actionLabel = cleanText(body.actionLabel, 50) || null;
+      const type = body.testMode === true ? 'test' : normalizeBroadcastType(body.broadcastType);
+      const [adminProfile] = await supabaseRequest<Array<{ full_name: string | null }>>(
+        `profiles?${new URLSearchParams({ select: 'full_name', id: `eq.${admin.id}`, limit: '1' })}`,
+      );
+      const firstName = (adminProfile?.full_name || '').trim().split(/\s+/)[0] || null;
+      const result = await sendPushToUser(admin.id, {
+        id: randomUUID(),
+        title,
+        content,
+        action_url: actionUrl,
+        action_label: actionLabel,
+        broadcast_type: type,
+      }, firstName);
+      if (!result.devices) {
+        return fail(res, 409, 'No phone is registered to this admin account. Open jobbridge.com.ng/notifications on your phone, tap "Enable notifications", then try again.');
+      }
+      await supabaseRequest<unknown>('notifications', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify([{
+          user_id: admin.id,
+          type: 'system',
+          title: renderMessage(title, firstName),
+          content: renderMessage(content, firstName),
+          data: { source: 'admin_broadcast_test', broadcast_type: type, action_url: actionUrl, action_label: actionLabel },
+          is_read: false,
+        }]),
+      }).catch((error) => console.error('[broadcast] test inbox row failed:', error));
+      return res.status(200).json(result);
+    }
+    if (body.action === 'dispatch') {
+      const requestedBatches = Number(body.batches);
+      const result = await drainBroadcastQueue({
+        maxBatches: Number.isFinite(requestedBatches) ? Math.max(1, Math.min(10, Math.trunc(requestedBatches))) : 3,
+        timeBudgetMs: 8000,
+      });
+      return res.status(200).json(result);
+    }
     if (body.action === 'preview') {
       const details = await preview(body);
       const previewToken = signPreview(campaignFingerprint(details, body, admin.id), admin.id);
@@ -416,7 +503,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const smsSegments = details.channelEstimates.smsSegments;
       const status = scheduledAt.getTime() > Date.now() + 60_000 ? 'scheduled' : 'queued';
       const actionUrl = validateActionUrl(body.actionUrl);
-      const broadcastType = body.testMode === true ? 'test' : cleanText(body.broadcastType, 32) || 'announcement';
+      const broadcastType = details.broadcastType;
       let rows: Campaign[];
       try {
         rows = await supabaseRequest<Campaign[]>('broadcast_campaigns', {
@@ -479,7 +566,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw error;
       }
 
-      return res.status(201).json({ campaign, duplicate: false, smsConfigured: Boolean(smsGateway.enabled) });
+      let dispatch: Awaited<ReturnType<typeof drainBroadcastQueue>> | null = null;
+      if (deliveryRows.some((delivery) => delivery.status === 'queued')) {
+        try {
+          dispatch = await drainBroadcastQueue({ maxBatches: 3, timeBudgetMs: 7000 });
+        } catch (error) {
+          console.error('[broadcast] inline dispatch failed; the delivery worker will retry:', error);
+        }
+      }
+      const pending = dispatch ? dispatch.pending : await countPendingDeliveries();
+      return res.status(201).json({
+        campaign,
+        duplicate: false,
+        smsConfigured: Boolean(smsGateway.enabled),
+        dispatch,
+        pending,
+      });
     }
 
     if (body.action === 'retry') {
@@ -490,7 +592,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         { method: 'POST', body: JSON.stringify({ p_campaign_id: campaignId }) },
       );
       if (!queuedForRetry) return fail(res, 400, 'This campaign has no failed deliveries to retry.');
-      return res.status(200).json({ queuedForRetry });
+      const dispatch = await drainBroadcastQueue({ maxBatches: 2, timeBudgetMs: 6000 }).catch(() => null);
+      return res.status(200).json({ queuedForRetry, dispatch });
     }
 
     if (body.action === 'cancel') {

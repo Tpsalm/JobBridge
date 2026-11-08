@@ -56,6 +56,30 @@ export async function supabaseRequest<T>(
   return (text ? JSON.parse(text) : null) as T;
 }
 
+/** Exact row count for a PostgREST path without downloading the rows. */
+export async function supabaseCount(path: string): Promise<number> {
+  const { url, serviceKey } = getSupabaseConfig();
+  try {
+    const response = await fetch(`${url}/rest/v1/${path}`, {
+      method: 'GET',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        Prefer: 'count=exact',
+        Range: '0-0',
+      },
+    });
+    const contentRange = response.headers.get('content-range') || '';
+    const total = Number(contentRange.split('/')[1]);
+    if (Number.isFinite(total)) return total;
+    const body = await response.text();
+    return Array.isArray(JSON.parse(body || '[]')) ? (JSON.parse(body || '[]') as unknown[]).length : 0;
+  } catch (error) {
+    console.error('[broadcast] Supabase count failed:', error);
+    return 0;
+  }
+}
+
 export function setSameOriginHeaders(req: VercelRequest, headers: { setHeader: (name: string, value: string) => void }) {
   const origin = String(req.headers.origin || '');
   const allowedOrigins = new Set([

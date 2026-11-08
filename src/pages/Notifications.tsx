@@ -746,6 +746,20 @@ export default function Notifications() {
               {displayed.map((notif) => {
                 const cfg = typeConfig[notif.type];
                 const Icon = cfg.icon;
+                // Admin broadcasts and system notices carry an in-app deep link
+                // (`/jobs`, `/pricing`, ...). Only same-origin app paths are honoured.
+                const rawActionUrl = notif.data?.action_url;
+                const actionUrl =
+                  typeof rawActionUrl === "string" &&
+                  rawActionUrl.startsWith("/") &&
+                  !rawActionUrl.startsWith("//")
+                    ? rawActionUrl
+                    : null;
+                const rawActionLabel = notif.data?.action_label;
+                const actionLabel =
+                  typeof rawActionLabel === "string" && rawActionLabel.trim()
+                    ? rawActionLabel.trim()
+                    : "Open";
                 return (
                   <div
                     key={notif.id}
@@ -763,6 +777,8 @@ export default function Notifications() {
                             ? `/messages?conversationId=${encodeURIComponent(String(convId))}`
                             : '/messages'
                         );
+                      } else if (actionUrl) {
+                        navigate(actionUrl);
                       }
                     }}
                   >
@@ -825,6 +841,11 @@ export default function Notifications() {
                             {notif.type === 'message' && (
                               <span className="inline-flex items-center gap-0.5 text-blue-600 text-xs font-medium ml-1">
                                 Open messages <ArrowRight className="w-3 h-3" />
+                              </span>
+                            )}
+                            {notif.type !== 'message' && actionUrl && (
+                              <span className="inline-flex items-center gap-0.5 text-blue-600 text-xs font-medium ml-1">
+                                {actionLabel} <ArrowRight className="w-3 h-3" />
                               </span>
                             )}
                           </p>

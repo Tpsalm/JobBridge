@@ -590,6 +590,10 @@
                 notifs: [],
                 broadcastCampaigns: [],
                 broadcastConfig: { pushConfigured: false, smsConfigured: false },
+                broadcastTemplates: [],
+                broadcastTypes: [],
+                broadcastType: "announcement",
+                broadcastTestBusy: false,
                 broadcastPreview: null,
                 broadcastPreviewKey: null,
                 broadcastUserResults: [],
@@ -600,7 +604,7 @@
                 broadcastChannels: ["in_app"],
                 broadcastTestMode: false,
                 broadcastIdempotencyKey: null,
-                broadcastForm: { title: "", content: "", scheduledAt: "", actionUrl: "" },
+                broadcastForm: { title: "", content: "", scheduledAt: "", actionUrl: "", actionLabel: "" },
                 broadcastBusy: false,
                 ads: [],
                 payments: [],
@@ -4051,6 +4055,15 @@
             // ═══════════════════════════════════════════════════════════════
             //  TAB 12: REALTIME LIVE BROADCASTS & NOTIFICATIONS
             // ═══════════════════════════════════════════════════════════════
+            function renderBroadcastPlaceholders(text) {
+                const firstName = (S.user?.full_name || "").trim().split(/\s+/)[0] || "there";
+                return String(text || "")
+                    .replace(/\{\{\s*first_name\s*\}\}/gi, firstName)
+                    .replace(/\{\{\s*name\s*\}\}/gi, firstName)
+                    .replace(/\{\{\s*app_name\s*\}\}/gi, "JobBridge")
+                    .replace(/\{\{\s*site_url\s*\}\}/gi, "jobbridge.com.ng");
+            }
+
             function broadcastsHtml() {
                 const selectedAudience = S.broadcastAudience;
                 const form = S.broadcastForm;
@@ -4063,6 +4076,23 @@
                     </label>
                 `).join("");
                 const channels = S.broadcastPreview?.channelEstimates;
+                const broadcastTypes = S.broadcastTypes || [];
+                const activeBroadcastType = S.broadcastTestMode ? "test" : S.broadcastType;
+                const reach = S.broadcastConfig || {};
+                const selectableTypes = S.broadcastTestMode
+                    ? [...broadcastTypes, { id: "test", emoji: "🧪", label: "Test campaign", accent: "#f59e0b" }]
+                    : broadcastTypes;
+                const activeType = selectableTypes.find((type) => type.id === activeBroadcastType)
+                    || { id: "announcement", emoji: "📣", label: "Announcement", accent: "#2563eb" };
+                const typeOptions = selectableTypes.map((type) =>
+                    `<option value="${esc(type.id)}" ${activeBroadcastType === type.id ? "selected" : ""}>${esc(`${type.emoji} ${type.label}`)}</option>`,
+                ).join("");
+                const templateCards = (S.broadcastTemplates || []).map((template) => `
+                    <button type="button" onclick="applyBroadcastTemplate('${esc(template.id)}')" class="text-left rounded-xl border border-slate-200 p-3 hover:border-blue-400 hover:bg-blue-50/60 transition">
+                      <div class="text-xs font-extrabold text-slate-900">${esc(template.name)}</div>
+                      <p class="mt-1 text-[11px] text-slate-500 leading-relaxed">${esc(template.summary)}</p>
+                      <p class="mt-2 text-[10px] font-bold uppercase tracking-wide text-blue-600">${esc(template.type)} · ${esc((template.channels || []).join(" + "))}</p>
+                    </button>`).join("");
                 const campaignRows = (S.broadcastCampaigns || []).map((campaign) => {
                     const stats = campaign.stats || {};
                     const totals = Object.entries(stats).map(([channel, states]) => {
@@ -4090,6 +4120,27 @@
             <h3 class="text-base font-extrabold text-slate-900 tracking-tight">Notification campaigns</h3>
             <p class="text-xs text-slate-500 mt-1">Create a previewable in-app or browser push campaign. Recipients' phone numbers are never shown here.</p>
           </div>
+          <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h4 class="text-xs font-extrabold text-slate-800">Templates & delivery reach</h4>
+                <p class="text-[11px] text-slate-500 mt-1">Pick a template to fill the form, then edit anything. Placeholders such as {{first_name}} are personalised per recipient on the server.</p>
+              </div>
+              <div class="text-[11px] text-slate-500 text-right leading-relaxed">
+                <div><strong class="text-slate-800">${Number(reach.totalUsers || 0).toLocaleString()}</strong> users · <strong class="text-slate-800">${Number(reach.pushUsers || 0).toLocaleString()}</strong> with push (${Number(reach.pushDevices || 0).toLocaleString()} devices) · <strong class="text-slate-800">${Number(reach.smsOptInUsers || 0).toLocaleString()}</strong> SMS-ready</div>
+                <div class="mt-1">Push key: ${S.broadcastConfig.pushConfigured ? "ready" : "missing"} · SMS gateway: ${S.broadcastConfig.smsConfigured ? "ready" : "unavailable"}</div>
+              </div>
+            </div>
+            <div class="mt-4 flex flex-wrap items-center gap-3 text-xs">
+              <label class="font-bold text-slate-700">Notification type
+                <select class="form-input mt-1 w-full sm:w-56" onchange="setBroadcastType(this.value)">${typeOptions || '<option value="announcement">📣 Announcement</option>'}</select>
+              </label>
+              <p class="text-[11px] text-slate-500 max-w-md">The type controls the emoji, the phone's badge styling and the delivery urgency (maintenance and security stay on screen until dismissed).</p>
+            </div>
+            <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              ${templateCards || '<p class="text-xs text-slate-400">Templates could not be loaded. Use the form below and press Refresh.</p>'}
+            </div>
+          </section>
           <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <label class="text-xs font-bold text-slate-700">Message title
@@ -4131,16 +4182,29 @@
               <label class="text-xs font-bold text-slate-700">Action link (optional, site-relative)
                 <input id="broadcast-action-url" value="${esc(form.actionUrl)}" oninput="updateBroadcastForm('actionUrl',this.value)" class="form-input mt-1 w-full" placeholder="/jobs">
               </label>
+              <label class="text-xs font-bold text-slate-700">Action button text (optional)
+                <input id="broadcast-action-label" maxlength="50" value="${esc(form.actionLabel)}" oninput="updateBroadcastForm('actionLabel',this.value)" class="form-input mt-1 w-full" placeholder="Browse jobs">
+              </label>
               <label class="lg:col-span-2 text-xs font-bold text-slate-700">Message
                 <textarea id="broadcast-content" rows="4" maxlength="4000" oninput="updateBroadcastForm('content',this.value)" class="form-input mt-1 w-full" placeholder="Write a concise message...">${esc(form.content)}</textarea>
               </label>
               <div class="lg:col-span-2 flex flex-wrap items-center gap-3">
                 <button class="btn btn-ghost border border-slate-200" onclick="previewBroadcast()">Preview audience and message</button>
+                <button class="btn btn-ghost border border-slate-200" onclick="sendBroadcastTestPush()" ${S.broadcastTestBusy ? "disabled" : ""}>${S.broadcastTestBusy ? "Sending test..." : "Send test to my phone"}</button>
                 <button class="btn btn-primary" onclick="createBroadcastCampaign()" ${S.broadcastBusy ? "disabled" : ""}>${S.broadcastBusy ? "Creating..." : "Schedule / send campaign"}</button>
               </div>
               ${S.broadcastPreview ? `<div class="lg:col-span-2 rounded-xl bg-slate-50 border border-slate-200 p-4 text-xs">
                 <div class="font-extrabold text-slate-900 mb-1">Preview: ${esc(S.broadcastPreview.title)}</div>
                 <p class="whitespace-pre-wrap text-slate-600 mb-3">${esc(S.broadcastPreview.content)}</p>
+                <div class="rounded-lg bg-slate-900 text-white p-3 mb-3">
+                  <div class="flex items-center justify-between gap-2 mb-1">
+                    <div class="text-[10px] uppercase tracking-wide text-slate-400">On a user's phone</div>
+                    <div class="text-[10px] font-bold" style="color:${esc(activeType.accent)}">${esc(`${activeType.emoji} ${activeType.label}`)}</div>
+                  </div>
+                  <div class="font-bold">${esc(renderBroadcastPlaceholders(S.broadcastPreview.title))}</div>
+                  <div class="text-slate-300 mt-1">${esc(renderBroadcastPlaceholders(S.broadcastPreview.content))}</div>
+                  ${form.actionLabel ? `<div class="mt-2 inline-block rounded bg-white/10 px-2 py-1 text-[10px] font-bold">${esc(form.actionLabel)}</div>` : ""}
+                </div>
                 <div class="font-bold">Audience: ${S.broadcastPreview.recipientCount} account(s)</div>
                 <div class="mt-1 text-slate-600">In-app: ${channels?.in_app || 0} · Push subscriptions: ${channels?.push || 0} (${channels?.pushSkipped || 0} without push) · SMS: ${channels?.sms || 0} (${channels?.smsSkipped || 0} not verified/opted in)</div>
                 ${S.broadcastPreview.channels.includes("sms") ? `<p class="mt-1 text-slate-600">SMS segments: ${channels.smsSegments} · Estimated cost: ₦${Number(channels.smsCostNgn).toLocaleString()}</p>` : ""}
@@ -4189,11 +4253,12 @@
                 S.broadcastTestMode = Boolean(enabled);
                 if (enabled && S.broadcastAudience !== "selected") {
                     S.broadcastAudience = "selected";
-                    render();
+                    S.broadcastSelectedUsers = [];
                 }
                 S.broadcastPreview = null;
                 S.broadcastPreviewKey = null;
                 S.broadcastIdempotencyKey = null;
+                render();
             };
 
             window.toggleBroadcastChannel = (channel, selected) => {
@@ -4259,11 +4324,88 @@
                     channels: [...S.broadcastChannels],
                     scheduledAt,
                     actionUrl: S.broadcastForm.actionUrl,
-                    actionLabel: "",
+                    actionLabel: (S.broadcastForm.actionLabel || "").trim(),
                     testMode: S.broadcastTestMode,
-                    broadcastType: S.broadcastTestMode ? "test" : "announcement",
+                    broadcastType: S.broadcastTestMode ? "test" : S.broadcastType,
                 };
             }
+
+            window.setBroadcastType = (value) => {
+                if (value === "test") {
+                    // The test type always pairs with a small selected audience.
+                    S.broadcastTestMode = true;
+                    if (S.broadcastAudience !== "selected") S.broadcastAudience = "selected";
+                } else {
+                    S.broadcastType = value;
+                    S.broadcastTestMode = false;
+                }
+                S.broadcastPreview = null;
+                S.broadcastPreviewKey = null;
+                S.broadcastIdempotencyKey = null;
+                render();
+            };
+
+            window.applyBroadcastTemplate = (templateId) => {
+                const template = (S.broadcastTemplates || []).find((item) => item.id === templateId);
+                if (!template) return;
+                S.broadcastForm = {
+                    ...S.broadcastForm,
+                    title: template.title || "",
+                    content: template.content || "",
+                    actionUrl: template.actionUrl || "",
+                    actionLabel: template.actionLabel || "",
+                };
+                S.broadcastType = S.broadcastTypes.some((type) => type.id === template.type)
+                    ? template.type
+                    : "announcement";
+                if (Array.isArray(template.channels) && template.channels.length) {
+                    const permitted = template.channels.filter((channel) =>
+                        channel === "in_app"
+                        || (channel === "push" && S.broadcastConfig.pushConfigured)
+                        || (channel === "sms" && S.broadcastConfig.smsConfigured),
+                    );
+                    S.broadcastChannels = permitted.length ? permitted : ["in_app"];
+                }
+                S.broadcastPreview = null;
+                S.broadcastPreviewKey = null;
+                S.broadcastIdempotencyKey = null;
+                render();
+                notify(`Template "${template.name}" loaded. Review it, then send.`, "success");
+            };
+
+            window.sendBroadcastTestPush = async () => {
+                if (S.broadcastTestBusy) return;
+                const payload = getBroadcastFormPayload();
+                if (!payload.title.trim() || !payload.content.trim()) {
+                    notify("Add a title and a message before sending a test notification.", "warn");
+                    return;
+                }
+                S.broadcastTestBusy = true;
+                render();
+                try {
+                    const result = await callBroadcastCampaignApi({
+                        method: "POST",
+                        action: "test-push",
+                        title: payload.title,
+                        content: payload.content,
+                        actionUrl: payload.actionUrl,
+                        actionLabel: payload.actionLabel,
+                        broadcastType: payload.broadcastType,
+                        testMode: S.broadcastTestMode,
+                    });
+                    notify(
+                        result.failed
+                            ? `Test reached ${result.devices} device(s): ${result.accepted} accepted, ${result.failed} failed (${(result.errors || []).join(", ") || "unknown error"}).`
+                            : `Test notification sent to ${result.devices} device(s) on this account. Check the phone banner and the in-app inbox.`,
+                        result.failed ? "warn" : "success",
+                    );
+                } catch (error) {
+                    notify(error.message || "Could not send the test notification.", "error");
+                } finally {
+                    S.broadcastTestBusy = false;
+                    render();
+                }
+            };
 
             window.clearBroadcastPreview = () => {
                 S.broadcastPreview = null;
@@ -4308,6 +4450,7 @@
                         recipientCount: value.recipientCount,
                         channelEstimates: value.channelEstimates,
                         testCampaignRequired: value.testCampaignRequired,
+                        broadcastType: value.broadcastType,
                     });
                     if (previewSnapshot(preview) !== previewSnapshot(S.broadcastPreview)) {
                         S.broadcastPreview = preview;
@@ -4336,10 +4479,18 @@
                         previewToken: preview.previewToken,
                         idempotencyKey: S.broadcastIdempotencyKey || (S.broadcastIdempotencyKey = crypto.randomUUID()),
                     });
-                    notify(result.duplicate ? "This campaign was already created." : "Campaign created and queued for delivery.", "success");
+                    const dispatchSummary = result.dispatch
+                        ? `${result.dispatch.claimed} delivery row(s) processed instantly${result.pending ? `, ${result.pending} still draining` : ""}.`
+                        : "Queued for the delivery worker.";
+                    notify(
+                        result.duplicate
+                            ? "This campaign was already created."
+                            : `Campaign created. ${dispatchSummary}`,
+                        "success",
+                    );
                     S.broadcastPreview = null;
                     S.broadcastPreviewKey = null;
-                    S.broadcastForm = { title: "", content: "", scheduledAt: "", actionUrl: "" };
+                    S.broadcastForm = { title: "", content: "", scheduledAt: "", actionUrl: "", actionLabel: "" };
                     S.broadcastTestMode = false;
                     S.broadcastAudience = "all";
                     S.broadcastChannels = ["in_app"];
@@ -4356,13 +4507,18 @@
 
             window.loadBroadcastCampaigns = async (search = S.broadcastSearch || "") => {
                 try {
-                    const [config, history] = await Promise.all([
-                        callBroadcastCampaignApi({ action: "config" }),
+                    const [catalogue, history] = await Promise.all([
+                        callBroadcastCampaignApi({ action: "templates" }),
                         callBroadcastCampaignApi({ action: "campaigns", search }),
                     ]);
-                    S.broadcastConfig = config;
+                    S.broadcastTemplates = catalogue.templates || [];
+                    S.broadcastTypes = catalogue.types || [];
+                    S.broadcastConfig = catalogue.capabilities || S.broadcastConfig;
                     S.broadcastCampaigns = history.campaigns || [];
                     S.broadcastSearch = search;
+                    if (!S.broadcastTypes.some((type) => type.id === S.broadcastType)) {
+                        S.broadcastType = "announcement";
+                    }
                     if (S.tab === "broadcasts") render();
                 } catch (error) {
                     notify(error.message || "Could not load notification campaigns.", "error");

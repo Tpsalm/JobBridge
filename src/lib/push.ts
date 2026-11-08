@@ -74,3 +74,40 @@ export async function unsubscribeFromPush() {
     await sub.unsubscribe();
   }
 }
+
+type PushSubscriptionChangeMessage = {
+  type?: string;
+  subscription?: { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+};
+
+/**
+ * The service worker re-subscribes automatically when the browser rotates a push
+ * subscription (common on Android/Chrome after long inactivity) and posts the new
+ * subscription back here so it can be persisted for the signed-in user.
+ * Returns a cleanup function.
+ */
+export function listenForPushSubscriptionChanges(): () => void {
+  if (!('serviceWorker' in navigator)) return () => {};
+
+  const handleMessage = async (event: MessageEvent) => {
+    const payload = event.data as PushSubscriptionChangeMessage | undefined;
+    if (!payload || payload.type !== 'jobbridge-push-resubscribe') return;
+    const subscription = payload.subscription;
+    if (!subscription?.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      await fetch('/api/register-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ subscription }),
+      });
+    } catch (e) {
+      console.error('[push] could not save the rotated subscription', e);
+    }
+  };
+
+  navigator.serviceWorker.addEventListener('message', handleMessage);
+  return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+}
+

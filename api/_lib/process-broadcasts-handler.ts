@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import webpush from 'web-push';
 import { timingSafeEqual } from 'node:crypto';
-import { getSupabaseConfig, isSmsGatewayConfigured, isValidPushEndpoint, normalizedPhone, supabaseRequest } from './broadcast.js';
+import { getSupabaseConfig, isSmsGatewayConfigured, isValidPushEndpoint, normalizedPhone, supabaseCount, supabaseRequest } from './broadcast.js';
+import { buildInboxNotification, buildPushOptions, buildPushPayload, type PushCampaignInput } from './broadcast-templates.js';
 
 type ClaimedDelivery = {
   delivery_id: string;
@@ -61,31 +62,51 @@ async function updateDelivery(
   });
 }
 
-async function sendInAppBatch(deliveries: ClaimedDelivery[], campaign: Campaign) {
+/** First names for personalising `{{first_name}}` placeholders (best effort). */
+async function getRecipientFirstNames(userIds: string[]): Promise<Map<string, string | null>> {
+  const names = new Map<string, string | null>();
+  const ids = [...new Set(userIds)].filter((id) => typeof id === 'string' && id);
+  if (!ids.length) return names;
+  try {
+    const rows = await supabaseRequest<Array<{ id: string; full_name: string | null }>>(
+      `profiles?${new URLSearchParams({ select: 'id,full_name', id: `in.(${ids.join(',')})`, limit: String(ids.length) })}`,
+    );
+    for (const row of rows) names.set(row.id, row.full_name);
+  } catch (error) {
+    console.error('[broadcast-worker] recipient name lookup failed:', error);
+  }
+  return names;
+}
+
+function firstNameFrom(names: Map<string, string | null>, userId: string): string | null {
+  const fullName = names.get(userId);
+  if (typeof fullName !== 'string') return null;
+  const first = fullName.trim().split(/\s+/)[0];
+  return first || null;
+}
+
+async function sendInAppBatch(
+  deliveries: ClaimedDelivery[],
+  campaign: Campaign,
+  names: Map<string, string | null>,
+) {
+  const input: PushCampaignInput = campaign;
   await supabaseRequest<unknown>('notifications', {
     method: 'POST',
     headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-    body: JSON.stringify(deliveries.map((delivery) => ({
-        user_id: delivery.user_id,
-        type: 'system',
-        title: campaign.title,
-        content: campaign.content,
-        data: {
-          source: 'admin_broadcast',
-          campaign_id: campaign.id,
-          broadcast_type: campaign.broadcast_type,
-          action_url: campaign.action_url,
-          action_label: campaign.action_label,
-        },
-        broadcast_delivery_id: delivery.delivery_id,
-      }))),
+    body: JSON.stringify(deliveries.map((delivery) => buildInboxNotification(
+      input,
+      delivery.delivery_id,
+      delivery.user_id,
+      firstNameFrom(names, delivery.user_id),
+    ))),
   });
   for (let offset = 0; offset < deliveries.length; offset += 20) {
       await Promise.all(deliveries.slice(offset, offset + 20).map((delivery) => updateDelivery(delivery, 'sent')));
   }
 }
 
-async function sendPush(delivery: ClaimedDelivery, campaign: Campaign) {
+async function sendPush(delivery: ClaimedDelivery, campaign: Campaign, firstName: string | null) {
   const subscriptions = await supabaseRequest<PushSubscription[]>(
     `push_subscriptions?${new URLSearchParams({ select: 'endpoint,subscription', user_id: `eq.${delivery.user_id}`, limit: '100' })}`,
   );
@@ -101,14 +122,11 @@ async function sendPush(delivery: ClaimedDelivery, campaign: Campaign) {
   if (!publicKey || !privateKey) return updateDelivery(delivery, 'failed', 'push_not_configured');
   webpush.setVapidDetails('mailto:jobbridgesupport@gmail.com', publicKey, privateKey);
 
+  const payload = JSON.stringify(buildPushPayload(campaign, firstName));
+  const options = buildPushOptions(campaign);
   const outcomes = await Promise.allSettled(validSubscriptions.map(async (item) => {
     try {
-      await webpush.sendNotification(item.subscription, JSON.stringify({
-        title: campaign.title,
-        body: campaign.content,
-        tag: `jobbridge-broadcast-${campaign.id}`,
-        data: { url: campaign.action_url || '/notifications' },
-      }));
+      await webpush.sendNotification(item.subscription, payload, options);
       return true;
     } catch (error) {
       const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error
@@ -131,6 +149,65 @@ async function sendPush(delivery: ClaimedDelivery, campaign: Campaign) {
     ? `push_${String((error as { statusCode: unknown }).statusCode)}`
     : 'push_provider_error';
   await updateDelivery(delivery, 'failed', code);
+}
+
+export type DirectPushResult = {
+  devices: number;
+  accepted: number;
+  failed: number;
+  errors: string[];
+};
+
+/**
+ * Sends one campaign payload straight to a single user's registered devices.
+ * Used by the admin console "send test to my phone" action so an admin can prove
+ * delivery on their own handset before broadcasting to everybody.
+ */
+export async function sendPushToUser(
+  userId: string,
+  campaign: PushCampaignInput,
+  firstName?: string | null,
+): Promise<DirectPushResult> {
+  const subscriptions = await supabaseRequest<PushSubscription[]>(
+    `push_subscriptions?${new URLSearchParams({ select: 'endpoint,subscription', user_id: `eq.${userId}`, limit: '100' })}`,
+  );
+  const valid = subscriptions.filter((item) => isValidPushEndpoint(item.endpoint));
+  const invalid = subscriptions.filter((item) => !isValidPushEndpoint(item.endpoint));
+  await Promise.all(invalid.map((item) => supabaseRequest<unknown>(
+    `push_subscriptions?${new URLSearchParams({ endpoint: `eq.${item.endpoint}`, user_id: `eq.${userId}` })}`,
+    { method: 'DELETE' },
+  ).catch(() => undefined)));
+  const publicKey = process.env.VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+  if (!publicKey || !privateKey) throw new Error('VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set before sending push notifications.');
+  if (!valid.length) return { devices: 0, accepted: 0, failed: 0, errors: [] };
+  webpush.setVapidDetails('mailto:jobbridgesupport@gmail.com', publicKey, privateKey);
+  const payload = JSON.stringify(buildPushPayload(campaign, firstName));
+  const options = buildPushOptions(campaign);
+  const outcomes = await Promise.allSettled(valid.map(async (item) => {
+    try {
+      await webpush.sendNotification(item.subscription, payload, options);
+      return null;
+    } catch (error) {
+      const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error
+        ? Number((error as { statusCode: unknown }).statusCode)
+        : 0;
+      if (statusCode === 404 || statusCode === 410) {
+        await supabaseRequest<unknown>(
+          `push_subscriptions?${new URLSearchParams({ endpoint: `eq.${item.endpoint}`, user_id: `eq.${userId}` })}`,
+          { method: 'DELETE' },
+        ).catch(() => undefined);
+      }
+      return statusCode ? `push_${statusCode}` : 'push_provider_error';
+    }
+  }));
+  const errors = outcomes
+    .filter((outcome): outcome is PromiseFulfilledResult<string | null> => outcome.status === 'fulfilled')
+    .map((outcome) => outcome.value)
+    .filter((value): value is string => Boolean(value));
+  const rejected = outcomes.filter((outcome) => outcome.status === 'rejected').length;
+  const accepted = outcomes.length - errors.length - rejected;
+  return { devices: valid.length, accepted, failed: errors.length + rejected, errors };
 }
 
 async function sendSmsBatch(deliveries: ClaimedDelivery[], campaign: Campaign) {
@@ -234,15 +311,17 @@ async function finalizeCampaigns(campaignIds: string[]) {
   }
 }
 
-async function runBatch() {
+async function processBatch(limit: number) {
   const claimed = await supabaseRequest<ClaimedDelivery[]>('rpc/claim_broadcast_deliveries', {
     method: 'POST',
-    body: JSON.stringify({ p_limit: MAX_BATCH }),
+    body: JSON.stringify({ p_limit: Math.max(1, Math.min(MAX_BATCH, limit)) }),
   });
+  if (!claimed.length) return { claimed: 0, campaignIds: [] as string[] };
   const campaigns = await supabaseRequest<Campaign[]>(
-    `broadcast_campaigns?${new URLSearchParams({ select: 'id,title,content,action_url,action_label,broadcast_type', id: `in.(${[...new Set(claimed.map((item) => item.campaign_id))].join(',') || '00000000-0000-0000-0000-000000000000'})` })}`,
+    `broadcast_campaigns?${new URLSearchParams({ select: 'id,title,content,action_url,action_label,broadcast_type', id: `in.(${[...new Set(claimed.map((item) => item.campaign_id))].join(',')})` })}`,
   );
   const byCampaign = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+  const names = await getRecipientFirstNames(claimed.map((item) => item.user_id));
   const smsDeliveries = new Map<string, ClaimedDelivery[]>();
   const inAppByCampaign = new Map<string, ClaimedDelivery[]>();
   const pushDeliveries: ClaimedDelivery[] = [];
@@ -263,7 +342,7 @@ async function runBatch() {
     const campaign = byCampaign.get(campaignId);
     try {
       if (!campaign) throw new Error('Campaign not found.');
-      await sendInAppBatch(deliveries, campaign);
+      await sendInAppBatch(deliveries, campaign, names);
     } catch {
       console.error('[broadcast-worker] in-app batch failed:', campaignId);
       await Promise.all(deliveries.map((delivery) => updateDelivery(delivery, 'failed', 'in_app_error').catch(() => undefined)));
@@ -274,7 +353,7 @@ async function runBatch() {
       try {
         const campaign = byCampaign.get(delivery.campaign_id);
         if (!campaign) throw new Error('Campaign not found.');
-        await sendPush(delivery, campaign);
+        await sendPush(delivery, campaign, firstNameFrom(names, delivery.user_id));
       } catch {
         console.error('[broadcast-worker] push delivery failed:', delivery.delivery_id);
         await updateDelivery(delivery, 'failed', 'push_delivery_error').catch(() => undefined);
@@ -289,8 +368,67 @@ async function runBatch() {
     }
     await sendSmsBatch(deliveries, campaign);
   }
-  await finalizeCampaigns(claimed.map((delivery) => delivery.campaign_id));
-  return { claimed: claimed.length, campaignCount: new Set(claimed.map((delivery) => delivery.campaign_id)).size };
+  const campaignIds = [...new Set(claimed.map((delivery) => delivery.campaign_id))];
+  await finalizeCampaigns(campaignIds);
+  return { claimed: claimed.length, campaignIds };
+}
+
+export type DrainOptions = {
+  /** Hard cap on batches processed in one call (each batch is up to 100 deliveries). */
+  maxBatches?: number;
+  /** Wall-clock budget for this call, in milliseconds. */
+  timeBudgetMs?: number;
+  /** Delivery rows claimed per batch (1-100). */
+  limit?: number;
+};
+
+export type DrainResult = {
+  batches: number;
+  claimed: number;
+  campaignCount: number;
+  pending: number;
+  smsConfigured: boolean;
+};
+
+/** How many delivery rows are still waiting to be processed. */
+export async function countPendingDeliveries(): Promise<number> {
+  try {
+    return await supabaseCount('broadcast_deliveries?status=in.(queued,processing)');
+  } catch (error) {
+    console.error('[broadcast-worker] pending count failed:', error);
+    return 0;
+  }
+}
+
+/**
+ * Drains queued broadcast deliveries. Runs inline from the admin console (so a
+ * click on "send broadcast" reaches phones immediately) and from the CRON worker
+ * as the durable backstop for retries and large audiences.
+ */
+export async function drainBroadcastQueue(options: DrainOptions = {}): Promise<DrainResult> {
+  const maxBatches = Math.max(1, Math.min(20, options.maxBatches ?? 10));
+  const budgetMs = Math.max(1_000, Math.min(52_000, options.timeBudgetMs ?? 20_000));
+  const limit = Math.max(1, Math.min(MAX_BATCH, options.limit ?? MAX_BATCH));
+  const deadline = Date.now() + budgetMs;
+  let batches = 0;
+  let claimedTotal = 0;
+  const campaignIds = new Set<string>();
+  for (let index = 0; index < maxBatches; index += 1) {
+    const batch = await processBatch(limit);
+    batches += 1;
+    claimedTotal += batch.claimed;
+    batch.campaignIds.forEach((id) => campaignIds.add(id));
+    if (batch.claimed < limit) break;
+    if (Date.now() >= deadline) break;
+  }
+  const pending = await countPendingDeliveries();
+  return {
+    batches,
+    claimed: claimedTotal,
+    campaignCount: campaignIds.size,
+    pending,
+    smsConfigured: isSmsGatewayConfigured(),
+  };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -303,7 +441,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   try {
     getSupabaseConfig();
-    const result = await runBatch();
+    const result = await drainBroadcastQueue({ maxBatches: 20, timeBudgetMs: 50_000 });
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     console.error('[broadcast-worker] batch failed:', error);
