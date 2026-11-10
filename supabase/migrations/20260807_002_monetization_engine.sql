@@ -116,7 +116,7 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS subscription_id UUID REFERENCES public.subscriptions(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS billing_phase TEXT
-    CHECK (billing_phase IN ('initial','renewal','retry','manual')),
+    CHECK (billing_phase IN ('initial','renewal','retry','manual','card_setup')),
   ADD COLUMN IF NOT EXISTS failure_code TEXT,
   ADD COLUMN IF NOT EXISTS idempotency_key TEXT UNIQUE;
 
