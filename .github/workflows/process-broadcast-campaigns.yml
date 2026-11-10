@@ -18,15 +18,18 @@ jobs:
     steps:
       - name: Process one bounded broadcast batch
         env:
-          BROADCAST_WORKER_URL: ${{ secrets.BROADCAST_WORKER_URL }}
+          # Fall back to the canonical production worker so a missing or malformed
+          # repository variable can never stop the delivery backstop again.
+          BROADCAST_WORKER_URL: ${{ secrets.BROADCAST_WORKER_URL || 'https://www.jobbridge.com.ng/api/process-broadcasts' }}
           BROADCAST_CRON_SECRET: ${{ secrets.BROADCAST_CRON_SECRET }}
         run: |
           set -euo pipefail
-          if [ -z "$BROADCAST_WORKER_URL" ] || [ -z "$BROADCAST_CRON_SECRET" ]; then
-            echo "::error::Configure BROADCAST_WORKER_URL and BROADCAST_CRON_SECRET to enable the broadcast worker."
+          if [ -z "$BROADCAST_CRON_SECRET" ]; then
+            echo "::error::Set the BROADCAST_CRON_SECRET secret to the same value as the CRON_SECRET Vercel environment variable."
             exit 1
           fi
-          curl --fail --silent --show-error --request POST "$BROADCAST_WORKER_URL" \
+          curl --fail --silent --show-error --retry 2 --retry-delay 5 --max-time 60 \
+            --request POST "$BROADCAST_WORKER_URL" \
             --header "Authorization: Bearer $BROADCAST_CRON_SECRET" \
             --header "Content-Type: application/json" \
             --data '{}' | jq .

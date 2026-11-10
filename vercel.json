@@ -21,6 +21,10 @@
       "destination": "/api/broadcast?endpoint=sms-receipt"
     },
     {
+      "source": "/api/push-config",
+      "destination": "/api/broadcast?endpoint=push-config"
+    },
+    {
       "source": "/api/send-push",
       "destination": "/api/broadcast?endpoint=send-push"
     },

@@ -108,6 +108,73 @@ describe('broadcast API security', () => {
   });
 });
 
+describe('push configuration endpoint', () => {
+  it('serves the VAPID public key to unauthenticated browsers', () => {
+    vi.stubEnv('VAPID_PUBLIC_KEY', 'BPublicVapidKeyForBrowserSubscriptions');
+    const { result, response } = createResponse();
+    const request = {
+      method: 'GET',
+      headers: {},
+      query: { endpoint: 'push-config' },
+    } as unknown as VercelRequest;
+
+    broadcastHandler(request, response);
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({
+      publicKey: 'BPublicVapidKeyForBrowserSubscriptions',
+      configured: true,
+    });
+  });
+
+  it('never leaks the private VAPID key or the service role key', () => {
+    vi.stubEnv('VAPID_PUBLIC_KEY', 'BPublicVapidKeyForBrowserSubscriptions');
+    vi.stubEnv('VAPID_PRIVATE_KEY', 'server-only-private-key');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'server-only-service-role');
+    const { result, response } = createResponse();
+    const request = {
+      method: 'GET',
+      headers: {},
+      query: { endpoint: 'push-config' },
+    } as unknown as VercelRequest;
+
+    broadcastHandler(request, response);
+
+    const body = JSON.stringify(result.body);
+    expect(body).not.toContain('server-only-private-key');
+    expect(body).not.toContain('server-only-service-role');
+  });
+
+  it('reports an unconfigured push key instead of throwing', () => {
+    vi.stubEnv('VAPID_PUBLIC_KEY', '');
+    const { result, response } = createResponse();
+    const request = {
+      method: 'GET',
+      headers: {},
+      query: { endpoint: 'push-config' },
+    } as unknown as VercelRequest;
+
+    broadcastHandler(request, response);
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ publicKey: '', configured: false });
+  });
+
+  it('rejects non-GET requests to the push configuration endpoint', () => {
+    const { result, response } = createResponse();
+    const request = {
+      method: 'POST',
+      headers: {},
+      query: { endpoint: 'push-config' },
+    } as unknown as VercelRequest;
+
+    broadcastHandler(request, response);
+
+    expect(result.status).toBe(405);
+    expect(result.body).toEqual({ error: 'Method not allowed.' });
+  });
+});
+
 describe('broadcast validation helpers', () => {
   it('accepts only normalized international phone numbers', () => {
     expect(normalizedPhone('+234 801-234-5678')).toBe('+2348012345678');

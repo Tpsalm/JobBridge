@@ -20,6 +20,17 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       return processBroadcastsHandler(req, res);
     case 'sms-receipt':
       return smsReceiptHandler(req, res);
+    case 'push-config': {
+      // The VAPID public key is not a secret — every browser needs it before it can
+      // create a push subscription. Serving it at runtime means Web Push keeps
+      // working even when the VITE_VAPID_PUBLIC_KEY build variable is missing.
+      setSameOriginHeaders(req, res);
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
+      if (req.method === 'OPTIONS') return res.status(204).end();
+      if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed.' });
+      const publicKey = String(process.env.VAPID_PUBLIC_KEY || '').trim();
+      return res.status(200).json({ publicKey, configured: publicKey.length > 0 });
+    }
     case 'send-push':
       setSameOriginHeaders(req, res);
       if (req.method === 'OPTIONS') return res.status(204).end();

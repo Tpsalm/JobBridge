@@ -111,8 +111,10 @@ export default function Notifications() {
 
   // ── Push notifications (single, consolidated notification settings) ─────
   const { push } = useToasts();
-  const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
+  const envVapidKey = (import.meta.env.VITE_VAPID_PUBLIC_KEY || "").trim();
+  const [vapidPublicKey, setVapidPublicKey] = useState(envVapidKey);
   const [pushSupported, setPushSupported] = useState(false);
+  const [pushConfigLoading, setPushConfigLoading] = useState(true);
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [smsBroadcastOptIn, setSmsBroadcastOptIn] = useState(false);
   const [smsPhoneVerified, setSmsPhoneVerified] = useState(false);
@@ -149,28 +151,57 @@ export default function Notifications() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setPushSupported(
-      "serviceWorker" in navigator && "PushManager" in window && !!VAPID_PUBLIC,
-    );
-    (async () => {
+    let active = true;
+
+    // Prefer the build-time key so subscribing needs no extra round trip. The
+    // deployed bundle only carries it when VITE_VAPID_PUBLIC_KEY is set for the
+    // build, so fall back to the server's public VAPID key when it is absent.
+    const resolveVapidKey = async (): Promise<string> => {
+      if (envVapidKey) return envVapidKey;
+      try {
+        const response = await fetch("/api/push-config", {
+          headers: { Accept: "application/json" },
+        });
+        if (!response.ok) return "";
+        const data = (await response.json()) as { publicKey?: unknown };
+        return typeof data.publicKey === "string" ? data.publicKey.trim() : "";
+      } catch (error) {
+        console.error("[Notifications] Could not load the push public key:", error);
+        return "";
+      }
+    };
+
+    const syncPushState = async () => {
+      const supported = "serviceWorker" in navigator && "PushManager" in window;
+      const key = supported ? await resolveVapidKey() : "";
+      if (!active) return;
+      setVapidPublicKey(key);
+      setPushSupported(supported && !!key);
+      setPushConfigLoading(false);
+      if (!supported) return;
       try {
         const reg = await registerServiceWorker();
-        if (!reg) return;
+        if (!reg || !active) return;
         const sub = await reg.pushManager.getSubscription();
-        setPushSubscribed(!!sub);
+        if (active) setPushSubscribed(!!sub);
       } catch {
-        // ignore
+        // Ignore — the toggle simply stays in its unsupported state.
       }
-    })();
-  }, [VAPID_PUBLIC]);
+    };
+
+    void syncPushState();
+    return () => {
+      active = false;
+    };
+  }, [envVapidKey]);
 
   const handleSubscribePush = async () => {
     try {
-      if (!VAPID_PUBLIC) {
+      if (!vapidPublicKey) {
         push({ message: "Push is not configured on this site.", type: "error" });
         return;
       }
-      await subscribeToPush(VAPID_PUBLIC, user?.id);
+      await subscribeToPush(vapidPublicKey, user?.id);
       setPushSubscribed(true);
       push({ message: "Subscribed to browser notifications.", type: "success" });
     } catch (e) {
@@ -524,7 +555,9 @@ export default function Notifications() {
                   Receive job alerts and message notifications directly in your browser.
                 </p>
               </div>
-              {!pushSupported ? (
+              {pushConfigLoading ? (
+                <span className="text-xs text-gray-400 shrink-0">Checking…</span>
+              ) : !pushSupported ? (
                 <span className="text-xs text-gray-400 shrink-0">Not supported</span>
               ) : pushSubscribed ? (
                 <button
