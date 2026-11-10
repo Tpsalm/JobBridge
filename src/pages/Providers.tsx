@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchProviders, createConversationMessage } from '../lib/supabaseQueries';
 import { PROVIDER_CATEGORIES } from '../lib/providerCategories';
 import type { Profile } from '../lib/supabase';
-import { Search, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, MapPin, Clock, ChevronDown, ChevronUp, Users } from 'lucide-react';
+import { Search, Star, ArrowRight, MessageCircle, Send, X, BadgeCheck, MapPin, Clock, ChevronDown, ChevronUp, Users, Loader2 } from 'lucide-react';
 import FloatingDecorations from '../components/FloatingDecorations';
 import { IMG } from '../lib/media';
 
@@ -65,6 +65,9 @@ export default function Providers() {
   const { openProtectedModal, executeIfAuthenticated } = useAuthRequired();
   const { user, profile } = useAuth();
   const [providers, setProviders] = useState<ProviderDisplay[]>([]);
+  const [providersLoading, setProvidersLoading] = useState(true);
+  const [providersError, setProvidersError] = useState('');
+  const [providersReload, setProvidersReload] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [chatProvider, setChatProvider] = useState<ProviderDisplay | null>(null);
@@ -74,7 +77,11 @@ export default function Providers() {
   const [showDirectory, setShowDirectory] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    setProvidersLoading(true);
+    setProvidersError('');
     fetchProviders().then(data => {
+      if (!active) return;
       const mapped: ProviderDisplay[] = data.map(p => {
         const specialty = p.specialty || p.service_category || 'Professional';
         const specializations = Array.from(
@@ -99,8 +106,14 @@ export default function Providers() {
         };
       });
       setProviders(mapped);
-    }).catch(() => {});
-  }, []);
+    }).catch(error => {
+      console.error('[Providers] Directory load failed:', error);
+      if (active) setProvidersError('We could not load service providers. Check your connection and try again.');
+    }).finally(() => {
+      if (active) setProvidersLoading(false);
+    });
+    return () => { active = false; };
+  }, [providersReload]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -320,6 +333,11 @@ export default function Providers() {
             <p className="text-blue-100 text-sm sm:text-base mb-5 max-w-xl">
               Browse our directory of verified professionals across Nigeria.
             </p>
+            {profile?.role === 'provider' && (
+              <Link to="/profile" className="mb-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-50">
+                Open provider dashboard <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
             <div className="relative max-w-xl">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <input
@@ -362,7 +380,24 @@ export default function Providers() {
         </div>
 
         {/* ─── Provider Sections (Verified → All) ─── */}
-        {sortedProviders.length > 0 ? (
+        {providersError ? (
+          <div role="alert" className="mb-10 rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+            <p className="mb-1 font-semibold text-red-800">Service providers could not be loaded</p>
+            <p className="mb-4 text-sm text-red-700">{providersError}</p>
+            <button
+              type="button"
+              onClick={() => setProvidersReload(value => value + 1)}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800"
+            >
+              Try again
+            </button>
+          </div>
+        ) : providersLoading ? (
+          <div role="status" className="mb-10 flex min-h-40 flex-col items-center justify-center gap-3 text-slate-600">
+            <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
+            <p className="text-sm">Loading service providers…</p>
+          </div>
+        ) : sortedProviders.length > 0 ? (
           <>
             {/* Verified Professionals */}
             {verifiedProviders.length > 0 && (

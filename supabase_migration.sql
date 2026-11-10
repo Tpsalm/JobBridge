@@ -21,9 +21,19 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   subscription_expires_at TIMESTAMPTZ,
   profile_reminder_sent_at TIMESTAMPTZ,
   credits INTEGER DEFAULT 0,
+  is_verified BOOLEAN NOT NULL DEFAULT false,
+  is_featured BOOLEAN NOT NULL DEFAULT false,
+  rating NUMERIC(3,2) NOT NULL DEFAULT 0,
+  reviews_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS rating NUMERIC(3,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS reviews_count INTEGER NOT NULL DEFAULT 0;
 
 -- Auto-create profile row on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -63,7 +73,8 @@ CREATE TABLE IF NOT EXISTS public.jobs (
   company TEXT NOT NULL,
   description TEXT NOT NULL,
   location TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship')),
+  type TEXT NOT NULL CHECK (type IN ('Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship', 'Entry level', 'NYSC')),
+  application_url TEXT,
   salary_range TEXT,
   category TEXT,
   requirements TEXT[] DEFAULT '{}',
@@ -81,6 +92,13 @@ ALTER TABLE public.jobs
   ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE public.jobs
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE public.jobs
+  ADD COLUMN IF NOT EXISTS application_url TEXT;
+ALTER TABLE public.jobs
+  DROP CONSTRAINT IF EXISTS jobs_type_check;
+ALTER TABLE public.jobs
+  ADD CONSTRAINT jobs_type_check
+  CHECK (type IN ('Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship', 'Entry level', 'NYSC'));
 
 -- =========================
 -- 3) Applications

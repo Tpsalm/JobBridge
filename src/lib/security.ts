@@ -19,6 +19,30 @@ export function isValidUrl(url: string): boolean {
   catch { return false }
 }
 
+export function normalizeHttpUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  try {
+    const url = new URL(candidate);
+    if (
+      (url.protocol !== 'http:' && url.protocol !== 'https:')
+      || !url.hostname
+      || url.username
+      || url.password
+    ) {
+      return null;
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function stripTags(input: string): string {
   return input.replace(/<[^>]*>/g, '');
 }

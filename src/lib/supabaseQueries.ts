@@ -38,6 +38,7 @@ export async function createJob(job: {
   description: string;
   location: string;
   type: string;
+  application_url?: string | null;
   salary_range?: string;
   category?: string;
   requirements?: string[];
@@ -77,6 +78,7 @@ export async function updateJob(
     description: string;
     location: string;
     type: string;
+    application_url: string | null;
     salary_range: string;
     category: string;
     requirements: string[];
@@ -288,23 +290,32 @@ export async function fetchProviders() {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('role', 'provider')
-      .order('is_featured', { ascending: false })
-      .order('is_verified', { ascending: false })
-      .order('reviews_count', { ascending: false });
+      .eq('role', 'provider');
 
     if (!error && Array.isArray(data) && data.length > 0) {
-      return data as Profile[];
+      const providers = data as Profile[];
+      providers.sort((a, b) => {
+        if ((b.is_featured ? 1 : 0) !== (a.is_featured ? 1 : 0)) {
+          return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
+        }
+        if ((b.is_verified ? 1 : 0) !== (a.is_verified ? 1 : 0)) {
+          return (b.is_verified ? 1 : 0) - (a.is_verified ? 1 : 0);
+        }
+        return (b.reviews_count || 0) - (a.reviews_count || 0);
+      });
+      return providers;
     }
 
     if (error) {
       console.warn('[fetchProviders] profiles client fetch failed:', error);
+      throw error;
     }
   } catch (e) {
-    console.warn('[fetchProviders] profiles client fetch failed', e);
+    console.error('[fetchProviders] provider directory could not be loaded:', e);
+    throw e;
   }
 
-  return [] as Profile[];
+  return [];
 }
 
 export async function updateProfile(

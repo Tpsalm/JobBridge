@@ -1119,7 +1119,7 @@ export default function ServiceSubscriptionSetup({ planKey }: { planKey: string 
           onClick={() => navigate("/profile")}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-3.5 font-semibold text-white shadow-lg shadow-blue-700/25 transition hover:bg-blue-800"
         >
-          Go to my profile
+          Go to provider dashboard
           <ArrowRight className="h-4 w-4" />
         </button>
         <Link

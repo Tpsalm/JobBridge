@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Clock, Bookmark, Share2, Flag, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send, FileText, Edit3, Loader2 } from 'lucide-react';
+import { Search, MapPin, Clock, Bookmark, Share2, Flag, ChevronDown, ChevronUp, Briefcase, Building, Users, CheckCircle, ArrowLeft, Upload, Send, FileText, Edit3, Loader2, ExternalLink } from 'lucide-react';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
@@ -11,6 +11,7 @@ import CompanyLogo from '../components/CompanyLogo';
 import { HERO_CAROUSELS } from '../lib/media';
 import Card3D from '../components/Card3D';
 import { useAuthRequired } from '../hooks/useAuthRequired';
+import { normalizeHttpUrl } from '../lib/security';
 
 const COMPANY_COLORS = [
   'bg-blue-600', 'bg-emerald-600', 'bg-purple-600', 'bg-rose-600', 'bg-amber-600',
@@ -248,6 +249,7 @@ const Jobs = () => {
                 <option>Contract</option>
                 <option>Internship</option>
                 <option>Entry level</option>
+                <option>NYSC</option>
                 <option>Freelance</option>
               </select>
               <select
@@ -520,18 +522,31 @@ const Jobs = () => {
                 <div className="border-t border-gray-100 bg-gray-50">
                   {!showApplication ? (
                     <div className="px-6 py-5">
-                      <button
-                        onClick={() => handleApply(selectedJob)}
-                        disabled={appliedLocal.includes(selectedJob.id) || applied}
-                        className={`w-full font-semibold py-3 rounded-lg transition text-sm flex items-center justify-center gap-2 ${
-                          appliedLocal.includes(selectedJob.id) || applied
-                            ? 'bg-green-100 text-green-700 cursor-default'
-                            : 'bg-blue-700 hover:bg-blue-800 text-white'
-                        }`}
-                      >
-                        <Briefcase className="w-4 h-4" />
-                        {applied || appliedLocal.includes(selectedJob.id) ? 'Applied ✓' : 'Apply Now'}
-                      </button>
+                      <div className={`grid gap-3 ${normalizeHttpUrl(selectedJob.application_url || '') ? 'sm:grid-cols-2' : ''}`}>
+                        <button
+                          onClick={() => handleApply(selectedJob)}
+                          disabled={appliedLocal.includes(selectedJob.id) || applied}
+                          className={`w-full font-semibold py-3 rounded-lg transition text-sm flex items-center justify-center gap-2 ${
+                            appliedLocal.includes(selectedJob.id) || applied
+                              ? 'bg-green-100 text-green-700 cursor-default'
+                              : 'bg-blue-700 hover:bg-blue-800 text-white'
+                          }`}
+                        >
+                          <Briefcase className="w-4 h-4" />
+                          {applied || appliedLocal.includes(selectedJob.id) ? 'Applied on JobBridge ✓' : 'Apply on JobBridge'}
+                        </button>
+                        {normalizeHttpUrl(selectedJob.application_url || '') && (
+                          <a
+                            href={normalizeHttpUrl(selectedJob.application_url || '') || undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full rounded-lg border border-blue-700 bg-white py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 flex items-center justify-center gap-2"
+                          >
+                            Apply on company site
+                            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                          </a>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-400 text-center mt-2">
                         {selectedJob.applications_count || 0} people have already applied
                       </p>

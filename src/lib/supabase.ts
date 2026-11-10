@@ -113,7 +113,8 @@ export type Job = {
   company: string;
   description: string;
   location: string;
-  type: "Full-time" | "Part-time" | "Contract" | "Freelance" | "Internship";
+  type: "Full-time" | "Part-time" | "Contract" | "Freelance" | "Internship" | "Entry level" | "NYSC";
+  application_url?: string | null;
   salary_range?: string;
   category: string;
   requirements: string[];

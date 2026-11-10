@@ -192,8 +192,8 @@ export default function Business() {
     setShowCreateForm(true);
   }, [paidPackageOption, profile?.avatar_url]);
 
-  // When the page lands with ?create=true&paidPackage=... (redirected from the
-  // payment page), we must wait for the DB write to propagate before checking
+  // When an explicit create-from-subscription link lands with ?create=true,
+  // wait for the DB write to propagate before checking
   // canCreateAdvert. The payment flow already refreshes the subscription once,
   // but network/DB lag can mean advert_credits is still 0 on the first read.
   //

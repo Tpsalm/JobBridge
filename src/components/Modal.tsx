@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { createJob, createApplication, decrementCredits } from '../lib/supabaseQueries';
 import { resolveJobPost } from '../lib/billing';
 import { sendEmail } from '../lib/email';
-import { checkRateLimit } from '../lib/security';
+import { checkRateLimit, normalizeHttpUrl } from '../lib/security';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building, Wrench, ArrowRight, BadgeCheck, Loader2, CheckCircle, Mail, Eye, EyeOff, Lock, Sparkles } from 'lucide-react';
@@ -80,15 +80,28 @@ function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClos
     type: typeof data.type === 'string' ? data.type : 'Full-time',
     salary: typeof data.salary === 'string' ? data.salary : '',
     description: typeof data.description === 'string' ? data.description : '',
+    applicationUrl: typeof data.applicationUrl === 'string' ? data.applicationUrl : '',
   });
   const { user, profile, subscription, subscriptionLoaded, fetchSubscription } = useAuth();
   const navigate = useNavigate();
+  const [applicationUrlError, setApplicationUrlError] = useState('');
+  const [publishError, setPublishError] = useState('');
 
   const publishJob = async () => {
     if (subscription.status !== 'active' || subscription.credits < 1) {
       setNoCredits(true);
       return;
     }
+    const applicationUrl = form.applicationUrl.trim()
+      ? normalizeHttpUrl(form.applicationUrl)
+      : null;
+    if (form.applicationUrl.trim() && !applicationUrl) {
+      setApplicationUrlError('Enter a valid company application link.');
+      setStep(2);
+      return;
+    }
+    setApplicationUrlError('');
+    setPublishError('');
     try {
       setSubmitting(true);
       await createJob({
@@ -98,6 +111,7 @@ function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClos
         description: form.description,
         location: form.location || profile?.location || 'Remote',
         type: form.type,
+        application_url: applicationUrl,
         salary_range: form.salary || '',
         category: typeof data.category === 'string' ? data.category : '',
         requirements: Array.isArray(data.requirements) ? data.requirements.filter((item): item is string => typeof item === 'string') : [],
@@ -117,7 +131,7 @@ function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClos
       setSubmitted(true);
     } catch (err) {
       console.error('Post job error', err);
-      alert('Failed to post job. See console for details.');
+      setPublishError('We could not publish this job. Please check the details and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -156,8 +170,26 @@ function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClos
   if (isAutoPublish) {
     return (
       <div className="p-8 text-center">
-        <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
-        <p className="text-on-surface font-semibold">Publishing your AI-generated job...</p>
+        {publishError ? (
+          <>
+            <p role="alert" className="mb-4 text-sm text-red-700">{publishError}</p>
+            <div className="flex gap-3">
+              <button onClick={onClose} className="flex-1 rounded-lg border border-outline px-4 py-2.5 font-semibold text-on-surface">Close</button>
+              <button
+                onClick={() => void publishJob()}
+                disabled={submitting}
+                className="flex-1 rounded-lg bg-primary px-4 py-2.5 font-semibold text-white disabled:opacity-50"
+              >
+                Try again
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
+            <p className="text-on-surface font-semibold">Publishing your AI-generated job...</p>
+          </>
+        )}
       </div>
     );
   }
@@ -196,6 +228,7 @@ function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClos
                   <option>Freelance</option>
                   <option>Internship</option>
                   <option>Entry level</option>
+                  <option>NYSC</option>
                 </select>
               </div>
             </div>
@@ -213,6 +246,25 @@ function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClos
               <label className="block text-xs font-semibold text-on-surface-variant uppercase mb-1">Job Description</label>
               <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={5} placeholder="Describe the role, responsibilities, and requirements..." className="w-full border border-outline rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors resize-none" />
             </div>
+            <div>
+              <label htmlFor="company-application-url" className="block text-xs font-semibold text-on-surface-variant uppercase mb-1">Company application website (optional)</label>
+              <input
+                id="company-application-url"
+                type="text"
+                inputMode="url"
+                autoComplete="url"
+                value={form.applicationUrl}
+                onChange={e => {
+                  setForm({ ...form, applicationUrl: e.target.value });
+                  setApplicationUrlError('');
+                }}
+                aria-describedby={applicationUrlError ? 'company-application-url-error' : 'company-application-url-help'}
+                placeholder="careers.example.com/apply"
+                className="w-full border border-outline rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors"
+              />
+              <p id="company-application-url-help" className="mt-1 text-xs text-on-surface-variant">Candidates can apply on JobBridge or continue to your company’s application page.</p>
+              {applicationUrlError && <p id="company-application-url-error" role="alert" className="mt-1 text-xs text-red-700">{applicationUrlError}</p>}
+            </div>
             <div className="flex gap-3">
               <button onClick={() => setStep(1)} className="flex-1 border border-outline text-on-surface py-2.5 rounded-lg font-semibold hover:bg-surface-container transition-colors">Back</button>
               <button onClick={() => setStep(3)} disabled={!form.description} className="flex-1 bg-primary text-white py-2.5 rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">Continue</button>
@@ -228,6 +280,7 @@ function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClos
               <div className="flex justify-between"><span className="text-xs text-on-surface-variant">Location</span><span className="text-sm font-semibold">{form.location || 'Remote'}</span></div>
               <div className="flex justify-between"><span className="text-xs text-on-surface-variant">Type</span><span className="text-sm font-semibold">{form.type}</span></div>
               {form.salary && <div className="flex justify-between"><span className="text-xs text-on-surface-variant">Salary</span><span className="text-sm font-semibold">{form.salary}</span></div>}
+              {form.applicationUrl.trim() && <div className="flex justify-between gap-3"><span className="text-xs text-on-surface-variant">Company application site</span><span className="max-w-[65%] break-all text-right text-sm font-semibold">{form.applicationUrl}</span></div>}
             </div>
             <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -236,6 +289,7 @@ function PostJobModal({ data, onClose }: { data: Record<string, unknown>; onClos
               </div>
               <p className="text-xs text-on-surface-variant">Our AI will automatically match your posting with relevant candidates and notify you of top matches within 24 hours.</p>
             </div>
+            {publishError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{publishError}</p>}
             <div className="flex gap-3">
               <button onClick={() => setStep(2)} className="flex-1 border border-outline text-on-surface py-2.5 rounded-lg font-semibold hover:bg-surface-container transition-colors">Back</button>
               <button onClick={() => void publishJob()} disabled={submitting} className="flex-1 bg-primary text-white py-2.5 rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity flex items-center justify-center gap-2">
