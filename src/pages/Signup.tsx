@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import JobBridgeLogo from "../components/JobBridgeLogo";
 import { checkRateLimit } from "../lib/security";
+import GoogleAuthButton from "../components/GoogleAuthButton";
 import { PROVIDER_CATEGORIES } from "../lib/providerCategories";
 import {
   SERVICE_PROVIDER_PLANS,
@@ -748,6 +749,17 @@ export default function Signup() {
                 className="space-y-4 sm:space-y-5"
                 noValidate
               >
+                <div className="mb-5">
+                  <GoogleAuthButton label="Sign up with Google" />
+                  <div className="mt-4 flex items-center gap-3">
+                    <span className="h-px flex-1 bg-gray-200" />
+                    <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                      or sign up with email
+                    </span>
+                    <span className="h-px flex-1 bg-gray-200" />
+                  </div>
+                </div>
+
                 {/* Full Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
