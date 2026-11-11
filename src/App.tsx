@@ -5,6 +5,7 @@ import { ModalProvider } from "./contexts/ModalContext";
 import { ModalRenderer } from "./components/Modal";
 import SwipeNavigator from "./components/SwipeNavigator";
 import BroadcastBanner from "./components/BroadcastBanner";
+import PushOptInPrompt from "./components/PushOptInPrompt";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SEO from "./components/SEO";
 import CanonicalRedirect from "./components/CanonicalRedirect";
@@ -71,6 +72,7 @@ export default function App() {
           <SEO />
           <CanonicalRedirect />
           <BroadcastBanner />
+          <PushOptInPrompt />
           <SwipeNavigator />
           <Suspense fallback={<PageLoadingFallback />}>
             <Routes>
