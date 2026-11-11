@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Mail, ArrowRight, Eye, EyeOff, Lock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import JobBridgeLogo from '../components/JobBridgeLogo';
 import { checkRateLimit } from '../lib/security';
+import GoogleAuthButton from '../components/GoogleAuthButton';
 
 type View = 'signin' | 'forgot' | 'forgot-sent';
 
@@ -281,6 +282,17 @@ export default function Login() {
         {logoHeader}
 
         <div className="bg-white rounded-3xl shadow-2xl p-8">
+          <div className="mb-6">
+            <GoogleAuthButton label="Continue with Google" />
+            <div className="mt-4 flex items-center gap-3">
+              <span className="h-px flex-1 bg-gray-200" />
+              <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                or sign in with email
+              </span>
+              <span className="h-px flex-1 bg-gray-200" />
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
 
             {/* Email */}
