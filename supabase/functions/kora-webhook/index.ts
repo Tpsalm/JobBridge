@@ -35,6 +35,14 @@ const ALLOWED_EVENTS = new Set([
   "direct_debit.auth",
 ]);
 
+// Canonical recruiter credit grants — keep in sync with verify-payment and
+// Payment.tsx PLANS. Premium must be 3 (was 2 here, 3 in DB trigger).
+function recruiterCreditsForPlan(plan: string): number {
+  if (plan === "basic" || plan === "standard") return 1;
+  if (plan === "premium") return 3;
+  return 0;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -1470,15 +1478,12 @@ serve(async (req: Request) => {
                         ? 30
                         : 7;
     const creditsToAdd =
-      payment.plan === "basic" || payment.plan === "standard"
+      recruiterCreditsForPlan(payment.plan) ||
+      (payment.plan === "business_weekly" ||
+      payment.plan === "business_monthly" ||
+      payment.plan === "business_featured"
         ? 1
-        : payment.plan === "premium"
-          ? 3
-          : payment.plan === "business_weekly" ||
-              payment.plan === "business_monthly" ||
-              payment.plan === "business_featured"
-            ? 1
-            : 0;
+        : 0);
     const expiresAt = new Date(
       Date.now() + durationDays * 24 * 60 * 60 * 1000,
     ).toISOString();
@@ -1508,7 +1513,12 @@ serve(async (req: Request) => {
         profileUpdates.advert_credits =
           Number(profileData.advert_credits || 0) + creditsToAdd;
       } else {
+        // Recruiter job-post plans: grant credits + force active status so
+        // AuthContext (is_premium && !expired) reports status='active' and
+        // Recruiter.tsx unlocks job posting immediately.
         profileUpdates.credits = Number(profileData.credits || 0) + creditsToAdd;
+        profileUpdates.is_premium = true;
+        profileUpdates.subscription_expires_at = expiresAt;
       }
 
       if (payment.plan === "service_monthly") {

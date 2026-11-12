@@ -41,10 +41,11 @@ import Card3D from '../components/Card3D';
 export default function Recruiter() {
   const { openModal } = useModal();
   const { openProtectedModal } = useAuthRequired();
-  const { user, subscription, subscriptionLoaded } = useAuth();
+  const { user, subscription, subscriptionLoaded, fetchSubscription } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [postJobOpened, setPostJobOpened] = useState(false);
+  const [subscriptionPollCount, setSubscriptionPollCount] = useState(0);
 
   // Real jobs from database
   const [myJobs, setMyJobs] = useState<Job[]>([]);
@@ -73,15 +74,35 @@ export default function Recruiter() {
   useEffect(() => {
     if (!shouldOpenPostJob || postJobOpened) return;
     setPostJobOpened(true);
+    // Don't redirect until the subscription check has actually completed.
+    // Previously this fired on first render with the default
+    // {status:'inactive', credits:0} state (AuthContext defaults), sending
+    // paying recruiters straight to /pricing even though their DB row was
+    // already active — the "View Plans and Subscribe" bug.
     if (!subscriptionLoaded) return;
 
-    if (subscription.status === 'active') {
+    // If the subscription hasn't propagated yet (webhook lag / cached
+    // AuthContext state), poll a few times before giving up to /pricing.
+    const unlocked = subscription.status === 'active' && subscription.credits >= 1;
+    if (unlocked) {
       openProtectedModal({ action: 'post-job', requiredRole: 'recruiter' });
       navigate('/recruiter', { replace: true });
       return;
     }
+    if (subscriptionPollCount < 3 && user?.id) {
+      const t = setTimeout(async () => {
+        try {
+          await fetchSubscription(user.id);
+        } catch {
+          // ignore — next poll tick will retry
+        }
+        setSubscriptionPollCount((c) => c + 1);
+        setPostJobOpened(false);
+      }, 1500);
+      return () => clearTimeout(t);
+    }
     navigate('/pricing', { replace: true });
-  }, [shouldOpenPostJob, postJobOpened, subscription.status, subscriptionLoaded, openProtectedModal, navigate]);
+  }, [shouldOpenPostJob, postJobOpened, subscription.status, subscription.credits, subscriptionLoaded, subscriptionPollCount, user?.id, openProtectedModal, navigate, fetchSubscription]);
 
   // Refresh when jobs are posted
   useEffect(() => {
@@ -431,7 +452,12 @@ export default function Recruiter() {
 
         {/* Subscription Status */}
         <AnimatedSection direction="up" className="mb-6">
-          {subscription.status === 'active' ? (
+          {!subscriptionLoaded ? (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-slate-600">
+              <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+              Checking your plan…
+            </div>
+          ) : subscription.status === 'active' && subscription.credits >= 1 ? (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-emerald-800 flex-wrap">
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
@@ -462,7 +488,12 @@ export default function Recruiter() {
           <div>
             {/* Action Buttons Row */}
             <AnimatedSection direction="up"><div className="grid grid-cols-2 gap-3 mb-8">
-              {subscription.status === 'active' ? (
+              {!subscriptionLoaded ? (
+                <div className="flex items-center justify-center gap-2 bg-slate-100 text-slate-500 font-semibold px-6 py-3.5 rounded-xl border-2 border-slate-200">
+                  <span className="w-5 h-5 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
+                  Checking plan…
+                </div>
+              ) : subscription.status === 'active' && subscription.credits >= 1 ? (
                 <button
                   onClick={() => openProtectedModal({ action: 'post-job', requiredRole: 'recruiter' })}
                   className="flex items-center justify-center gap-2 bg-blue-700 text-white font-semibold px-6 py-3.5 rounded-xl hover:bg-blue-800 transition-colors shadow-lg"
@@ -479,7 +510,7 @@ export default function Recruiter() {
                   Subscribe to Post
                 </Link>
               )}
-              {subscription.status === 'active' ? (
+              {subscription.status === 'active' && subscriptionLoaded ? (
                 <button
                   onClick={() => setShowAIJD(!showAIJD)}
                   className={`flex items-center justify-center gap-2 font-semibold px-6 py-3.5 rounded-xl transition-colors shadow-lg ${

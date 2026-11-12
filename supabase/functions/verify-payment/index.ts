@@ -45,6 +45,18 @@ function parseAdvertMetadata(metadata: unknown): Record<string, unknown> | null 
 }
 
 const BUSINESS_PLANS = new Set(["business_weekly", "business_monthly", "business_featured"]);
+const RECRUITER_PLANS = new Set(["basic", "standard", "premium"]);
+
+// Single source of truth for recruiter credit grants. Keep in sync with
+// Payment.tsx PLANS (basic=1, standard=1, premium=3 — legacy DB trigger
+// used 3) and the activate_plan_on_verify() SQL trigger. Premium previously
+// granted only 2 here (verify-payment / kora-webhook) vs 3 in the trigger,
+// causing inconsistency. Canonical value: 3.
+function recruiterCreditsForPlan(plan: string): number {
+  if (plan === "basic" || plan === "standard") return 1;
+  if (plan === "premium") return 3;
+  return 0;
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -87,8 +99,14 @@ serve(async (req: Request) => {
       // Determine subscription tier based on plan key
       const isAiPlan = planKey === "ai_monthly" || planKey === "ai_annual";
       const isServicePlan = planKey === "service_monthly" || planKey === "service_verified" || planKey === "service_featured";
-      const isRecruiterPlan = planKey === "basic" || planKey === "standard" || planKey === "premium";
+      const isRecruiterPlan = RECRUITER_PLANS.has(planKey);
       const isBusinessPlan = planKey === "business_weekly" || planKey === "business_monthly" || planKey === "business_featured";
+
+      // Recruiter credits must come from the server-side plan catalogue,
+      // never from the client. If the client sends 0 (or omits credits),
+      // grant the canonical amount so the dashboard unlocks.
+      const serverCredits = isRecruiterPlan ? recruiterCreditsForPlan(planKey) : creditsToAdd;
+      const effectiveCredits = isRecruiterPlan ? Math.max(serverCredits, creditsToAdd || 0) : creditsToAdd;
 
       if (isServicePlan) {
         return new Response(JSON.stringify({
@@ -136,7 +154,19 @@ serve(async (req: Request) => {
       } else if (isRecruiterPlan || isServicePlan) {
         const { data: profileData } = await supabase.from("profiles").select("credits").eq("id", userId).maybeSingle();
         const currentCredits = Number(profileData?.credits || 0);
-        profileUpdates.credits = isServicePlan ? currentCredits : currentCredits + creditsToAdd;
+        // CRITICAL recruiter fix: recruiter plans must grant job credits.
+        // Previously credits were only set for service plans, so a recruiter
+        // paying for basic/standard/premium kept credits=0 and Recruiter.tsx
+        // (status==='active' && credits>=1 gate) kept showing "View Plans /
+        // Subscribe to Post" forever — payment completed, unlock never happened.
+        profileUpdates.credits = isServicePlan
+          ? currentCredits
+          : currentCredits + effectiveCredits;
+        // AuthContext derives status='active' from is_premium && !expired.
+        // Force both so the dashboard unlocks immediately after payment,
+        // even if a prior tier was expired/inactive.
+        profileUpdates.is_premium = true;
+        profileUpdates.subscription_expires_at = expiresAt;
       } else if (isAiPlan) {
         profileUpdates.credits = 0;
       }
@@ -414,9 +444,18 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ verified: false, reason: "amount_mismatch" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Update payment to verified
-    const { error: updateErr } = await supabase.from("payments").update({ status: "verified", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || chargeReference, currency: charge.currency || paymentRow.currency || "NGN", metadata: { verification_response: charge } }).eq("id", paymentRow.id).neq("status", "verified");
-    if (updateErr) console.error("[verify-payment] update error", updateErr.message);
+    // Update payment to verified. If the webhook already verified this row,
+    // the DB trigger already granted credits — do NOT grant again here
+    // (double-credit bug). Reconcile by re-activating only when the profile
+    // still lacks the entitlement (paid but credits=0 / not premium), which
+    // covers the reported "paid but never unlocked" case.
+    const wasAlreadyVerified = paymentRow.status === "verified" || paymentRow.status === "completed";
+    if (!wasAlreadyVerified) {
+      const { error: updateErr } = await supabase.from("payments").update({ status: "verified", provider: "korapay", provider_reference: charge.payment_reference || charge.transaction_reference || chargeReference, currency: charge.currency || paymentRow.currency || "NGN", metadata: { verification_response: charge } }).eq("id", paymentRow.id).neq("status", "verified");
+      if (updateErr) console.error("[verify-payment] update error", updateErr.message);
+    } else {
+      console.log(`[verify-payment] Payment ${paymentRow.reference} already verified — checking profile entitlement`);
+    }
 
     // Card-token capture for recurring auto-debit (KoraPay saved card).
     const savedCardToken = cardTokenFromVerification(chargeResponse);
@@ -433,11 +472,15 @@ serve(async (req: Request) => {
     const tier = (paymentRow.plan === "ai_monthly" || paymentRow.plan === "ai_annual") ? "ai_tools" : paymentRow.plan;
     const durationDays = paymentRow.plan === "basic" ? 7 : paymentRow.plan === "standard" ? 14 : paymentRow.plan === "premium" ? 30 : paymentRow.plan === "ai_monthly" ? 30 : paymentRow.plan === "ai_annual" ? 365 : paymentRow.plan === "business_weekly" ? 7 : 30;
     // Business advert plans must grant 1 advert credit so the user can create their ad.
-    const creditsToAdd = paymentRow.plan === "basic" || paymentRow.plan === "standard" ? 1 : paymentRow.plan === "premium" ? 2 : BUSINESS_PLANS.has(paymentRow.plan) ? 1 : 0;
+    // Recruiter plans grant canonical job credits (premium=3, not 2).
+    const creditsToAdd = RECRUITER_PLANS.has(paymentRow.plan)
+      ? recruiterCreditsForPlan(paymentRow.plan)
+      : BUSINESS_PLANS.has(paymentRow.plan) ? 1 : 0;
     const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
     const isBusinessPayment = BUSINESS_PLANS.has(paymentRow.plan);
-    const { data: profileData } = await supabase.from("profiles").select("credits, advert_credits").eq("id", paymentRow.user_id).maybeSingle();
+    const isRecruiterPayment = RECRUITER_PLANS.has(paymentRow.plan);
+    const { data: profileData } = await supabase.from("profiles").select("credits, advert_credits, is_premium, subscription_expires_at").eq("id", paymentRow.user_id).maybeSingle();
     if (profileData) {
       const profileUpdates: Record<string, unknown> = {
         is_premium: true,
@@ -450,6 +493,18 @@ serve(async (req: Request) => {
         // not job-post credits — Business.tsx gates advert creation on
         // `advert_credits`.
         profileUpdates.advert_credits = Number(profileData.advert_credits || 0) + creditsToAdd;
+      } else if (isRecruiterPayment) {
+        const hasEntitlement =
+          Number(profileData.credits || 0) >= creditsToAdd &&
+          profileData.is_premium === true;
+        // Skip re-grant when webhook/trigger already activated (avoid double).
+        // But if the profile is still at 0 credits / not premium (the bug),
+        // grant now so the recruiter dashboard unlocks immediately.
+        if (wasAlreadyVerified && hasEntitlement) {
+          console.log(`[verify-payment] Profile already activated for ${paymentRow.user_id} (credits=${profileData.credits}) — skipping duplicate grant`);
+        } else {
+          profileUpdates.credits = Number(profileData.credits || 0) + creditsToAdd;
+        }
       } else {
         profileUpdates.credits = Number(profileData.credits || 0) + creditsToAdd;
       }
